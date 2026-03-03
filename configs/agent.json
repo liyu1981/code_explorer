@@ -1,0 +1,19 @@
+{
+  "llm": {
+    "type": "openai",
+    "model": "gpt-4",
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "api_key": ""
+  },
+  "pipeline": [
+    {
+      "type": "template",
+      "template": "System: {{system}}\n\nUser: {{input}}",
+      "vars": {
+        "system": "You are a helpful coding assistant."
+      }
+    }
+  ],
+  "tools": ["echo", "calculate"],
+  "max_iterations": 10
+}
