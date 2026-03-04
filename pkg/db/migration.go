@@ -272,6 +272,43 @@ func (m *Migrator) Status() (version int, dirty bool, all []Migration, err error
 	return version, dirty, all, err
 }
 
+func splitSQL(sql string) []string {
+	var statements []string
+	var current strings.Builder
+	inTrigger := false
+
+	lines := strings.Split(sql, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		upper := strings.ToUpper(trimmed)
+
+		if strings.HasPrefix(upper, "CREATE TRIGGER") {
+			inTrigger = true
+		}
+
+		current.WriteString(line)
+		current.WriteString("\n")
+
+		if inTrigger && upper == "END;" {
+			statements = append(statements, current.String())
+			current.Reset()
+			inTrigger = false
+		} else if !inTrigger && strings.HasSuffix(trimmed, ";") {
+			statements = append(statements, current.String())
+			current.Reset()
+		}
+	}
+
+	if current.Len() > 0 {
+		trimmed := strings.TrimSpace(current.String())
+		if trimmed != "" {
+			statements = append(statements, trimmed)
+		}
+	}
+
+	return statements
+}
+
 func (m *Migrator) applyMigration(mig Migration, up bool) error {
 	tx, err := m.db.Begin()
 	if err != nil {
@@ -302,15 +339,14 @@ func (m *Migrator) applyMigration(mig Migration, up bool) error {
 		}
 	}
 
-	// Split by semicolon and execute one by one
-	statements := strings.Split(query, ";")
+	statements := splitSQL(query)
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
 		if stmt == "" {
 			continue
 		}
 		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("failed to apply migration %d (%s): %w\nStatement: %s", mig.Version, mig.Name, err, stmt)
+			return fmt.Errorf("failed to execute query %s\nError: %w", stmt, err)
 		}
 	}
 

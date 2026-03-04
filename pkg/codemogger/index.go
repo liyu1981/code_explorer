@@ -17,7 +17,6 @@ type CodeIndex struct {
 	dbPath         string
 	embedder       embed.Embedder
 	embeddingModel string
-	searchVerified bool
 }
 
 func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
@@ -37,10 +36,12 @@ func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
 		emb = embed.NewLocalEmbedder()
 	}
 
-	store, err := db.Open(dbPath)
+	dbConn, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
+
+	store := db.NewStore(dbConn, dbPath)
 
 	return &CodeIndex{
 		store:          store,
@@ -60,7 +61,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	start := time.Now()
 	rootDir, _ := filepath.Abs(dir)
 
-	codebaseID, err := c.store.GetOrCreateCodebase(rootDir, "")
+	codebaseID, err := c.store.CodemoggerGetOrCreateCodebase(rootDir, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get/create codebase: %w", err)
 	}
@@ -76,7 +77,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 
 	for _, file := range files {
 		activeFiles[file.AbsPath] = true
-		storedHash, err := c.store.GetFileHash(codebaseID, file.AbsPath)
+		storedHash, err := c.store.CodemoggerGetFileHash(codebaseID, file.AbsPath)
 		if err != nil {
 			continue
 		}
@@ -102,18 +103,18 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		chunks := chunk.ChunkFile(file.AbsPath, file.Content, file.Hash, langConfig)
 		if len(chunks) > 0 {
 			dbChunks := make([]db.CodeChunk, len(chunks))
-			for i, c := range chunks {
+			for i, chk := range chunks {
 				dbChunks[i] = db.CodeChunk{
-					ChunkKey:  c.ChunkKey,
-					FilePath:  c.FilePath,
-					Language:  c.Language,
-					Kind:      c.Kind,
-					Name:      c.Name,
-					Signature: c.Signature,
-					Snippet:   c.Snippet,
-					StartLine: c.StartLine,
-					EndLine:   c.EndLine,
-					FileHash:  c.FileHash,
+					ChunkKey:  chk.ChunkKey,
+					FilePath:  chk.FilePath,
+					Language:  chk.Language,
+					Kind:      chk.Kind,
+					Name:      chk.Name,
+					Signature: chk.Signature,
+					Snippet:   chk.Snippet,
+					StartLine: chk.StartLine,
+					EndLine:   chk.EndLine,
+					FileHash:  chk.FileHash,
 				}
 			}
 			fileChunks = append(fileChunks, struct {
@@ -131,14 +132,14 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	}
 
 	if len(fileChunks) > 0 {
-		if err := c.store.BatchUpsertAllFileChunks(codebaseID, fileChunks); err != nil {
+		if err := c.store.CodemoggerBatchUpsertAllFileChunks(codebaseID, fileChunks); err != nil {
 			return nil, fmt.Errorf("failed to upsert chunks: %w", err)
 		}
 	}
 
 	embedded := 0
 	for {
-		stale, err := c.store.GetStaleEmbeddings(codebaseID, c.embeddingModel, 1000)
+		stale, err := c.store.CodemoggerGetStaleEmbeddings(codebaseID, c.embeddingModel, 1000)
 		if err != nil || len(stale) == 0 {
 			break
 		}
@@ -170,7 +171,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 			}
 		}
 
-		if err := c.store.BatchUpsertEmbeddings(items); err != nil {
+		if err := c.store.CodemoggerBatchUpsertEmbeddings(items); err != nil {
 			break
 		}
 		embedded += len(vectors)
@@ -184,10 +185,10 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	for k := range activeFiles {
 		activeFilesList = append(activeFilesList, k)
 	}
-	removed, _ := c.store.RemoveStaleFiles(codebaseID, activeFilesList)
+	removed, _ := c.store.CodemoggerRemoveStaleFiles(codebaseID, activeFilesList)
 
-	_ = c.store.RebuildFTSTable(codebaseID)
-	_ = c.store.TouchCodebase(codebaseID)
+	_ = c.store.CodemoggerRebuildFTSTable(codebaseID)
+	_ = c.store.CodemoggerTouchCodebase(codebaseID)
 
 	duration := int(time.Since(start).Milliseconds())
 
@@ -244,7 +245,7 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 		if err != nil {
 			return nil, err
 		}
-		results, err := c.store.VectorSearch(vectors[0], limit, includeSnippet)
+		results, err := c.store.CodemoggerVectorSearch(vectors[0], limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
@@ -255,7 +256,7 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 		if processed == "" {
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.FTSSearch(processed, limit, includeSnippet)
+		results, err := c.store.CodemoggerFTSSearch(processed, limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
@@ -263,10 +264,10 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 
 	case SearchModeHybrid:
 		processed := search.PreprocessQuery(query)
-		ftsResults, _ := c.store.FTSSearch(processed, limit, includeSnippet)
+		ftsResults, _ := c.store.CodemoggerFTSSearch(processed, limit, includeSnippet)
 
 		vectors, _ := c.embedder.Embed([]string{query})
-		vecResults, _ := c.store.VectorSearch(vectors[0], limit, includeSnippet)
+		vecResults, _ := c.store.CodemoggerVectorSearch(vectors[0], limit, includeSnippet)
 
 		merged := search.RRFMerge(ftsResults, vecResults, limit, 60, 0.4, 0.6)
 		return convertResults(merged), nil
@@ -294,7 +295,7 @@ func convertResults(results []db.SearchResult) []SearchResult {
 }
 
 func (c *CodeIndex) ListFiles() ([]IndexedFile, error) {
-	files, err := c.store.ListFiles(0)
+	files, err := c.store.CodemoggerListFiles(0)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +312,7 @@ func (c *CodeIndex) ListFiles() ([]IndexedFile, error) {
 }
 
 func (c *CodeIndex) ListCodebases() ([]Codebase, error) {
-	codebases, err := c.store.ListCodebases()
+	codebases, err := c.store.CodemoggerListCodebases()
 	if err != nil {
 		return nil, err
 	}

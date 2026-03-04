@@ -1,6 +1,10 @@
 package search
 
-import "github.com/liyu1981/code_explorer/pkg/db"
+import (
+	"strings"
+
+	"github.com/liyu1981/code_explorer/pkg/db"
+)
 
 func RRFMerge(ftsResults []db.SearchResult, vecResults []db.SearchResult, limit int, k float64, ftsWeight float64, vecWeight float64) []db.SearchResult {
 	scores := make(map[string]float64)
@@ -61,11 +65,12 @@ func PreprocessQuery(query string) string {
 		"would": true, "should": true, "could": true, "may": true, "might": true,
 	}
 
-	words := ""
-	for _, word := range query {
-		if !stopwords[string(word)] {
-			words += string(word)
+	words := strings.Fields(strings.ToLower(query))
+	var filtered []string
+	for _, word := range words {
+		if !stopwords[word] {
+			filtered = append(filtered, word)
 		}
 	}
-	return words
+	return strings.Join(filtered, " ")
 }

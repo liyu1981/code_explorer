@@ -2,6 +2,7 @@ package chunk
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -163,51 +164,67 @@ func ChunkFile(filePath string, content string, fileHash string, config *Languag
 		trimmed := strings.TrimSpace(line)
 
 		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") {
+			if currentBlock != "" {
+				currentBlock += line + "\n"
+			}
 			continue
 		}
 
 		isTopLevel := false
-		for _, kind := range topLevelKinds {
-			if strings.HasPrefix(trimmed, kind) || (kind == "pub " && strings.HasPrefix(trimmed, "pub ")) {
+		foundKind := ""
+		for _, k := range topLevelKinds {
+			if strings.HasPrefix(trimmed, k) || (k == "pub " && strings.HasPrefix(trimmed, "pub ")) {
 				isTopLevel = true
-				blockKind = "function"
-				if strings.HasPrefix(trimmed, "class ") || strings.HasPrefix(trimmed, "struct ") {
-					blockKind = strings.TrimSpace(strings.Split(trimmed, " ")[0])
-				}
-				if idx := strings.Index(trimmed, "("); idx > 0 {
-					blockName = strings.TrimSpace(trimmed[:idx])
-				} else if idx := strings.Index(trimmed, " "); idx > 0 {
-					blockName = strings.TrimSpace(trimmed[:idx])
-				}
+				foundKind = k
 				break
 			}
 		}
 
-		if isTopLevel && currentBlock != "" {
-			chunks = append(chunks, CodeChunk{
-				ChunkKey:  filePath + ":" + itoa(blockStart) + ":" + itoa(i),
-				FilePath:  filePath,
-				Language:  config.Name,
-				Kind:      blockKind,
-				Name:      blockName,
-				Signature: strings.TrimSpace(lines[blockStart]),
-				Snippet:   currentBlock,
-				StartLine: blockStart + 1,
-				EndLine:   i,
-				FileHash:  fileHash,
-			})
-			currentBlock = ""
-		}
-
-		currentBlock += line + "\n"
 		if isTopLevel {
+			if currentBlock != "" {
+				chunks = append(chunks, CodeChunk{
+					ChunkKey:  filePath + ":" + strconv.Itoa(blockStart+1) + ":" + strconv.Itoa(i),
+					FilePath:  filePath,
+					Language:  config.Name,
+					Kind:      blockKind,
+					Name:      blockName,
+					Signature: strings.TrimSpace(lines[blockStart]),
+					Snippet:   currentBlock,
+					StartLine: blockStart + 1,
+					EndLine:   i,
+					FileHash:  fileHash,
+				})
+			}
+
+			currentBlock = line + "\n"
 			blockStart = i
+			blockKind = "function"
+			if strings.HasPrefix(trimmed, "class ") || strings.HasPrefix(trimmed, "struct ") {
+				blockKind = strings.TrimSpace(strings.Split(trimmed, " ")[0])
+			} else if strings.HasPrefix(trimmed, "type ") {
+				blockKind = "type"
+			} else if strings.HasPrefix(trimmed, "const ") {
+				blockKind = "const"
+			} else if strings.HasPrefix(trimmed, "var ") {
+				blockKind = "var"
+			}
+
+			// Try to extract name
+			remaining := strings.TrimPrefix(trimmed, foundKind)
+			remaining = strings.TrimSpace(remaining)
+			if idx := strings.IndexAny(remaining, " ([:{;"); idx > 0 {
+				blockName = remaining[:idx]
+			} else {
+				blockName = remaining
+			}
+		} else {
+			currentBlock += line + "\n"
 		}
 	}
 
-	if currentBlock != "" && blockStart > 0 {
+	if currentBlock != "" {
 		chunks = append(chunks, CodeChunk{
-			ChunkKey:  filePath + ":" + itoa(blockStart) + ":" + itoa(len(lines)),
+			ChunkKey:  filePath + ":" + strconv.Itoa(blockStart+1) + ":" + strconv.Itoa(len(lines)),
 			FilePath:  filePath,
 			Language:  config.Name,
 			Kind:      blockKind,
@@ -222,7 +239,7 @@ func ChunkFile(filePath string, content string, fileHash string, config *Languag
 
 	if len(chunks) == 0 && len(lines) > 0 {
 		chunks = append(chunks, CodeChunk{
-			ChunkKey:  filePath + ":1:" + itoa(len(lines)),
+			ChunkKey:  filePath + ":1:" + strconv.Itoa(len(lines)),
 			FilePath:  filePath,
 			Language:  config.Name,
 			Kind:      "file",
@@ -236,8 +253,4 @@ func ChunkFile(filePath string, content string, fileHash string, config *Languag
 	}
 
 	return chunks
-}
-
-func itoa(i int) string {
-	return string(rune(i + '0'))
 }

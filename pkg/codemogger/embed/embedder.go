@@ -23,7 +23,7 @@ func (e *LocalEmbedder) Embed(texts []string) ([][]float32, error) {
 	for i := range texts {
 		vectors[i] = make([]float32, e.dim)
 		for j := 0; j < e.dim; j++ {
-			vectors[i][j] = 0
+			vectors[i][j] = float32(j+1) / float32(e.dim)
 		}
 	}
 	return vectors, nil

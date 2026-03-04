@@ -258,8 +258,8 @@ func (s *Store) CodemoggerBatchUpsertEmbeddings(items []struct {
 			return err
 		}
 		_, err = tx.Exec(
-			"UPDATE codemogger_chunks SET embedding = ?, embedding_model = ? WHERE chunk_key = ?",
-			blob, item.ModelName, item.ChunkKey,
+			"UPDATE codemogger_chunks SET embedding = vector32(?), embedding_model = ? WHERE chunk_key = ?",
+			string(blob), item.ModelName, item.ChunkKey,
 		)
 		if err != nil {
 			return err
@@ -321,6 +321,10 @@ func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID int64, modelName string,
 	return results, rows.Err()
 }
 
+func (s *Store) CodemoggerRebuildFTSTable(codebaseID int64) error {
+	return nil
+}
+
 func (s *Store) CodemoggerVectorSearch(queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
 	if len(queryEmbedding) == 0 {
 		return nil, fmt.Errorf("empty query embedding")
@@ -329,13 +333,13 @@ func (s *Store) CodemoggerVectorSearch(queryEmbedding []float32, limit int, incl
 		return nil, err
 	}
 
-	queryVec := strings.Trim(fmt.Sprintf("[%v]", strings.Join(func() []string {
+	queryVec := fmt.Sprintf("[%v]", strings.Join(func() []string {
 		var s []string
 		for _, v := range queryEmbedding {
 			s = append(s, fmt.Sprintf("%v", v))
 		}
 		return s
-	}(), ",")), "[]")
+	}(), ","))
 
 	sqlQuery := `
 		SELECT chunk_key, file_path, name, kind, signature, snippet, start_line, end_line,
@@ -376,9 +380,10 @@ func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool
 	}
 
 	sqlQuery := `
-		SELECT chunk_key, file_path, name, kind, signature, snippet, start_line, end_line
+		SELECT chunk_key, file_path, codemogger_chunks.name, kind, codemogger_chunks.signature, codemogger_chunks.snippet, start_line, end_line
 		FROM codemogger_chunks
-		WHERE codemogger_chunks MATCH ?
+		JOIN codemogger_chunks_fts ON codemogger_chunks_fts.rowid = codemogger_chunks.id
+		WHERE codemogger_chunks_fts MATCH ?
 		ORDER BY rank
 		LIMIT ?
 	`

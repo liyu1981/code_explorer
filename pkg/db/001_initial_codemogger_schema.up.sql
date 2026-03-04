@@ -37,3 +37,24 @@ CREATE TABLE IF NOT EXISTS codemogger_indexed_files (
 
 CREATE INDEX IF NOT EXISTS idx_chunks_codebase_id ON codemogger_chunks(codebase_id);
 CREATE INDEX IF NOT EXISTS idx_indexed_files_codebase_id ON codemogger_indexed_files(codebase_id);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS codemogger_chunks_fts USING fts5(
+    name,
+    signature,
+    snippet,
+    content='codemogger_chunks',
+    content_rowid='id'
+);
+
+CREATE TRIGGER IF NOT EXISTS codemogger_chunks_ai AFTER INSERT ON codemogger_chunks BEGIN
+  INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.id, new.name, new.signature, new.snippet);
+END;
+
+CREATE TRIGGER IF NOT EXISTS codemogger_chunks_ad AFTER DELETE ON codemogger_chunks BEGIN
+  INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.id, old.name, old.signature, old.snippet);
+END;
+
+CREATE TRIGGER IF NOT EXISTS codemogger_chunks_au AFTER UPDATE ON codemogger_chunks BEGIN
+  INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.id, old.name, old.signature, old.snippet);
+  INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.id, new.name, new.signature, new.snippet);
+END;

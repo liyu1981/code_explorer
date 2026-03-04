@@ -3,7 +3,6 @@ package scan
 import (
 	"crypto/sha256"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,8 +24,17 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 	if len(languages) > 0 {
 		var langExts []string
 		for _, lang := range languages {
-			if cfg := chunk.DetectLanguage("test." + lang); cfg != nil {
+			// Try as language name
+			if cfg, ok := chunk.Languages[lang]; ok {
 				langExts = append(langExts, cfg.Extensions...)
+			} else {
+				// Try as extension
+				if !strings.HasPrefix(lang, ".") {
+					lang = "." + lang
+				}
+				if cfg := chunk.DetectLanguage("test" + lang); cfg != nil {
+					langExts = append(langExts, cfg.Extensions...)
+				}
 			}
 		}
 		if len(langExts) > 0 {
@@ -42,7 +50,7 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 	ignorePatterns := []string{
 		".git", "node_modules", "vendor", ".venv", "dist", "build",
 		".next", ".nuxt", "target", "__pycache__", ".pytest_cache",
-		".idea", ".vscode", "*.pb.go", "*.pb.gw.go",
+		".idea", ".vscode",
 	}
 
 	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
@@ -64,12 +72,19 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 			return nil
 		}
 
+		// Check if file is ignored by pattern
+		for _, pattern := range ignorePatterns {
+			if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
+				return nil
+			}
+		}
+
 		ext := filepath.Ext(path)
 		if !extSet[ext] {
 			return nil
 		}
 
-		content, err := ioutil.ReadFile(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			errors = append(errors, path+": "+err.Error())
 			return nil
