@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (s *Store) GetOrCreateCodebase(rootPath string, name string) (int64, error) {
+func (s *Store) CodemoggerGetOrCreateCodebase(rootPath string, name string) (int64, error) {
 	if err := s.reconnect(); err != nil {
 		return 0, err
 	}
@@ -49,7 +49,7 @@ func (s *Store) GetOrCreateCodebase(rootPath string, name string) (int64, error)
 	return id, err
 }
 
-func (s *Store) ListCodebases() ([]CodebaseInfo, error) {
+func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (s *Store) ListCodebases() ([]CodebaseInfo, error) {
 	return results, rows.Err()
 }
 
-func (s *Store) TouchCodebase(codebaseID int64) error {
+func (s *Store) CodemoggerTouchCodebase(codebaseID int64) error {
 	if err := s.reconnect(); err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (s *Store) TouchCodebase(codebaseID int64) error {
 	return err
 }
 
-func (s *Store) GetFileHash(codebaseID int64, filePath string) (string, error) {
+func (s *Store) CodemoggerGetFileHash(codebaseID int64, filePath string) (string, error) {
 	if err := s.reconnect(); err != nil {
 		return "", err
 	}
@@ -112,7 +112,7 @@ func (s *Store) GetFileHash(codebaseID int64, filePath string) (string, error) {
 	return fileHash, err
 }
 
-func (s *Store) BatchUpsertAllFileChunks(codebaseID int64, fileChunks []struct {
+func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID int64, fileChunks []struct {
 	FilePath string
 	FileHash string
 	Chunks   []CodeChunk
@@ -168,7 +168,7 @@ func (s *Store) BatchUpsertAllFileChunks(codebaseID int64, fileChunks []struct {
 	return tx.Commit()
 }
 
-func (s *Store) RemoveStaleFiles(codebaseID int64, activeFiles []string) (int, error) {
+func (s *Store) CodemoggerRemoveStaleFiles(codebaseID int64, activeFiles []string) (int, error) {
 	if err := s.reconnect(); err != nil {
 		return 0, err
 	}
@@ -234,7 +234,7 @@ func (s *Store) RemoveStaleFiles(codebaseID int64, activeFiles []string) (int, e
 	return len(staleFiles), err
 }
 
-func (s *Store) BatchUpsertEmbeddings(items []struct {
+func (s *Store) CodemoggerBatchUpsertEmbeddings(items []struct {
 	ChunkKey  string
 	Embedding []float32
 	ModelName string
@@ -269,7 +269,7 @@ func (s *Store) BatchUpsertEmbeddings(items []struct {
 	return tx.Commit()
 }
 
-func (s *Store) GetStaleEmbeddings(codebaseID int64, modelName string, limit int) ([]struct {
+func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID int64, modelName string, limit int) ([]struct {
 	ChunkKey  string
 	Name      string
 	Signature string
@@ -321,11 +321,7 @@ func (s *Store) GetStaleEmbeddings(codebaseID int64, modelName string, limit int
 	return results, rows.Err()
 }
 
-func (s *Store) RebuildFTSTable(codebaseID int64) error {
-	return nil
-}
-
-func (s *Store) VectorSearch(queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
+func (s *Store) CodemoggerVectorSearch(queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
 	if len(queryEmbedding) == 0 {
 		return nil, fmt.Errorf("empty query embedding")
 	}
@@ -374,7 +370,7 @@ func (s *Store) VectorSearch(queryEmbedding []float32, limit int, includeSnippet
 	return results, rows.Err()
 }
 
-func (s *Store) FTSSearch(query string, limit int, includeSnippet bool) ([]SearchResult, error) {
+func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool) ([]SearchResult, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
@@ -414,7 +410,7 @@ func (s *Store) FTSSearch(query string, limit int, includeSnippet bool) ([]Searc
 	return results, rows.Err()
 }
 
-func (s *Store) ListFiles(codebaseID int64) ([]FileInfo, error) {
+func (s *Store) CodemoggerListFiles(codebaseID int64) ([]FileInfo, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}

@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-func TestMigrate(t *testing.T) {
-	dir, err := os.MkdirTemp("", "migration-*")
+func TestOpenAndStore(t *testing.T) {
+	dir, err := os.MkdirTemp("", "db-test-*")
 	if err != nil {
 		t.Fatalf("create temp dir: %v", err)
 	}
@@ -18,13 +18,13 @@ func TestMigrate(t *testing.T) {
 
 	dbPath := filepath.Join(dir, "test.db")
 
-	store, err := Open(dbPath)
+	db, err := Open(dbPath)
 	if err != nil {
-		t.Fatalf("open store: %v", err)
+		t.Fatalf("open db: %v", err)
 	}
-	defer store.Close()
+	defer db.Close()
 
-	db := store.DB()
+	// Check if tables exist
 	var tables []string
 	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
 	if err != nil {
@@ -40,7 +40,7 @@ func TestMigrate(t *testing.T) {
 		tables = append(tables, name)
 	}
 
-	expected := []string{"codemogger_codebases", "codemogger_indexed_files", "codemogger_chunks"}
+	expected := []string{"codemogger_chunks", "codemogger_codebases", "codemogger_indexed_files", "schema_migrations"}
 	for _, e := range expected {
 		found := false
 		for _, t := range tables {
@@ -50,7 +50,30 @@ func TestMigrate(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Errorf("expected table %q not found", e)
+			t.Errorf("expected table %q not found, got %v", e, tables)
 		}
+	}
+
+	// Test NewStore
+	store := NewStore(db, dbPath)
+	if store == nil {
+		t.Fatal("expected store to be non-nil")
+	}
+
+	// Test a store method
+	id, err := store.CodemoggerGetOrCreateCodebase("/test/path", "test")
+	if err != nil {
+		t.Fatalf("get or create codebase: %v", err)
+	}
+	if id <= 0 {
+		t.Errorf("expected valid id, got %d", id)
+	}
+
+	codebases, err := store.CodemoggerListCodebases()
+	if err != nil {
+		t.Fatalf("list codebases: %v", err)
+	}
+	if len(codebases) != 1 {
+		t.Errorf("expected 1 codebase, got %d", len(codebases))
 	}
 }
