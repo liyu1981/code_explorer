@@ -24,7 +24,7 @@ func DefaultConfig() *Config {
 		ChunkLines: 150,
 		Embedder: EmbedderConfig{
 			Type:  "local",
-			Model: "all-MiniLM-L6-v2",
+			Model: "all-minilm:l6-v2",
 		},
 		Languages: []string{"go", "rust", "python", "typescript", "javascript"},
 	}

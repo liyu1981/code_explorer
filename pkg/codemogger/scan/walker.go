@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/boyter/gocodewalker"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/chunk"
 )
 
@@ -24,11 +25,9 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 	if len(languages) > 0 {
 		var langExts []string
 		for _, lang := range languages {
-			// Try as language name
 			if cfg, ok := chunk.Languages[lang]; ok {
 				langExts = append(langExts, cfg.Extensions...)
 			} else {
-				// Try as extension
 				if !strings.HasPrefix(lang, ".") {
 					lang = "." + lang
 				}
@@ -47,62 +46,44 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 		extSet[ext] = true
 	}
 
-	ignorePatterns := []string{
-		".git", "node_modules", "vendor", ".venv", "dist", "build",
-		".next", ".nuxt", "target", "__pycache__", ".pytest_cache",
-		".idea", ".vscode",
+	var allowExts []string
+	for _, ext := range supportedExts {
+		allowExts = append(allowExts, strings.TrimPrefix(ext, "."))
 	}
 
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+	fileListQueue := make(chan *gocodewalker.File, 1000)
+	fileWalker := gocodewalker.NewFileWalker(rootDir, fileListQueue)
+	fileWalker.AllowListExtensions = allowExts
+	// IgnoreBinaryFiles=true seems to misidentify small text files in tests.
+	// We'll rely on AllowListExtensions and .gitignore instead.
+	fileWalker.IgnoreBinaryFiles = false
+	fileWalker.SetErrorHandler(func(err error) bool {
+		errors = append(errors, err.Error())
+		return true
+	})
+
+	go fileWalker.Start()
+
+	for f := range fileListQueue {
+		// Use absolute path
+		absPath, err := filepath.Abs(f.Location)
 		if err != nil {
-			return nil
+			absPath = f.Location
 		}
 
-		relPath, err := filepath.Rel(rootDir, path)
+		content, err := os.ReadFile(f.Location)
 		if err != nil {
-			return nil
-		}
-
-		if info.IsDir() {
-			for _, pattern := range ignorePatterns {
-				if strings.HasPrefix(relPath, pattern) || relPath == pattern {
-					return filepath.SkipDir
-				}
-			}
-			return nil
-		}
-
-		// Check if file is ignored by pattern
-		for _, pattern := range ignorePatterns {
-			if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
-				return nil
-			}
-		}
-
-		ext := filepath.Ext(path)
-		if !extSet[ext] {
-			return nil
-		}
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			errors = append(errors, path+": "+err.Error())
-			return nil
+			errors = append(errors, f.Location+": "+err.Error())
+			continue
 		}
 
 		hash := fmt.Sprintf("%x", sha256.Sum256(content))
 
 		files = append(files, ScannedFile{
-			AbsPath: path,
+			AbsPath: absPath,
 			Content: string(content),
 			Hash:    hash,
 		})
-
-		return nil
-	})
-
-	if err != nil {
-		errors = append(errors, err.Error())
 	}
 
 	return files, errors

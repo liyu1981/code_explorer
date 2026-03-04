@@ -41,7 +41,7 @@ func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
 		}
 		model := cfg.Embedder.Model
 		if model == "" {
-			model = "all-minilm"
+			model = "all-minilm:l6-v2"
 		}
 		emb = embed.NewOpenAIEmbedder(
 			apiBase,
