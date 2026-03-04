@@ -40,12 +40,12 @@ func TestOpenAILocalOllama(t *testing.T) {
 	t.Skip("Skipping local Ollama test. Remove this line to run if Ollama is available.")
 
 	// Local Ollama configuration
-	apiBase := "http://localhost:11434/v1"
-	model := "all-minilm"
-	
+	apiBase := "http://localhost:20003/v1"
+	model := "all-minilm:l6-v2"
+
 	emb := NewOpenAIEmbedder(apiBase, model, "", 384)
 	texts := []string{"This is a test of local Ollama embedding."}
-	
+
 	vectors, err := emb.Embed(texts)
 	if err != nil {
 		t.Fatalf("Failed to embed with local Ollama: %v", err)
