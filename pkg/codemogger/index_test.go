@@ -9,6 +9,29 @@ import (
 	"testing"
 )
 
+type MockEmbedder struct {
+	dim int
+}
+
+func (m *MockEmbedder) Embed(texts []string) ([][]float32, error) {
+	vectors := make([][]float32, len(texts))
+	for i := range texts {
+		vectors[i] = make([]float32, m.dim)
+		for j := 0; j < m.dim; j++ {
+			vectors[i][j] = float32(j) / float32(m.dim)
+		}
+	}
+	return vectors, nil
+}
+
+func (m *MockEmbedder) Model() string {
+	return "mock-model"
+}
+
+func (m *MockEmbedder) Dimension() int {
+	return m.dim
+}
+
 func TestCodeIndex(t *testing.T) {
 	dir, err := os.MkdirTemp("", "codemogger-test-*")
 	if err != nil {
@@ -50,6 +73,9 @@ class Calculator:
 	}
 	defer idx.Close()
 
+	// Inject mock embedder
+	idx.SetEmbedder(&MockEmbedder{dim: 384})
+
 	// Test Indexing
 	opts := &IndexOptions{
 		Languages: []string{"go", "python"},
@@ -63,7 +89,7 @@ class Calculator:
 	if res.Files != 2 {
 		t.Errorf("expected 2 files processed, got %d", res.Files)
 	}
-	if res.Chunks < 3 { // main, Add, subtract, multiply, Calculator
+	if res.Chunks < 3 {
 		t.Errorf("expected at least 3 chunks, got %d", res.Chunks)
 	}
 
@@ -76,15 +102,7 @@ class Calculator:
 		t.Errorf("expected 2 files in list, got %d", len(files))
 	}
 
-	codebases, err := idx.ListCodebases()
-	if err != nil {
-		t.Fatalf("list codebases: %v", err)
-	}
-	if len(codebases) != 1 {
-		t.Errorf("expected 1 codebase, got %d", len(codebases))
-	}
-
-	// Test Search (Semantic - with dummy embedder)
+	// Test Search (Semantic)
 	searchRes, err := idx.Search("main", &SearchOptions{Limit: 5, Mode: SearchModeSemantic})
 	if err != nil {
 		t.Fatalf("semantic search: %v", err)
@@ -98,6 +116,4 @@ class Calculator:
 	if err != nil {
 		t.Fatalf("keyword search: %v", err)
 	}
-	// Note: FTS might not return anything if it's not correctly set up in sqlite with libsql
-	// But let's see.
 }

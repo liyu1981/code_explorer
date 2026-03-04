@@ -31,9 +31,24 @@ func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
 			cfg.Embedder.OpenAI.APIBase,
 			cfg.Embedder.OpenAI.Model,
 			cfg.Embedder.OpenAI.APIKey,
+			1536, // Standard OpenAI dimension, though we should probably make this configurable
 		)
 	default:
-		emb = embed.NewLocalEmbedder()
+		// Default to local Ollama (OpenAI compatible)
+		apiBase := cfg.Embedder.OpenAI.APIBase
+		if apiBase == "" {
+			apiBase = "http://localhost:11434/v1"
+		}
+		model := cfg.Embedder.Model
+		if model == "" {
+			model = "all-minilm"
+		}
+		emb = embed.NewOpenAIEmbedder(
+			apiBase,
+			model,
+			cfg.Embedder.OpenAI.APIKey,
+			384, // Default all-minilm dimension
+		)
 	}
 
 	dbConn, err := db.Open(dbPath)
@@ -332,4 +347,8 @@ func (c *CodeIndex) ListCodebases() ([]Codebase, error) {
 
 func (c *CodeIndex) Close() error {
 	return c.store.Close()
+}
+
+func (c *CodeIndex) SetEmbedder(emb embed.Embedder) {
+	c.embedder = emb
 }
