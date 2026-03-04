@@ -1,0 +1,451 @@
+package db
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+func (s *Store) GetOrCreateCodebase(rootPath string, name string) (int64, error) {
+	if err := s.reconnect(); err != nil {
+		return 0, err
+	}
+
+	var existing Codebase
+	err := s.db.QueryRow(
+		"SELECT id, root_path, name, indexed_at FROM codemogger_codebases WHERE root_path = ?",
+		rootPath,
+	).Scan(&existing.ID, &existing.RootPath, &existing.Name, &existing.IndexedAt)
+
+	if err == nil {
+		return existing.ID, nil
+	}
+	if err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	if name == "" {
+		name = rootPath
+		if idx := len(name) - 1; idx >= 0 && name[idx] == '/' {
+			for i := len(name) - 2; i >= 0; i-- {
+				if name[i] == '/' {
+					name = name[i+1:]
+					break
+				}
+			}
+		}
+	}
+
+	result, err := s.db.Exec(
+		"INSERT INTO codemogger_codebases (root_path, name, indexed_at) VALUES (?, ?, 0)",
+		rootPath, name,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	id, err := result.LastInsertId()
+	return id, err
+}
+
+func (s *Store) ListCodebases() ([]CodebaseInfo, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT 
+			c.id,
+			c.root_path,
+			c.name,
+			c.indexed_at,
+			COUNT(DISTINCT f.file_path) as file_count,
+			COALESCE(SUM(f.chunk_count), 0) as chunk_count
+		FROM codemogger_codebases c
+		LEFT JOIN codemogger_indexed_files f ON f.codebase_id = c.id
+		GROUP BY c.id
+		ORDER BY c.root_path
+	`
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []CodebaseInfo
+	for rows.Next() {
+		var r CodebaseInfo
+		if err := rows.Scan(&r.ID, &r.RootPath, &r.Name, &r.IndexedAt, &r.FileCount, &r.ChunkCount); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+
+	return results, rows.Err()
+}
+
+func (s *Store) TouchCodebase(codebaseID int64) error {
+	if err := s.reconnect(); err != nil {
+		return err
+	}
+
+	_, err := s.db.Exec("UPDATE codemogger_codebases SET indexed_at = 0 WHERE id = ?", codebaseID)
+	return err
+}
+
+func (s *Store) GetFileHash(codebaseID int64, filePath string) (string, error) {
+	if err := s.reconnect(); err != nil {
+		return "", err
+	}
+
+	var fileHash string
+	err := s.db.QueryRow(
+		"SELECT file_hash FROM codemogger_indexed_files WHERE codebase_id = ? AND file_path = ?",
+		codebaseID, filePath,
+	).Scan(&fileHash)
+
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return fileHash, err
+}
+
+func (s *Store) BatchUpsertAllFileChunks(codebaseID int64, fileChunks []struct {
+	FilePath string
+	FileHash string
+	Chunks   []CodeChunk
+}) error {
+	if err := s.reconnect(); err != nil {
+		return err
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, fc := range fileChunks {
+		_, err = tx.Exec(
+			"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
+			codebaseID, fc.FilePath,
+		)
+		if err != nil {
+			return err
+		}
+
+		for _, chunk := range fc.Chunks {
+			_, err = tx.Exec(`
+				INSERT INTO codemogger_chunks 
+				(codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, '')
+			`,
+				codebaseID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
+				chunk.Name, chunk.Signature, chunk.Snippet, chunk.StartLine, chunk.EndLine, chunk.FileHash,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = tx.Exec(`
+			INSERT INTO codemogger_indexed_files (codebase_id, file_path, file_hash, chunk_count, indexed_at)
+			VALUES (?, ?, ?, ?, 0)
+			ON CONFLICT(codebase_id, file_path) DO UPDATE SET
+				file_hash = excluded.file_hash,
+				chunk_count = excluded.chunk_count,
+				indexed_at = excluded.indexed_at
+		`,
+			codebaseID, fc.FilePath, fc.FileHash, len(fc.Chunks),
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *Store) RemoveStaleFiles(codebaseID int64, activeFiles []string) (int, error) {
+	if err := s.reconnect(); err != nil {
+		return 0, err
+	}
+
+	rows, err := s.db.Query(
+		"SELECT file_path FROM codemogger_indexed_files WHERE codebase_id = ?",
+		codebaseID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var allFiles []string
+	for rows.Next() {
+		var f string
+		if err := rows.Scan(&f); err != nil {
+			return 0, err
+		}
+		allFiles = append(allFiles, f)
+	}
+
+	activeSet := make(map[string]bool)
+	for _, f := range activeFiles {
+		activeSet[f] = true
+	}
+
+	var staleFiles []string
+	for _, f := range allFiles {
+		if !activeSet[f] {
+			staleFiles = append(staleFiles, f)
+		}
+	}
+
+	if len(staleFiles) == 0 {
+		return 0, nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	for _, filePath := range staleFiles {
+		_, err = tx.Exec(
+			"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
+			codebaseID, filePath,
+		)
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.Exec(
+			"DELETE FROM codemogger_indexed_files WHERE codebase_id = ? AND file_path = ?",
+			codebaseID, filePath,
+		)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	err = tx.Commit()
+	return len(staleFiles), err
+}
+
+func (s *Store) BatchUpsertEmbeddings(items []struct {
+	ChunkKey  string
+	Embedding []float32
+	ModelName string
+}) error {
+	if len(items) == 0 {
+		return nil
+	}
+	if err := s.reconnect(); err != nil {
+		return err
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, item := range items {
+		blob, err := json.Marshal(item.Embedding)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(
+			"UPDATE codemogger_chunks SET embedding = ?, embedding_model = ? WHERE chunk_key = ?",
+			blob, item.ModelName, item.ChunkKey,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *Store) GetStaleEmbeddings(codebaseID int64, modelName string, limit int) ([]struct {
+	ChunkKey  string
+	Name      string
+	Signature string
+	FilePath  string
+	Kind      string
+	Snippet   string
+}, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT chunk_key, name, signature, file_path, kind, snippet
+		FROM codemogger_chunks
+		WHERE codebase_id = ? AND (embedding IS NULL OR embedding_model != ?)
+		LIMIT ?
+	`
+
+	rows, err := s.db.Query(query, codebaseID, modelName, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []struct {
+		ChunkKey  string
+		Name      string
+		Signature string
+		FilePath  string
+		Kind      string
+		Snippet   string
+	}
+
+	for rows.Next() {
+		var r struct {
+			ChunkKey  string
+			Name      string
+			Signature string
+			FilePath  string
+			Kind      string
+			Snippet   string
+		}
+		if err := rows.Scan(&r.ChunkKey, &r.Name, &r.Signature, &r.FilePath, &r.Kind, &r.Snippet); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+
+	return results, rows.Err()
+}
+
+func (s *Store) RebuildFTSTable(codebaseID int64) error {
+	return nil
+}
+
+func (s *Store) VectorSearch(queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
+	if len(queryEmbedding) == 0 {
+		return nil, fmt.Errorf("empty query embedding")
+	}
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	queryVec := strings.Trim(fmt.Sprintf("[%v]", strings.Join(func() []string {
+		var s []string
+		for _, v := range queryEmbedding {
+			s = append(s, fmt.Sprintf("%v", v))
+		}
+		return s
+	}(), ",")), "[]")
+
+	sqlQuery := `
+		SELECT chunk_key, file_path, name, kind, signature, snippet, start_line, end_line,
+			   vector_distance_cos(embedding, vector32(?)) as distance
+		FROM codemogger_chunks
+		WHERE embedding IS NOT NULL
+		ORDER BY distance ASC
+		LIMIT ?
+	`
+
+	rows, err := s.db.Query(sqlQuery, queryVec, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var r SearchResult
+		var snippetRaw sql.NullString
+		err := rows.Scan(&r.ChunkKey, &r.FilePath, &r.Name, &r.Kind, &r.Signature,
+			&snippetRaw, &r.StartLine, &r.EndLine, &r.Score)
+		if err != nil {
+			return nil, err
+		}
+		if includeSnippet && snippetRaw.Valid {
+			r.Snippet = snippetRaw.String
+		}
+		results = append(results, r)
+	}
+
+	return results, rows.Err()
+}
+
+func (s *Store) FTSSearch(query string, limit int, includeSnippet bool) ([]SearchResult, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	sqlQuery := `
+		SELECT chunk_key, file_path, name, kind, signature, snippet, start_line, end_line
+		FROM codemogger_chunks
+		WHERE codemogger_chunks MATCH ?
+		ORDER BY rank
+		LIMIT ?
+	`
+
+	rows, err := s.db.Query(sqlQuery, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var r SearchResult
+		var snippetRaw sql.NullString
+		err := rows.Scan(&r.ChunkKey, &r.FilePath, &r.Name, &r.Kind, &r.Signature,
+			&snippetRaw, &r.StartLine, &r.EndLine)
+		if err != nil {
+			return nil, err
+		}
+		r.Score = 1.0
+		if includeSnippet && snippetRaw.Valid {
+			r.Snippet = snippetRaw.String
+		} else if !includeSnippet {
+			r.Snippet = ""
+		}
+		results = append(results, r)
+	}
+
+	return results, rows.Err()
+}
+
+func (s *Store) ListFiles(codebaseID int64) ([]FileInfo, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	var rows *sql.Rows
+	var err error
+
+	if codebaseID > 0 {
+		rows, err = s.db.Query(
+			"SELECT file_path, file_hash, chunk_count, indexed_at FROM codemogger_indexed_files WHERE codebase_id = ? ORDER BY file_path",
+			codebaseID,
+		)
+	} else {
+		rows, err = s.db.Query(
+			"SELECT file_path, file_hash, chunk_count, indexed_at FROM codemogger_indexed_files ORDER BY file_path",
+		)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []FileInfo
+	for rows.Next() {
+		var f FileInfo
+		if err := rows.Scan(&f.FilePath, &f.FileHash, &f.ChunkCount, &f.IndexedAt); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+
+	return files, rows.Err()
+}
