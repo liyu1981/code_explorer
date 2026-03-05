@@ -4,6 +4,7 @@ go 1.25.7
 
 require (
 	github.com/boyter/gocodewalker v1.5.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/tursodatabase/go-libsql v0.0.0-20251219133454-43644db490ff
 )
 

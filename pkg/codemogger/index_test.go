@@ -7,30 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
 )
-
-type MockEmbedder struct {
-	dim int
-}
-
-func (m *MockEmbedder) Embed(texts []string) ([][]float32, error) {
-	vectors := make([][]float32, len(texts))
-	for i := range texts {
-		vectors[i] = make([]float32, m.dim)
-		for j := 0; j < m.dim; j++ {
-			vectors[i][j] = float32(j) / float32(m.dim)
-		}
-	}
-	return vectors, nil
-}
-
-func (m *MockEmbedder) Model() string {
-	return "mock-model"
-}
-
-func (m *MockEmbedder) Dimension() int {
-	return m.dim
-}
 
 func TestCodeIndex(t *testing.T) {
 	dir, err := os.MkdirTemp("", "codemogger-test-*")
@@ -74,7 +53,7 @@ class Calculator:
 	defer idx.Close()
 
 	// Inject mock embedder
-	idx.SetEmbedder(&MockEmbedder{dim: 384})
+	idx.SetEmbedder(&embed.MockEmbedder{DimVal: 384})
 
 	// Test Indexing
 	opts := &IndexOptions{

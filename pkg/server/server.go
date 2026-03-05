@@ -1,19 +1,20 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
+
+	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/server/api"
 )
 
-func New() *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleIndex)
-	return mux
-}
-
-func handleIndex(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "code_explorer API",
+func New(idx *codemogger.CodeIndex) http.Handler {
+	apiHandler := api.NewHandler(&api.ApiConfig{
+		Index: idx,
 	})
+
+	uiServer := NewUIServer(&Config{
+		ApiHandler: apiHandler,
+	})
+
+	return uiServer.SetupRoutes()
 }
