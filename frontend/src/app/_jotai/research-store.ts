@@ -1,7 +1,7 @@
 import { atom } from "jotai";
 import { nanoid } from "nanoid";
-import { ReasoningStep } from "../research/_components/reasoning-trace";
-import { Source } from "../research/_components/source-card";
+import type { ReasoningStep } from "../research/_components/reasoning-trace";
+import type { Source } from "../research/_components/source-card";
 
 export type ResearchState = "idle" | "searching" | "reasoning" | "reported";
 
@@ -18,7 +18,9 @@ export interface ResearchSession {
   title: string;
   state: ResearchState;
   steps: ReasoningStep[];
+  thoughtProcess: string; // Granular log of reasoning
   turns: ResearchTurn[];
+  activeTurnId?: string; // Currently streaming turn ID
   createdAt: number;
 }
 
@@ -35,6 +37,7 @@ export const createSession = (): ResearchSession => ({
     { id: "2", label: "Analyzing retrieved code chunks", status: "pending" },
     { id: "3", label: "Synthesizing deep research report", status: "pending" },
   ],
+  thoughtProcess: "",
   turns: [],
   createdAt: Date.now(),
 });

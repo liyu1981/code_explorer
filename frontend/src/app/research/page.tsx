@@ -10,13 +10,12 @@ import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import {
   activeSessionIdAtom,
-  ResearchTurn,
   researchSessionsAtom,
 } from "../_jotai/research-store";
 import { ReasoningTrace } from "./_components/reasoning-trace";
 import { ResearchInput } from "./_components/research-input";
 import { ResearchReport } from "./_components/research-report";
-import { Source } from "./_components/source-card";
+import { CEEvent, getMockStream, OpenAIChunk } from "./_mock/ce";
 
 function ResearchContent() {
   const [sessions, setSessions] = useAtom(researchSessionsAtom);
@@ -37,10 +36,46 @@ function ResearchContent() {
   }, [urlId, activeSessionId, setActiveSessionId, router]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const prevTurnsLengthRef = useRef(0);
 
-  // Auto scroll to bottom when turns update
+  // Auto scroll logic: scroll to show separator on new turn, and keep it aligned during stream if it moves
   useEffect(() => {
-    if (scrollContainerRef.current) {
+    if (!scrollContainerRef.current) return;
+
+    const turnsLength = activeSession?.turns.length ?? 0;
+    const activeTurnId = activeSession?.activeTurnId;
+    const isStreaming = !!activeTurnId;
+    const isNewTurn = turnsLength > prevTurnsLengthRef.current;
+
+    // Update ref for next run
+    if (isNewTurn) {
+      prevTurnsLengthRef.current = turnsLength;
+    }
+
+    if (turnsLength > 1) {
+      const currentTurnId = isStreaming
+        ? activeTurnId
+        : activeSession?.turns[turnsLength - 1]?.id;
+      const turnElement = scrollContainerRef.current.querySelector(
+        `[data-turn-id="${currentTurnId}"]`,
+      );
+
+      if (turnElement) {
+        const offset = 16;
+        const targetTop = (turnElement as HTMLElement).offsetTop - offset;
+        const currentTop = scrollContainerRef.current.scrollTop;
+
+        // If we are significantly off target (> 5px), and we are either in a "new turn" event
+        // OR we are currently streaming that turn, retry the scroll.
+        if (Math.abs(currentTop - targetTop) > 5) {
+          scrollContainerRef.current.scrollTo({
+            top: targetTop,
+            behavior: isNewTurn ? "smooth" : "auto", // Smooth for first jump, auto for micro-adjustments
+          });
+        }
+      }
+    } else if (activeSession?.state === "searching") {
+      // During initial reasoning of the VERY FIRST turn, scroll to bottom to see logs
       setTimeout(() => {
         scrollContainerRef.current?.scrollTo({
           top: scrollContainerRef.current.scrollHeight,
@@ -48,30 +83,39 @@ function ResearchContent() {
         });
       }, 100);
     }
-  }, []);
 
-  const handleSearch = (id: string, q: string, _deep: boolean) => {
+    // biome-ignore lint/correctness/useExhaustiveDependencies: We need to monitor turns and report progress for alignment
+  }, [
+    activeSession?.turns.length,
+    activeSession?.activeTurnId,
+    activeSession?.state === "searching",
+    // This dependency ensures we "retry" as new content comes in, in case of layout shifts
+    activeSession?.turns[activeSession?.turns.length - 1]?.report.length,
+  ]);
+  const handleSearch = async (
+    sessionId: string,
+    query: string,
+    _deep: boolean,
+  ) => {
+    const turnId = nanoid();
+
+    // Initialize turn in session
     setSessions((current) =>
       current.map((s) =>
-        s.id === id
+        s.id === sessionId
           ? {
               ...s,
               state: "searching",
-              steps: [
+              activeTurnId: turnId,
+              thoughtProcess: "",
+              turns: [
+                ...s.turns,
                 {
-                  id: "1",
-                  label: "Indexing codebase context",
-                  status: "active",
-                },
-                {
-                  id: "2",
-                  label: "Performing semantic search",
-                  status: "pending",
-                },
-                {
-                  id: "3",
-                  label: "Generating technical synthesis",
-                  status: "pending",
+                  id: turnId,
+                  query,
+                  report: "",
+                  sources: [],
+                  timestamp: Date.now(),
                 },
               ],
             }
@@ -79,188 +123,84 @@ function ResearchContent() {
       ),
     );
 
-    // Simulate process
-    setTimeout(() => {
-      setSessions((current) =>
-        current.map((s) =>
-          s.id === id
-            ? {
-                ...s,
-                steps: s.steps.map((step) =>
-                  step.id === "1"
-                    ? { ...step, status: "completed" as const }
-                    : step.id === "2"
-                      ? { ...step, status: "active" as const }
-                      : step,
-                ),
-              }
-            : s,
-        ),
-      );
+    // Get mock stream
+    const stream = getMockStream(query);
 
-      setTimeout(() => {
-        setSessions((current) =>
-          current.map((s) =>
-            s.id === id
-              ? {
-                  ...s,
-                  steps: s.steps.map((step) =>
-                    step.id === "2"
-                      ? { ...step, status: "completed" as const }
-                      : step.id === "3"
-                        ? { ...step, status: "active" as const }
-                        : step,
-                  ),
-                }
-              : s,
-          ),
-        );
+    // Simulate streaming
+    for (const line of stream) {
+      // Small delay to simulate real network/llm
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
-        setTimeout(() => {
-          const isFirstTurn = (activeSession?.turns.length || 0) === 0;
-
-          let report = "";
-          let sources: Source[] = [];
-
-          if (isFirstTurn) {
-            report = `I have analyzed the codebase regarding **${q}**. The project is a sophisticated TypeScript-based React application utilizing Next.js 16.
-
-### Core Component Pattern
-The application uses a modular pattern for its UI components. For instance, the WebSocket management is handled via a custom React hook pattern to ensure state synchronization across the app:
-
-\`\`\`typescript
-import { useState, useEffect, useCallback } from 'react';
-
-interface WebSocketHook {
-  isConnected: boolean;
-  lastMessage: any;
-  send: (msg: string) => void;
-}
-
-export function useSocket(url: string): WebSocketHook {
-  const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-
-  useEffect(() => {
-    const ws = new WebSocket(url);
-    ws.onopen = () => setIsConnected(true);
-    ws.onclose = () => setIsConnected(false);
-    setSocket(ws);
-    return () => ws.close();
-  }, [url]);
-
-  const send = useCallback((msg: string) => {
-    socket?.send(msg);
-  }, [socket]);
-
-  return { isConnected, lastMessage: null, send };
-}
-\`\`\`
-
-### State Management
-State is managed using **Jotai**, which provides atomic state updates. This is particularly useful for the research session history, where each turn is appended to a global state atom.`;
-
-            sources = [
-              {
-                id: "1",
-                path: "src/hooks/useSocket.ts",
-                snippet:
-                  "export function useSocket(url: string): WebSocketHook {\n  const [socket, setSocket] = useState<WebSocket | null>(null);",
-              },
-              {
-                id: "2",
-                path: "src/store/research.ts",
-                snippet:
-                  "export const researchSessionsAtom = atom<ResearchSession[]>([]);",
-              },
-            ];
-          } else {
-            report = `Deepening the analysis on **${q}**, I have examined the Markdown rendering implementation.
-
-### Technical Implementation
-The system uses \`react-markdown\` combined with \`rehype-highlight\` for syntax highlighting. The implementation details can be found in the core components:
-
-\`\`\`typescript
-import ReactMarkdown from "react-markdown";
-import rehypeHighlight from "rehype-highlight";
-
-interface MarkdownProps {
-  content: string;
-  className?: string;
-}
-
-export const MarkdownRenderer: React.FC<MarkdownProps> = ({ content, className }) => {
-  return (
-    <div className={className}>
-      <ReactMarkdown 
-        rehypePlugins={[rehypeHighlight]}
-        components={{
-          code({ node, inline, className, children, ...props }) {
-            return !inline ? (
-              <pre className="rounded-lg bg-gray-100 p-4">
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              </pre>
-            ) : (
-              <code className="bg-gray-200 px-1 rounded" {...props}>
-                {children}
-              </code>
-            );
-          }
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
-};
-\`\`\`
-
-### Styling Strategy
-The project adopts **Tailwind CSS 4** for styling, leveraging the new \`@theme\` configuration for a more robust design system.`;
-
-            sources = [
-              {
-                id: "3",
-                path: "src/components/Markdown.tsx",
-                snippet:
-                  "export const MarkdownRenderer: React.FC<MarkdownProps> = ({ content, className }) => {",
-              },
-              {
-                id: "4",
-                path: "tailwind.config.ts",
-                snippet: "@theme {\n  --color-primary: oklch(0.205 0 0);\n}",
-              },
-            ];
-          }
-
-          const newTurn: ResearchTurn = {
-            id: nanoid(),
-            query: q,
-            report,
-            sources,
-            timestamp: Date.now(),
-          };
-
+      if (line.startsWith("data: ")) {
+        const chunk: OpenAIChunk = JSON.parse(line.slice(6));
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
           setSessions((current) =>
             current.map((s) =>
-              s.id === id
+              s.id === sessionId
                 ? {
                     ...s,
-                    state: "reported",
-                    turns: [...s.turns, newTurn],
-                    steps: s.steps.map((step) => ({
-                      ...step,
-                      status: "completed" as const,
-                    })),
+                    turns: s.turns.map((t) =>
+                      t.id === turnId
+                        ? { ...t, report: t.report + content }
+                        : t,
+                    ),
                   }
                 : s,
             ),
           );
-        }, 1500);
-      }, 1200);
-    }, 1000);
+        }
+      } else if (line.startsWith("ce: ")) {
+        const event: CEEvent = JSON.parse(line.slice(4));
+
+        setSessions((current) =>
+          current.map((s) => {
+            if (s.id !== sessionId) return s;
+
+            switch (event.object) {
+              case "research.step.update":
+                return {
+                  ...s,
+                  steps: s.steps.map((step) =>
+                    step.id === event.id
+                      ? { ...step, status: event.status ?? step.status }
+                      : step,
+                  ),
+                };
+              case "research.reasoning.delta":
+                return {
+                  ...s,
+                  thoughtProcess: s.thoughtProcess + event.content,
+                };
+              case "research.source.added":
+                return {
+                  ...s,
+                  turns: s.turns.map((t) =>
+                    t.id === turnId
+                      ? { ...t, sources: [...t.sources, event.source] }
+                      : t,
+                  ),
+                };
+              default:
+                return s;
+            }
+          }),
+        );
+      }
+    }
+
+    // Finalize
+    setSessions((current) =>
+      current.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              state: "reported",
+              activeTurnId: undefined,
+            }
+          : s,
+      ),
+    );
   };
 
   const handleArchive = (id: string) => {
@@ -330,18 +270,37 @@ The project adopts **Tailwind CSS 4** for styling, leveraging the new \`@theme\`
               <ResearchReport
                 turns={activeSession.turns}
                 onFollowUp={(q) => handleSearch(activeSession.id, q, true)}
+                isStreaming={isResearching}
               />
-
-              {isResearching && (
-                <div className="max-w-3xl mx-auto py-8">
-                  <ReasoningTrace steps={activeSession.steps} />
-                </div>
-              )}
             </div>
           )}
         </div>
 
+        {/* Floating Thought Process Indicator */}
+        {isResearching && (
+          <div className="absolute top-[1rem] left-0 right-0 z-50 px-6 animate-in fade-in slide-in-from-top-4 duration-500 pointer-events-none">
+            <div className="max-w-3xl mx-auto pointer-events-auto">
+              <div className="bg-background/80 backdrop-blur-xl border border-primary/20 shadow-2xl rounded-2xl overflow-hidden shadow-primary/5">
+                <div className="p-4 border-b border-border/50 bg-muted/30">
+                  <ReasoningTrace steps={activeSession.steps} />
+                </div>
+
+                {activeSession.thoughtProcess && (
+                  <div className="max-h-[200px] overflow-auto p-4 bg-muted/10">
+                    <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">
+                      Granular Thought Process
+                    </h4>
+                    <pre className="text-xs font-mono whitespace-pre-wrap text-muted-foreground/70 leading-relaxed">
+                      {activeSession.thoughtProcess}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Sticky Input Area */}
+
         {activeSession.state !== "idle" && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-20 pb-8 px-6 z-20 pointer-events-none">
             <div className="max-w-3xl mx-auto pointer-events-auto">

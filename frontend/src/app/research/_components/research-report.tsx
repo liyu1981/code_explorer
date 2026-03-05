@@ -8,13 +8,18 @@ import { SourceCard } from "./source-card";
 interface ResearchReportProps {
   turns: ResearchTurn[];
   onFollowUp?: (query: string) => void;
+  isStreaming?: boolean;
 }
 
-export function ResearchReport({ turns, onFollowUp }: ResearchReportProps) {
+export function ResearchReport({
+  turns,
+  onFollowUp,
+  isStreaming,
+}: ResearchReportProps) {
   return (
     <div className="max-w-6xl mx-auto w-full py-8">
       {turns.map((turn, turnIndex) => (
-        <div key={turn.id} className="w-full">
+        <div key={turn.id} className="w-full" data-turn-id={turn.id}>
           {turnIndex > 0 && (
             <div className="py-12">
               <div className="border-t border-border/60 w-full relative">
@@ -42,7 +47,7 @@ export function ResearchReport({ turns, onFollowUp }: ResearchReportProps) {
                 className="text-lg leading-relaxed text-foreground/90"
               />
 
-              {turnIndex === turns.length - 1 && (
+              {turnIndex === turns.length - 1 && !isStreaming && (
                 <div className="pt-12 border-t border-border/40">
                   <div className="flex items-center gap-2 mb-6">
                     <MessageSquare className="h-4 w-4 text-muted-foreground/60" />

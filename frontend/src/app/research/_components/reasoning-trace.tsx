@@ -15,7 +15,7 @@ interface ReasoningTraceProps {
 
 export function ReasoningTrace({ steps }: ReasoningTraceProps) {
   return (
-    <div className="flex flex-col gap-3 p-6 bg-muted/20 rounded-xl border max-w-2xl mx-auto w-full">
+    <div className="flex flex-col gap-3 mx-auto w-full">
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
         Researching Process
       </h3>

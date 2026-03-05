@@ -1,21 +1,27 @@
-import { Plus, Settings } from "lucide-react";
+import { Settings, PlusCircle } from "lucide-react";
 
-export const navTitle = "code_explorer";
+export const navTitle = "Code Explorer";
 
-export const defaultNavItem = "home";
+export interface NavItem {
+  id: string;
+  label: string;
+  path: string;
+  icon: any;
+  position?: "top" | "bottom";
+}
 
-export const navItems = [
+export const navItems: NavItem[] = [
   {
-    id: "home" as const,
-    icon: Plus,
-    label: "New",
-    path: "/",
+    id: "new",
+    label: "New Research",
+    path: "/new",
+    icon: PlusCircle,
   },
   {
-    id: "settings" as const,
-    icon: Settings,
+    id: "settings",
     label: "Settings",
     path: "/settings",
+    icon: Settings,
     position: "bottom",
   },
 ];
