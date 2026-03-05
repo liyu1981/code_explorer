@@ -157,14 +157,14 @@ func handleSearch() {
 	limit := searchCmd.Int("limit", 5, "Number of results to return")
 	mode := searchCmd.String("mode", "hybrid", "Search mode (semantic, keyword, hybrid)")
 	output := searchCmd.String("output", "text", "Output format (text, json)")
-	
+
 	searchCmd.Parse(os.Args[2:])
-	
+
 	if searchCmd.NArg() < 1 {
 		fmt.Println("Usage: codemogger search <query> [-db <path>] [-limit <n>] [-mode <hybrid>]")
 		os.Exit(1)
 	}
-	
+
 	query := searchCmd.Arg(0)
 	idx, err := getIndex(*dbPath)
 	if err != nil {

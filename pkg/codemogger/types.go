@@ -16,8 +16,8 @@ type SearchOptions struct {
 }
 
 type IndexOptions struct {
-	Languages []string `json:"languages,omitempty"`
-	Verbose   bool     `json:"verbose,omitempty"`
+	Languages []string                               `json:"languages,omitempty"`
+	Verbose   bool                                   `json:"verbose,omitempty"`
 	Progress  func(current, total int, stage string) `json:"-"`
 }
 

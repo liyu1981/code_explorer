@@ -57,7 +57,7 @@ func (e *OpenAIEmbedder) Embed(texts []string) ([][]float32, error) {
 		return nil, nil
 	}
 
-	// OpenAI supports up to 2048 inputs in a single request, 
+	// OpenAI supports up to 2048 inputs in a single request,
 	// but local models like Ollama might have different limits.
 	// We'll process in batches of 100 for safety.
 	batchSize := 100

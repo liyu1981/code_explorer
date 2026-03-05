@@ -81,7 +81,7 @@ func (u *User) GetName() string {
 
 	// Expected chunks: Hello, User, GetName
 	// Note: The current simple chunker might treat "type User struct" as one and "func (u *User) GetName()" as another.
-	
+
 	if len(chunks) < 2 {
 		t.Errorf("Expected at least 2 chunks, got %d", len(chunks))
 	}

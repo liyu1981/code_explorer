@@ -68,12 +68,12 @@ func TestApiIndex(t *testing.T) {
 	// Create a dummy file to index
 	tmpDir, _ := os.MkdirTemp("", "api-index-test-*")
 	defer os.RemoveAll(tmpDir)
-	
+
 	testFile := filepath.Join(tmpDir, "main.go")
 	os.WriteFile(testFile, []byte("package main\nfunc main() {}"), 0644)
 
 	h := NewHandler(&ApiConfig{Index: idx})
-	
+
 	body, _ := json.Marshal(map[string]any{
 		"dir":   tmpDir,
 		"langs": []string{"go"},
@@ -99,7 +99,7 @@ func TestApiSearch(t *testing.T) {
 	defer cleanup()
 
 	h := NewHandler(&ApiConfig{Index: idx})
-	
+
 	body, _ := json.Marshal(map[string]any{
 		"query": "test query",
 		"limit": 5,
