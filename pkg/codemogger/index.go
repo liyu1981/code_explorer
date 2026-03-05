@@ -82,6 +82,9 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	}
 
 	files, scanErrors := scan.ScanDirectory(rootDir, opts.Languages)
+	if opts.Progress != nil {
+		opts.Progress(len(files), len(files), "scan")
+	}
 
 	filesProcessed := 0
 	chunksCreated := 0
@@ -90,7 +93,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	var filesToProcess []scan.ScannedFile
 	activeFiles := make(map[string]bool)
 
-	for _, file := range files {
+	for i, file := range files {
 		activeFiles[file.AbsPath] = true
 		storedHash, err := c.store.CodemoggerGetFileHash(codebaseID, file.AbsPath)
 		if err != nil {
@@ -101,6 +104,9 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		} else {
 			filesToProcess = append(filesToProcess, file)
 		}
+		if opts.Progress != nil && i%10 == 0 {
+			opts.Progress(i+1, len(files), "check")
+		}
 	}
 
 	var fileChunks []struct {
@@ -109,7 +115,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		Chunks   []db.CodeChunk
 	}
 
-	for _, file := range filesToProcess {
+	for i, file := range filesToProcess {
 		langConfig := chunk.DetectLanguage(file.AbsPath)
 		if langConfig == nil {
 			continue
@@ -118,8 +124,8 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		chunks := chunk.ChunkFile(file.AbsPath, file.Content, file.Hash, langConfig)
 		if len(chunks) > 0 {
 			dbChunks := make([]db.CodeChunk, len(chunks))
-			for i, chk := range chunks {
-				dbChunks[i] = db.CodeChunk{
+			for j, chk := range chunks {
+				dbChunks[j] = db.CodeChunk{
 					ChunkKey:  chk.ChunkKey,
 					FilePath:  chk.FilePath,
 					Language:  chk.Language,
@@ -144,6 +150,9 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 			filesProcessed++
 			chunksCreated += len(chunks)
 		}
+		if opts.Progress != nil && i%10 == 0 {
+			opts.Progress(i+1, len(filesToProcess), "chunk")
+		}
 	}
 
 	if len(fileChunks) > 0 {
@@ -157,6 +166,10 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		stale, err := c.store.CodemoggerGetStaleEmbeddings(codebaseID, c.embeddingModel, 1000)
 		if err != nil || len(stale) == 0 {
 			break
+		}
+
+		if opts.Progress != nil {
+			opts.Progress(embedded, embedded+len(stale), "embed")
 		}
 
 		texts := make([]string, len(stale))

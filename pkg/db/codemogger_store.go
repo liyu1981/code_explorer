@@ -38,7 +38,7 @@ func (s *Store) CodemoggerGetOrCreateCodebase(rootPath string, name string) (int
 	}
 
 	result, err := s.db.Exec(
-		"INSERT INTO codemogger_codebases (root_path, name, indexed_at) VALUES (?, ?, 0)",
+		"INSERT INTO codemogger_codebases (root_path, name, indexed_at) VALUES (?, ?, strftime('%s', 'now'))",
 		rootPath, name,
 	)
 	if err != nil {
@@ -91,7 +91,7 @@ func (s *Store) CodemoggerTouchCodebase(codebaseID int64) error {
 		return err
 	}
 
-	_, err := s.db.Exec("UPDATE codemogger_codebases SET indexed_at = 0 WHERE id = ?", codebaseID)
+	_, err := s.db.Exec("UPDATE codemogger_codebases SET indexed_at = strftime('%s', 'now') WHERE id = ?", codebaseID)
 	return err
 }
 
@@ -140,7 +140,7 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID int64, fileChunks 
 			_, err = tx.Exec(`
 				INSERT INTO codemogger_chunks 
 				(codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, '')
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), NULL, '')
 			`,
 				codebaseID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
 				chunk.Name, chunk.Signature, chunk.Snippet, chunk.StartLine, chunk.EndLine, chunk.FileHash,
@@ -152,7 +152,7 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID int64, fileChunks 
 
 		_, err = tx.Exec(`
 			INSERT INTO codemogger_indexed_files (codebase_id, file_path, file_hash, chunk_count, indexed_at)
-			VALUES (?, ?, ?, ?, 0)
+			VALUES (?, ?, ?, ?, strftime('%s', 'now'))
 			ON CONFLICT(codebase_id, file_path) DO UPDATE SET
 				file_hash = excluded.file_hash,
 				chunk_count = excluded.chunk_count,
