@@ -12,7 +12,9 @@ export default function SettingsPage() {
       <div className="flex-1 p-6 overflow-auto">
         <div className="max-w-4xl mx-auto space-y-8">
           <section className="space-y-4">
-            <h2 className="text-lg font-semibold border-b pb-2">Configuration</h2>
+            <h2 className="text-lg font-semibold border-b pb-2">
+              Configuration
+            </h2>
             <div className="p-4 border rounded bg-muted/20">
               <p className="text-sm text-muted-foreground italic">
                 Settings and system information will be displayed here.

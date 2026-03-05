@@ -5,35 +5,48 @@ import {
   ChevronLeft,
   ChevronRight,
   Globe,
+  Search,
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { ReadyState } from "react-use-websocket";
 import { cn } from "@/lib/utils";
+import {
+  activeSessionIdAtom,
+  researchSessionsAtom,
+} from "../_jotai/research-store";
 import { isSidebarExpandedAtom } from "../_jotai/ui-store";
 import { navItems, navTitle } from "../nav-items";
 import { useWebSocketContext } from "./websocket-provider";
 
-export function AppNavSidebar() {
+function SidebarContent() {
   const [navExpanded, setNavExpanded] = useAtom(isSidebarExpandedAtom);
+  const [sessions] = useAtom(researchSessionsAtom);
+  const [, setActiveSessionId] = useAtom(activeSessionIdAtom);
+
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { readyState } = useWebSocketContext();
 
   const getActiveMenuFromPath = React.useCallback(() => {
     const activeItem = navItems.find((item) => {
-        if (item.path === "/") return pathname === "/";
-        return pathname.startsWith(item.path);
+      if (item.path === "/") return pathname === "/" && !searchParams.get("id");
+      return pathname.startsWith(item.path);
     });
     return activeItem ? activeItem.id : "";
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   const [activeMenu, setActiveMenu] = React.useState(getActiveMenuFromPath());
 
-  const topMenuItems = navItems.filter((item) => (item as any).position !== "bottom");
-  const bottomMenuItems = navItems.filter((item) => (item as any).position === "bottom");
+  const topMenuItems = navItems.filter(
+    (item) => (item as any).position !== "bottom",
+  );
+  const bottomMenuItems = navItems.filter(
+    (item) => (item as any).position === "bottom",
+  );
 
   React.useEffect(() => {
     setActiveMenu(getActiveMenuFromPath());
@@ -43,8 +56,15 @@ export function AppNavSidebar() {
     const item = navItems.find((m) => m.id === itemId);
     if (item) {
       setActiveMenu(itemId);
+      setActiveSessionId(null);
       router.push(item.path);
     }
+  };
+
+  const handleSessionClick = (id: string) => {
+    setActiveSessionId(id);
+    setActiveMenu("");
+    router.push(`/research?id=${id}`);
   };
 
   const connectionStatusMap: Record<ReadyState, string> = {
@@ -58,23 +78,6 @@ export function AppNavSidebar() {
   const isConnected = readyState === ReadyState.OPEN;
   const StatusIcon = isConnected ? Wifi : WifiOff;
 
-  const statusButton = (
-    <div
-      className={cn(
-        "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-default",
-        isConnected ? "text-green-500" : "text-yellow-500",
-        !navExpanded && "justify-center",
-      )}
-    >
-      <StatusIcon className="h-5 w-5 flex-shrink-0" />
-      {navExpanded && (
-        <span className="text-sm font-medium">
-          {connectionStatusMap[readyState]}
-        </span>
-      )}
-    </div>
-  );
-
   return (
     <div
       className={cn(
@@ -86,9 +89,7 @@ export function AppNavSidebar() {
         {navExpanded && (
           <div className="flex items-center gap-2">
             <Globe className="h-5 w-5 text-primary" />
-            <span className="text-lg font-bold text-primary">
-              {navTitle}
-            </span>
+            <span className="text-lg font-bold text-primary">{navTitle}</span>
           </div>
         )}
         <button
@@ -103,35 +104,89 @@ export function AppNavSidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 p-2">
-        {topMenuItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => handleMenuClick(item.id)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
-                activeMenu === item.id
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-muted text-muted-foreground hover:text-foreground",
-                !navExpanded && "justify-center",
-              )}
-              title={item.label}
-            >
-              <Icon
+      <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
+        <div className="space-y-1">
+          {topMenuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              activeMenu === item.id &&
+              pathname === item.path &&
+              !searchParams.get("id");
+            return (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => handleMenuClick(item.id)}
                 className={cn(
-                  "h-5 w-5 flex-shrink-0",
-                  activeMenu === item.id && "text-primary",
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                  !navExpanded && "justify-center",
                 )}
-              />
-              {navExpanded && (
-                <span className="text-sm font-medium">{item.label}</span>
-              )}
-            </button>
-          );
-        })}
+                title={item.label}
+              >
+                <Icon
+                  className={cn(
+                    "h-5 w-5 flex-shrink-0",
+                    isActive && "text-primary",
+                  )}
+                />
+                {navExpanded && (
+                  <span className="text-sm font-medium">{item.label}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="px-2">
+          <div className="h-px bg-border/60 w-full" />
+        </div>
+
+        <div className="space-y-1">
+          <div
+            className={cn(
+              "flex items-center px-3 mb-2",
+              navExpanded ? "justify-between" : "justify-center",
+            )}
+          >
+            {navExpanded && (
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                Research
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            {sessions.map((session) => (
+              <button
+                key={session.id}
+                onClick={() => handleSessionClick(session.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                  searchParams.get("id") === session.id
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                  !navExpanded && "justify-center",
+                )}
+                title={session.title}
+              >
+                <Search
+                  className={cn(
+                    "h-5 w-5 flex-shrink-0",
+                    searchParams.get("id") === session.id && "text-primary",
+                  )}
+                />
+                {navExpanded && (
+                  <span className="text-sm font-medium truncate">
+                    {session.title}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       </nav>
 
       <div className="p-2 border-t space-y-1">
@@ -144,7 +199,7 @@ export function AppNavSidebar() {
               onClick={() => handleMenuClick(item.id)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
-                activeMenu === item.id
+                pathname.startsWith(item.path)
                   ? "bg-primary/10 text-primary"
                   : "hover:bg-muted text-muted-foreground hover:text-foreground",
                 !navExpanded && "justify-center",
@@ -154,7 +209,7 @@ export function AppNavSidebar() {
               <Icon
                 className={cn(
                   "h-5 w-5 flex-shrink-0",
-                  activeMenu === item.id && "text-primary",
+                  pathname.startsWith(item.path) && "text-primary",
                 )}
               />
               {navExpanded && (
@@ -163,8 +218,30 @@ export function AppNavSidebar() {
             </button>
           );
         })}
-        {statusButton}
+
+        <div
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-default",
+            isConnected ? "text-green-500" : "text-yellow-500",
+            !navExpanded && "justify-center",
+          )}
+        >
+          <StatusIcon className="h-5 w-5 flex-shrink-0" />
+          {navExpanded && (
+            <span className="text-sm font-medium">
+              {connectionStatusMap[readyState]}
+            </span>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+export function AppNavSidebar() {
+  return (
+    <React.Suspense fallback={<div className="w-16 border-r bg-muted/20" />}>
+      <SidebarContent />
+    </React.Suspense>
   );
 }
