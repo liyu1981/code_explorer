@@ -1,4 +1,4 @@
-import { Settings, PlusCircle } from "lucide-react";
+import { PlusCircle, Settings } from "lucide-react";
 
 export const navTitle = "Code Explorer";
 

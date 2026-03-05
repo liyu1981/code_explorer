@@ -156,7 +156,7 @@ func (c *WsClient) handlePingMessage() {
 	}
 }
 
-func (c *WsClient) handleSubscribeMessage(msg map[string]interface{}) {
+func (c *WsClient) handleSubscribeMessage(msg map[string]any) {
 	topic, ok := msg["topic"].(string)
 	if !ok {
 		log.Printf("Subscribe message without topic: %v", msg)
@@ -172,7 +172,7 @@ func (c *WsClient) handleSubscribeMessage(msg map[string]interface{}) {
 	log.Printf("Client subscribed to topic: %s", topic)
 }
 
-func (c *WsClient) handleUnsubscribeMessage(msg map[string]interface{}) {
+func (c *WsClient) handleUnsubscribeMessage(msg map[string]any) {
 	topic, ok := msg["topic"].(string)
 	if !ok {
 		log.Printf("Unsubscribe message without topic: %v", msg)
@@ -190,7 +190,7 @@ func (c *WsClient) handleUnsubscribeMessage(msg map[string]interface{}) {
 // handleTextMessage processes incoming text messages from the client.
 func (c *WsClient) handleTextMessage(message []byte) {
 	// Try to parse as JSON
-	var msg map[string]interface{}
+	var msg map[string]any
 	if err := json.Unmarshal(message, &msg); err != nil {
 		log.Printf("Non-JSON text message: %s", string(message))
 		return

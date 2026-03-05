@@ -97,8 +97,8 @@ func (l *HTTPClientLLM) Name() string {
 	return l.model
 }
 
-func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools []map[string]interface{}) (string, []ToolCall, error) {
-	payload := map[string]interface{}{
+func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error) {
+	payload := map[string]any{
 		"model":    l.model,
 		"messages": messages,
 	}
@@ -135,7 +135,7 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 		return "", nil, fmt.Errorf("api returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return "", nil, err
 	}
@@ -143,20 +143,20 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 	content := ""
 	toolCalls := []ToolCall{}
 
-	if choices, ok := result["choices"].([]interface{}); ok && len(choices) > 0 {
-		if choice, ok := choices[0].(map[string]interface{}); ok {
-			if msg, ok := choice["message"].(map[string]interface{}); ok {
+	if choices, ok := result["choices"].([]any); ok && len(choices) > 0 {
+		if choice, ok := choices[0].(map[string]any); ok {
+			if msg, ok := choice["message"].(map[string]any); ok {
 				if ccontent, ok := msg["content"].(string); ok {
 					content = ccontent
 				}
-				if tcs, ok := msg["tool_calls"].([]interface{}); ok {
+				if tcs, ok := msg["tool_calls"].([]any); ok {
 					for _, tcItem := range tcs {
-						tcMap, ok := tcItem.(map[string]interface{})
+						tcMap, ok := tcItem.(map[string]any)
 						if !ok {
 							continue
 						}
 						id, _ := tcMap["id"].(string)
-						funcName, _ := tcMap["function"].(map[string]interface{})
+						funcName, _ := tcMap["function"].(map[string]any)
 						name, _ := funcName["name"].(string)
 						args, _ := funcName["arguments"].(string)
 						toolCalls = append(toolCalls, ToolCall{
@@ -174,14 +174,14 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 		if c, ok := result["content"].(string); ok {
 			content = c
 		}
-		if tc, ok := result["tool_calls"].([]interface{}); ok {
+		if tc, ok := result["tool_calls"].([]any); ok {
 			for _, tcItem := range tc {
-				tcMap, ok := tcItem.(map[string]interface{})
+				tcMap, ok := tcItem.(map[string]any)
 				if !ok {
 					continue
 				}
 				id, _ := tcMap["id"].(string)
-				funcName, _ := tcMap["function"].(map[string]interface{})
+				funcName, _ := tcMap["function"].(map[string]any)
 				name, _ := funcName["name"].(string)
 				args, _ := funcName["arguments"].(string)
 				toolCalls = append(toolCalls, ToolCall{
@@ -215,7 +215,7 @@ func (l *MockLLM) Name() string {
 	return l.model
 }
 
-func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[string]interface{}) (string, []ToolCall, error) {
+func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error) {
 	if l.callIndex >= len(l.responses) {
 		return "", nil, nil
 	}
@@ -233,17 +233,17 @@ func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[
 type BaseTool struct {
 	name        string
 	description string
-	parameters  map[string]interface{}
+	parameters  map[string]any
 	executeFn   func(ctx context.Context, input json.RawMessage) (string, error)
 }
 
 func (t *BaseTool) Name() string        { return t.name }
 func (t *BaseTool) Description() string { return t.description }
-func (t *BaseTool) Parameters() map[string]interface{} {
+func (t *BaseTool) Parameters() map[string]any {
 	if t.parameters == nil {
-		return map[string]interface{}{
+		return map[string]any{
 			"type":       "object",
-			"properties": map[string]interface{}{},
+			"properties": map[string]any{},
 			"required":   []string{},
 		}
 	}

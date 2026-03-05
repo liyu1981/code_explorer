@@ -38,10 +38,9 @@ function ResearchContent() {
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const prevTurnsLengthRef = useRef(0);
 
-  // Auto scroll logic: scroll to show separator on new turn, and keep it aligned during stream if it moves
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll management
   useEffect(() => {
     if (!scrollContainerRef.current) return;
-
     const turnsLength = activeSession?.turns.length ?? 0;
     const activeTurnId = activeSession?.activeTurnId;
     const isStreaming = !!activeTurnId;
@@ -84,7 +83,7 @@ function ResearchContent() {
       }, 100);
     }
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: We need to monitor turns and report progress for alignment
+    // We explicitly omit report/thoughtProcess length from deps to "stop moving" during streaming
   }, [
     activeSession?.turns.length,
     activeSession?.activeTurnId,

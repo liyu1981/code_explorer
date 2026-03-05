@@ -29,7 +29,7 @@ type ToolResult struct {
 type Tool interface {
 	Name() string
 	Description() string
-	Parameters() map[string]interface{}
+	Parameters() map[string]any
 	Execute(ctx context.Context, input json.RawMessage) (string, error)
 }
 
@@ -58,20 +58,20 @@ func (r *ToolRegistry) List() []Tool {
 	return result
 }
 
-func (r *ToolRegistry) MarshalToolsForLLM() []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, len(r.tools))
+func (r *ToolRegistry) MarshalToolsForLLM() []map[string]any {
+	result := make([]map[string]any, 0, len(r.tools))
 	for _, t := range r.tools {
 		params := t.Parameters()
 		if params == nil {
-			params = map[string]interface{}{
+			params = map[string]any{
 				"type":       "object",
-				"properties": map[string]interface{}{},
+				"properties": map[string]any{},
 				"required":   []string{},
 			}
 		}
-		result = append(result, map[string]interface{}{
+		result = append(result, map[string]any{
 			"type": "function",
-			"function": map[string]interface{}{
+			"function": map[string]any{
 				"name":        t.Name(),
 				"description": t.Description(),
 				"parameters":  params,
@@ -82,7 +82,7 @@ func (r *ToolRegistry) MarshalToolsForLLM() []map[string]interface{} {
 }
 
 type LLM interface {
-	Generate(ctx context.Context, messages []Message, tools []map[string]interface{}) (string, []ToolCall, error)
+	Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error)
 	Name() string
 }
 
@@ -155,7 +155,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 				continue
 			}
 
-			var args map[string]interface{}
+			var args map[string]any
 			if err := json.Unmarshal(tc.Input, &args); err != nil {
 				a.messages = append(a.messages, Message{
 					Role:    "tool",
@@ -187,7 +187,7 @@ func (a *Agent) Messages() []Message {
 }
 
 type Config struct {
-	LLM           map[string]interface{} `json:"llm"`
-	Tools         []string               `json:"tools"`
-	MaxIterations int                    `json:"max_iterations"`
+	LLM           map[string]any `json:"llm"`
+	Tools         []string       `json:"tools"`
+	MaxIterations int            `json:"max_iterations"`
 }

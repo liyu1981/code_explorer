@@ -35,7 +35,7 @@ func (f *AgentFactory) BuildFromConfig(cfg *Config) (*Agent, error) {
 	return agent, nil
 }
 
-func (f *AgentFactory) buildLLM(cfg map[string]interface{}) (LLM, error) {
+func (f *AgentFactory) buildLLM(cfg map[string]any) (LLM, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("llm config is required")
 	}
@@ -59,7 +59,7 @@ func (f *AgentFactory) buildLLM(cfg map[string]interface{}) (LLM, error) {
 
 	case "mock":
 		model, _ := cfg["model"].(string)
-		responses, _ := cfg["responses"].([]interface{})
+		responses, _ := cfg["responses"].([]any)
 		respStrs := make([]string, len(responses))
 		for i, r := range responses {
 			respStrs[i], _ = r.(string)
@@ -94,10 +94,10 @@ func SaveConfigToFile(cfg *Config, path string) error {
 }
 
 var configTypeMap = map[string]reflect.Type{
-	"string":        reflect.TypeOf(""),
-	"int":           reflect.TypeOf(0),
-	"float64":       reflect.TypeOf(float64(0)),
-	"bool":          reflect.TypeOf(false),
-	"[]string":      reflect.TypeOf([]string{}),
-	"[]interface{}": reflect.TypeOf([]interface{}{}),
+	"string":   reflect.TypeOf(""),
+	"int":      reflect.TypeOf(0),
+	"float64":  reflect.TypeOf(float64(0)),
+	"bool":     reflect.TypeOf(false),
+	"[]string": reflect.TypeOf([]string{}),
+	"[]any":    reflect.TypeOf([]any{}),
 }

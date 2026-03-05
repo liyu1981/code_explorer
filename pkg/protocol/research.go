@@ -36,3 +36,31 @@ type ResearchResponse struct {
 	Report  string           `json:"report"`  // Markdown-formatted research analysis
 	Sources []SourceMaterial `json:"sources"` // List of source materials referenced
 }
+
+// OpenAIStreamChunk represents a standard OpenAI-compatible text delta chunk.
+type OpenAIStreamChunk struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Index int `json:"index"`
+		Delta struct {
+			Content string `json:"content,omitempty"`
+			Role    string `json:"role,omitempty"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
+}
+
+// CEEvent represents a custom Code Explorer research or tool event.
+type CEEvent struct {
+	Object   string          `json:"object"`
+	ID       string          `json:"id,omitempty"`       // For step updates
+	Status   StepStatus      `json:"status,omitempty"`   // For step updates
+	Content  string          `json:"content,omitempty"`  // For reasoning deltas
+	Tool     string          `json:"tool,omitempty"`     // For tool calls
+	Params   any             `json:"params,omitempty"`   // For tool requests
+	Response any             `json:"response,omitempty"` // For tool responses
+	Source   *SourceMaterial `json:"source,omitempty"`   // For added sources
+}

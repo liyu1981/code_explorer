@@ -25,10 +25,10 @@ func (t *ListFilesTool) Description() string {
 	return "Lists all indexed files in the codebase."
 }
 
-func (t *ListFilesTool) Parameters() map[string]interface{} {
-	return map[string]interface{}{
+func (t *ListFilesTool) Parameters() map[string]any {
+	return map[string]any{
 		"type":       "object",
-		"properties": map[string]interface{}{},
+		"properties": map[string]any{},
 		"required":   []string{},
 	}
 }
@@ -64,19 +64,19 @@ func (t *SearchTool) Description() string {
 	return "Search the codebase using natural language (semantic) or keyword search."
 }
 
-func (t *SearchTool) Parameters() map[string]interface{} {
-	return map[string]interface{}{
+func (t *SearchTool) Parameters() map[string]any {
+	return map[string]any{
 		"type": "object",
-		"properties": map[string]interface{}{
-			"query": map[string]interface{}{
+		"properties": map[string]any{
+			"query": map[string]any{
 				"type":        "string",
 				"description": "The search query (e.g., 'how is authentication implemented?')",
 			},
-			"limit": map[string]interface{}{
+			"limit": map[string]any{
 				"type":        "integer",
 				"description": "Maximum number of results to return (default 5)",
 			},
-			"mode": map[string]interface{}{
+			"mode": map[string]any{
 				"type":        "string",
 				"description": "Search mode: 'hybrid', 'semantic', or 'keyword' (default 'hybrid')",
 				"enum":        []string{"hybrid", "semantic", "keyword"},
