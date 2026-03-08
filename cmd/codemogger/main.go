@@ -54,8 +54,12 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 	// Try to load config from file
 	configPath := os.Getenv("CODE_EXPLORER_CONFIG")
 	if configPath == "" {
-		home, _ := os.UserHomeDir()
-		configPath = filepath.Join(home, ".code_explorer", "config.json")
+		if _, err := os.Stat(".config.json"); err == nil {
+			configPath = ".config.json"
+		} else {
+			home, _ := os.UserHomeDir()
+			configPath = filepath.Join(home, ".code_explorer", "config.json")
+		}
 	}
 
 	if _, err := os.Stat(configPath); err == nil {

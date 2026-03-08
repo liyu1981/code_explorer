@@ -268,6 +268,9 @@ func buildEmbedText(filePath, kind, name, signature, snippet string) string {
 
 func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, error) {
 	log.Info().Str("query", query).Interface("opts", opts).Msg("Searching index")
+	if query == "" {
+		return []SearchResult{}, nil
+	}
 	if opts == nil {
 		opts = &SearchOptions{}
 	}
@@ -286,6 +289,9 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 		vectors, err := c.embedder.Embed([]string{query})
 		if err != nil {
 			return nil, err
+		}
+		if len(vectors) == 0 || vectors[0] == nil {
+			return []SearchResult{}, nil
 		}
 		results, err := c.store.CodemoggerVectorSearch(vectors[0], limit, includeSnippet)
 		if err != nil {
@@ -309,7 +315,10 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 		ftsResults, _ := c.store.CodemoggerFTSSearch(processed, limit, includeSnippet)
 
 		vectors, _ := c.embedder.Embed([]string{query})
-		vecResults, _ := c.store.CodemoggerVectorSearch(vectors[0], limit, includeSnippet)
+		var vecResults []db.SearchResult
+		if len(vectors) > 0 && vectors[0] != nil {
+			vecResults, _ = c.store.CodemoggerVectorSearch(vectors[0], limit, includeSnippet)
+		}
 
 		merged := search.RRFMerge(ftsResults, vecResults, limit, 60, 0.4, 0.6)
 		return convertResults(merged), nil

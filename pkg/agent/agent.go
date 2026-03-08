@@ -197,7 +197,7 @@ func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWr
 					stream.SendToolResponse(tc.Name, err.Error())
 				}
 			} else {
-				log.Debug().Str("tool", tc.Name).Msg("Tool execution successful")
+				log.Debug().Str("tool", tc.Name).Str("output", output).Msg("Tool execution successful")
 				a.messages = append(a.messages, Message{
 					Role:    "tool",
 					Content: output,

@@ -29,30 +29,36 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	log.Info().Str("query", req.Query).Msg("Handling agent research request")
 
 	// Load agent config from index, env or default
-	var llmCfg map[string]any
+	llmCfg := make(map[string]any)
 	if h.index != nil && h.index.Config != nil && h.index.Config.LLM != nil {
-		llmCfg = h.index.Config.LLM
-	} else {
-		llmCfg = map[string]any{
-			"type":     "openai",
-			"model":    os.Getenv("LLM_MODEL"),
-			"endpoint": os.Getenv("LLM_ENDPOINT"),
+		for k, v := range h.index.Config.LLM {
+			llmCfg[k] = v
 		}
+	} else {
+		llmCfg["type"] = "openai"
+		llmCfg["model"] = os.Getenv("LLM_MODEL")
+		llmCfg["endpoint"] = os.Getenv("LLM_ENDPOINT")
 	}
+
+	if llmCfg["model"] == nil || llmCfg["model"] == "" {
+		llmCfg["model"] = "gpt-4o"
+	}
+	if llmCfg["endpoint"] == nil || llmCfg["endpoint"] == "" {
+		llmCfg["endpoint"] = "https://api.openai.com/v1/chat/completions"
+	}
+	if llmCfg["type"] == nil || llmCfg["type"] == "" {
+		llmCfg["type"] = "openai"
+	}
+
+	log.Info().
+		Str("type", fmt.Sprintf("%v", llmCfg["type"])).
+		Str("model", fmt.Sprintf("%v", llmCfg["model"])).
+		Str("endpoint", fmt.Sprintf("%v", llmCfg["endpoint"])).
+		Msg("Agent LLM config")
 
 	agentConfig := &agent.Config{
 		LLM:           llmCfg,
 		MaxIterations: 10,
-	}
-
-	if agentConfig.LLM["model"] == nil || agentConfig.LLM["model"] == "" {
-		agentConfig.LLM["model"] = "gpt-4o"
-	}
-	if agentConfig.LLM["endpoint"] == nil || agentConfig.LLM["endpoint"] == "" {
-		agentConfig.LLM["endpoint"] = "https://api.openai.com/v1/chat/completions"
-	}
-	if agentConfig.LLM["type"] == nil || agentConfig.LLM["type"] == "" {
-		agentConfig.LLM["type"] = "openai"
 	}
 
 	ag, err := h.agentFactory.BuildFromConfig(agentConfig)
