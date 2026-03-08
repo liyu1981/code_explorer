@@ -93,7 +93,7 @@ func TestAgentIntegration(t *testing.T) {
 
 	t.Run("Basic Echo", func(t *testing.T) {
 		prompt := "Please echo the message 'Hello Integration Test' using the echo tool."
-		result, err := agentInstance.Run(ctx, prompt)
+		result, err := agentInstance.Run(ctx, prompt, nil)
 		if err != nil {
 			t.Fatalf("Agent run failed: %v", err)
 		}
@@ -102,7 +102,7 @@ func TestAgentIntegration(t *testing.T) {
 
 	t.Run("Multi-step Calculation", func(t *testing.T) {
 		prompt := "Calculate (12 + 34) * 2 using the calculate tool."
-		result, err := agentInstance.Run(ctx, prompt)
+		result, err := agentInstance.Run(ctx, prompt, nil)
 		if err != nil {
 			t.Fatalf("Agent run failed: %v", err)
 		}

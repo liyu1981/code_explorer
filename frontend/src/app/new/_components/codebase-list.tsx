@@ -7,52 +7,36 @@ import {
   Database,
   Folder,
   Search as SearchIcon,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import useSWR from "swr";
+import { API_URL, fetcher } from "../../../lib/api";
 import {
   createSession,
   researchSessionsAtom,
 } from "../../_jotai/research-store";
 
-interface CodebaseMock {
-  id: string;
+interface Codebase {
+  id: number;
   name: string;
-  path: string;
-  indexedAt: string;
+  root_path: string;
+  indexed_at: string;
+  file_count: number;
+  chunk_count: number;
 }
-
-const MOCK_CODEBASES: CodebaseMock[] = [
-  {
-    id: "1",
-    name: "code_explorer",
-    path: "/home/yli/code_explorer",
-    indexedAt: "2026-03-05 10:00:00",
-  },
-  {
-    id: "2",
-    name: "nextjs-app",
-    path: "/home/yli/projects/next-web",
-    indexedAt: "2026-03-04 15:30:00",
-  },
-  {
-    id: "3",
-    name: "go-backend",
-    path: "/home/yli/projects/go-api",
-    indexedAt: "2026-03-03 09:15:00",
-  },
-  {
-    id: "4",
-    name: "react-components",
-    path: "/home/yli/ui-lib",
-    indexedAt: "2026-03-02 18:45:00",
-  },
-];
 
 export function CodebaseList() {
   const [, setSessions] = useAtom(researchSessionsAtom);
   const [codebaseFilter, setCodebaseFilter] = useState("");
   const router = useRouter();
+
+  const {
+    data: codebases,
+    error,
+    isLoading,
+  } = useSWR<Codebase[]>(`${API_URL}/api/codemogger/codebases`, fetcher);
 
   const handleNewResearch = (codebase?: string) => {
     const newSession = createSession();
@@ -63,11 +47,31 @@ export function CodebaseList() {
     router.push(`/research?id=${newSession.id}`);
   };
 
-  const filteredCodebases = MOCK_CODEBASES.filter(
-    (c) =>
-      c.name.toLowerCase().includes(codebaseFilter.toLowerCase()) ||
-      c.path.toLowerCase().includes(codebaseFilter.toLowerCase()),
-  );
+  const filteredCodebases =
+    codebases?.filter(
+      (c) =>
+        (c.name || "").toLowerCase().includes(codebaseFilter.toLowerCase()) ||
+        (c.root_path || "")
+          .toLowerCase()
+          .includes(codebaseFilter.toLowerCase()),
+    ) || [];
+
+  if (error) {
+    return (
+      <div className="max-w-3xl mx-auto py-20 text-center space-y-4">
+        <p className="text-destructive text-lg font-medium">
+          Failed to load codebases
+        </p>
+        <button
+          type="button"
+          onClick={() => handleNewResearch()}
+          className="text-primary font-semibold hover:underline"
+        >
+          Start a general research instead
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-12">
@@ -93,7 +97,12 @@ export function CodebaseList() {
         </div>
 
         <div className="space-y-1">
-          {filteredCodebases.length > 0 ? (
+          {isLoading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p>Loading codebases...</p>
+            </div>
+          ) : filteredCodebases.length > 0 ? (
             filteredCodebases.map((cb) => (
               <div
                 key={cb.id}
@@ -103,24 +112,33 @@ export function CodebaseList() {
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4 text-primary" />
                     <h3 className="text-xl font-bold tracking-tight truncate">
-                      {cb.name}
+                      {cb.name || "Unnamed Codebase"}
                     </h3>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Folder className="h-3.5 w-3.5" />
                     <code className="truncate font-mono bg-muted/50 px-1.5 rounded text-xs">
-                      {cb.path}
+                      {cb.root_path}
                     </code>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>Last indexed: {cb.indexedAt}</span>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground/70">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>
+                        Last indexed: {new Date(cb.indexed_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 border-l border-border pl-4">
+                      <span>{cb.file_count} files</span>
+                      <span>•</span>
+                      <span>{cb.chunk_count} chunks</span>
+                    </div>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleNewResearch(cb.name)}
+                  onClick={() => handleNewResearch(cb.name || cb.root_path)}
                   className="ml-6 flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
                 >
                   Start Research

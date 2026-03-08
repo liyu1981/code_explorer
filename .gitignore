@@ -1,5 +1,7 @@
+.config.json
 .codemogger/
 vendor/
+tmp/
 
 #####
 

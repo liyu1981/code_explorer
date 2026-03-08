@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/logger"
 	"github.com/liyu1981/code_explorer/pkg/server"
+	"github.com/rs/zerolog/log"
 )
 
 func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
@@ -46,6 +47,9 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 				if fileCfg.Embedder.OpenAI.Model != "" {
 					cfg.Embedder.OpenAI.Model = fileCfg.Embedder.OpenAI.Model
 				}
+				if fileCfg.LLM != nil {
+					cfg.LLM = fileCfg.LLM
+				}
 			}
 		}
 	}
@@ -70,20 +74,22 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 }
 
 func main() {
+	logger.Init()
+
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "12345"
 	}
 
 	idx, err := getIndex("")
 	if err != nil {
-		log.Fatalf("Failed to open index: %v", err)
+		log.Fatal().Err(err).Msg("Failed to open index")
 	}
 	defer idx.Close()
 
 	srv := server.New(idx)
-	log.Printf("Starting server on :%s", port)
+	log.Info().Msgf("Starting server on :%s", port)
 	if err := http.ListenAndServe(":"+port, srv); err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Server failed")
 	}
 }

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
 type PipelineStepFunc func(ctx context.Context, input string) (string, error)
@@ -170,30 +173,113 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 		}
 	}
 
-	if content == "" && len(toolCalls) == 0 {
-		if c, ok := result["content"].(string); ok {
-			content = c
+	return content, toolCalls, nil
+}
+
+func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, streamWriter *protocol.StreamWriter) (string, []ToolCall, error) {
+	payload := map[string]any{
+		"model":    l.model,
+		"messages": messages,
+		"stream":   true,
+	}
+	if len(tools) > 0 {
+		payload["tools"] = tools
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", l.endpoint, strings.NewReader(string(body)))
+	if err != nil {
+		return "", nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if l.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+l.apiKey)
+	}
+
+	resp, err := l.httpClient.Do(req)
+	if err != nil {
+		return "", nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return "", nil, fmt.Errorf("api returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	fullContent := ""
+	toolCallsMap := make(map[int]*ToolCall)
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
 		}
-		if tc, ok := result["tool_calls"].([]any); ok {
-			for _, tcItem := range tc {
-				tcMap, ok := tcItem.(map[string]any)
-				if !ok {
-					continue
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+
+		var chunk struct {
+			ID      string `json:"id"`
+			Choices []struct {
+				Delta struct {
+					Content   string `json:"content"`
+					ToolCalls []struct {
+						Index    int    `json:"index"`
+						ID       string `json:"id"`
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls"`
+				} `json:"delta"`
+				FinishReason *string `json:"finish_reason"`
+			} `json:"choices"`
+		}
+
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue
+		}
+
+		if len(chunk.Choices) > 0 {
+			choice := chunk.Choices[0]
+			content := choice.Delta.Content
+			if content != "" {
+				fullContent += content
+				streamWriter.WriteOpenAIChunk(chunk.ID, l.model, content, choice.FinishReason)
+			}
+
+			for _, tc := range choice.Delta.ToolCalls {
+				if _, ok := toolCallsMap[tc.Index]; !ok {
+					toolCallsMap[tc.Index] = &ToolCall{
+						ID:   tc.ID,
+						Name: tc.Function.Name,
+					}
 				}
-				id, _ := tcMap["id"].(string)
-				funcName, _ := tcMap["function"].(map[string]any)
-				name, _ := funcName["name"].(string)
-				args, _ := funcName["arguments"].(string)
-				toolCalls = append(toolCalls, ToolCall{
-					ID:    id,
-					Name:  name,
-					Input: json.RawMessage(args),
-				})
+				if tc.Function.Arguments != "" {
+					toolCallsMap[tc.Index].Input = append(toolCallsMap[tc.Index].Input, []byte(tc.Function.Arguments)...)
+				}
 			}
 		}
 	}
 
-	return content, toolCalls, nil
+	var toolCalls []ToolCall
+	for i := 0; i < len(toolCallsMap); i++ {
+		if tc, ok := toolCallsMap[i]; ok {
+			toolCalls = append(toolCalls, *tc)
+		}
+	}
+
+	return fullContent, toolCalls, nil
 }
 
 type MockLLM struct {
@@ -228,6 +314,19 @@ func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[
 	l.callIndex++
 
 	return response, tcs, nil
+}
+
+func (l *MockLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream *protocol.StreamWriter) (string, []ToolCall, error) {
+	content, toolCalls, err := l.Generate(ctx, messages, tools)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if stream != nil && content != "" {
+		stream.WriteOpenAIChunk("mock-id", l.model, content, nil)
+	}
+
+	return content, toolCalls, nil
 }
 
 type BaseTool struct {

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { BaseLayout } from "./_components/base-layout";
 import { WebSocketProvider } from "./_components/websocket-provider";
+import { Provider } from "jotai";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,10 +21,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <WebSocketProvider>
-          <BaseLayout>{children}</BaseLayout>
-        </WebSocketProvider>
-        <Toaster />
+        <Provider>
+          <WebSocketProvider>
+            <BaseLayout>{children}</BaseLayout>
+          </WebSocketProvider>
+          <Toaster />
+        </Provider>
       </body>
     </html>
   );

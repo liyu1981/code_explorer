@@ -3,6 +3,7 @@ package codemogger
 type Config struct {
 	DBPath     string         `json:"db_path,omitempty"`
 	Embedder   EmbedderConfig `json:"embedder"`
+	LLM        map[string]any `json:"llm,omitempty"`
 	Languages  []string       `json:"languages,omitempty"`
 	ChunkLines int            `json:"chunk_lines,omitempty"`
 }

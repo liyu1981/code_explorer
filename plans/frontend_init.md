@@ -50,7 +50,7 @@ We will scaffold a new Next.js application in the `frontend` directory that mirr
 - **`src/app/settings/page.tsx`**: A simplified settings page to manage `code_explorer` configurations.
 
 ### 5. Integration
-- Connect the frontend to the backend API (defaulting to `:8080`).
+- Connect the frontend to the backend API (defaulting to `:12345`).
 - Ensure the WebSocket connection correctly reflects the server status.
 
 ## Folder Structure to be Created

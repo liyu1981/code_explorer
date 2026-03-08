@@ -1,4 +1,4 @@
-import { Source } from "../_components/source-card";
+import { Source } from "../../research/_components/source-card";
 
 export const MOCK_REPORT_1 = `I have analyzed the codebase regarding **initial setup**. The project is a sophisticated TypeScript-based React application utilizing Next.js 16.
 

@@ -9,6 +9,18 @@
       "api_key": ""
     }
   },
-  "languages": ["go", "rust", "python", "typescript", "javascript"],
+  "llm": {
+    "type": "openai",
+    "model": "qwen3.5:4b",
+    "endpoint": "http://localhost:20003/v1/chat/completions",
+    "api_key": ""
+  },
+  "languages": [
+    "go",
+    "rust",
+    "python",
+    "typescript",
+    "javascript"
+  ],
   "chunk_lines": 150
 }

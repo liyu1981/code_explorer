@@ -5,13 +5,16 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/liyu1981/code_explorer/pkg/agent"
+	"github.com/liyu1981/code_explorer/pkg/agent/tools"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 )
 
 // ApiHandler represents the API handler
 type ApiHandler struct {
-	index *codemogger.CodeIndex
-	hub   *WsHub
+	index        *codemogger.CodeIndex
+	hub          *WsHub
+	agentFactory *agent.AgentFactory
 }
 
 // ApiConfig holds the API handler configuration
@@ -21,9 +24,16 @@ type ApiConfig struct {
 
 // NewHandler creates a new API handler instance
 func NewHandler(config *ApiConfig) *ApiHandler {
+	factory := agent.NewAgentFactory()
+	if config.Index != nil {
+		factory.RegisterTool(tools.NewListFilesTool(config.Index))
+		factory.RegisterTool(tools.NewSearchTool(config.Index))
+	}
+
 	h := &ApiHandler{
-		index: config.Index,
-		hub:   NewWsHub(),
+		index:        config.Index,
+		hub:          NewWsHub(),
+		agentFactory: factory,
 	}
 	go h.hub.run()
 	return h
@@ -37,16 +47,19 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ws", h.handleWS)
 
 	// Codebases
-	mux.HandleFunc("GET /api/codebases", h.handleListCodebases)
+	mux.HandleFunc("GET /api/codemogger/codebases", h.handleListCodebases)
 
 	// Files
-	mux.HandleFunc("GET /api/files", h.handleListFiles)
+	mux.HandleFunc("GET /api/codemogger/files", h.handleListFiles)
 
 	// Indexing
-	mux.HandleFunc("POST /api/index", h.handleIndex)
+	mux.HandleFunc("POST /api/codemogger/index", h.handleIndex)
 
 	// Search
-	mux.HandleFunc("POST /api/search", h.handleSearch)
+	mux.HandleFunc("POST /api/codemogger/search", h.handleSearch)
+
+	// Agent
+	mux.HandleFunc("POST /api/agent/research", h.handleAgentResearch)
 }
 
 // handleHealth returns the health status of the API

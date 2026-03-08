@@ -3,57 +3,48 @@
 import { useAtom } from "jotai";
 import { Archive } from "lucide-react";
 import { nanoid } from "nanoid";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
-import { API_URL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import {
   activeSessionIdAtom,
+  createSession,
   researchSessionsAtom,
 } from "../_jotai/research-store";
-import { ReasoningTrace } from "./_components/reasoning-trace";
-import { ResearchInput } from "./_components/research-input";
-import { ResearchReport } from "./_components/research-report";
-import type { Source } from "./_components/source-card";
+import { ReasoningTrace } from "../research/_components/reasoning-trace";
+import { ResearchInput } from "../research/_components/research-input";
+import { ResearchReport } from "../research/_components/research-report";
+import { CEEvent, getMockStream, OpenAIChunk } from "./_mock/ce";
 
-interface OpenAIChunk {
-  choices: {
-    delta: {
-      content?: string;
-    };
-  }[];
-}
-
-interface CEEvent {
-  object: string;
-  id?: string;
-  status?: "pending" | "active" | "completed";
-  content?: string;
-  source?: Source;
-}
-
-function ResearchContent() {
+function ResearchMockContent() {
   const [sessions, setSessions] = useAtom(researchSessionsAtom);
   const [activeSessionId, setActiveSessionId] = useAtom(activeSessionIdAtom);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const urlId = searchParams.get("id");
+  const prevTurnsLengthRef = useRef(0);
 
-  // Sync activeSessionId with URL
+  // Initialize a default mock session if none exists
   useEffect(() => {
-    if (urlId && urlId !== activeSessionId) {
-      setActiveSessionId(urlId);
-    } else if (!urlId) {
-      router.push("/");
+    if (sessions.length === 0) {
+      setSessions((current) => {
+        if (current.length === 0) {
+          const mockSession = createSession();
+          mockSession.title = "Mock Research Session";
+          return [mockSession];
+        }
+        return current;
+      });
     }
-  }, [urlId, activeSessionId, setActiveSessionId, router]);
+  }, [sessions.length, setSessions]);
+
+  useEffect(() => {
+    if (sessions.length > 0 && !activeSessionId) {
+      setActiveSessionId(sessions[0].id);
+    }
+  }, [sessions, activeSessionId, setActiveSessionId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
-  const prevTurnsLengthRef = useRef(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll management
   useEffect(() => {
@@ -140,132 +131,104 @@ function ResearchContent() {
       ),
     );
 
-    try {
-      const response = await fetch(`${API_URL}/api/agent/research`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query }),
-      });
+    // Get mock stream
+    const stream = getMockStream(query);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+    // Simulate streaming
+    for (const line of stream) {
+      // Small delay to simulate real network/llm
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No reader");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") break;
-
-            try {
-              const chunk: OpenAIChunk = JSON.parse(data);
-              const content = chunk.choices[0]?.delta?.content;
-              if (content) {
-                setSessions((current) =>
-                  current.map((s) =>
-                    s.id === sessionId
-                      ? {
-                          ...s,
-                          turns: s.turns.map((t) =>
-                            t.id === turnId
-                              ? { ...t, report: t.report + content }
-                              : t,
-                          ),
-                        }
-                      : s,
-                  ),
-                );
-              }
-            } catch (e) {
-              console.error("Failed to parse data chunk", e, data);
-            }
-          } else if (line.startsWith("ce: ")) {
-            const data = line.slice(4);
-            try {
-              const event: CEEvent = JSON.parse(data);
-              setSessions((current) =>
-                current.map((s) => {
-                  if (s.id !== sessionId) return s;
-
-                  switch (event.object) {
-                    case "research.step.update":
-                      return {
-                        ...s,
-                        steps: s.steps.map((step) =>
-                          step.id === event.id
-                            ? { ...step, status: event.status ?? step.status }
-                            : step,
-                        ),
-                      };
-                    case "research.reasoning.delta":
-                      return {
-                        ...s,
-                        thoughtProcess:
-                          s.thoughtProcess + (event.content ?? ""),
-                      };
-                    case "research.source.added":
-                      if (event.source) {
-                        return {
-                          ...s,
-                          turns: s.turns.map((t) =>
-                            t.id === turnId
-                              ? { ...t, sources: [...t.sources, event.source!] }
-                              : t,
-                          ),
-                        };
-                      }
-                      return s;
-                    default:
-                      return s;
-                  }
-                }),
-              );
-            } catch (e) {
-              console.error("Failed to parse CE event", e, data);
-            }
+      if (line.startsWith("data: ")) {
+        try {
+          const chunk: OpenAIChunk = JSON.parse(line.slice(6));
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            setSessions((current) =>
+              current.map((s) =>
+                s.id === sessionId
+                  ? {
+                      ...s,
+                      turns: s.turns.map((t) =>
+                        t.id === turnId
+                          ? { ...t, report: t.report + content }
+                          : t,
+                      ),
+                    }
+                  : s,
+              ),
+            );
           }
+        } catch (e) {
+          console.error("Failed to parse mock data chunk", e, line);
+        }
+      } else if (line.startsWith("ce: ")) {
+        try {
+          const event: CEEvent = JSON.parse(line.slice(4));
+
+          setSessions((current) =>
+            current.map((s) => {
+              if (s.id !== sessionId) return s;
+
+              switch (event.object) {
+                case "research.step.update":
+                  return {
+                    ...s,
+                    steps: s.steps.map((step) =>
+                      step.id === event.id
+                        ? { ...step, status: event.status ?? step.status }
+                        : step,
+                    ),
+                  };
+                case "research.reasoning.delta":
+                  return {
+                    ...s,
+                    thoughtProcess: s.thoughtProcess + (event.content || ""),
+                  };
+                case "research.source.added":
+                  return {
+                    ...s,
+                    turns: s.turns.map((t) =>
+                      t.id === turnId
+                        ? { ...t, sources: [...t.sources, event.source] }
+                        : t,
+                    ),
+                  };
+                default:
+                  return s;
+              }
+            }),
+          );
+        } catch (e) {
+          console.error("Failed to parse mock CE event", e, line);
         }
       }
-    } catch (error) {
-      console.error("Research failed:", error);
-    } finally {
-      // Finalize
-      setSessions((current) =>
-        current.map((s) =>
-          s.id === sessionId
-            ? {
-                ...s,
-                state: "reported",
-                activeTurnId: undefined,
-              }
-            : s,
-        ),
-      );
     }
+
+    // Finalize
+    setSessions((current) =>
+      current.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              state: "reported",
+              activeTurnId: undefined,
+            }
+          : s,
+      ),
+    );
   };
 
   const handleArchive = (id: string) => {
     setSessions((current) => current.filter((s) => s.id !== id));
-    router.push("/");
   };
 
   if (!activeSession) {
-    return null;
+    return (
+      <div className="flex items-center justify-center h-full">
+        No active session. Select one from sidebar.
+      </div>
+    );
   }
 
   const isResearching =
@@ -276,7 +239,7 @@ function ResearchContent() {
       <AppHeader>
         <div className="flex items-center gap-4 w-full">
           <h1 className="text-xl font-bold tracking-tight text-primary">
-            Research
+            Research Mock UI
           </h1>
           <button
             onClick={() => handleArchive(activeSession.id)}
@@ -304,7 +267,7 @@ function ResearchContent() {
             <div className="w-full max-w-4xl space-y-12 animate-in fade-in zoom-in-95 duration-700">
               <div className="text-center space-y-4">
                 <h2 className="text-6xl font-bold tracking-tighter">
-                  What are we building?
+                  UI Mock: What are we building?
                 </h2>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                   Research your codebase with semantic intelligence and deep
@@ -372,10 +335,10 @@ function ResearchContent() {
   );
 }
 
-export default function ResearchPage() {
+export default function ResearchMockPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <ResearchContent />
+      <ResearchMockContent />
     </Suspense>
   );
 }

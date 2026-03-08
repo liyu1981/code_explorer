@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
+	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/rs/zerolog/log"
 )
 
 type Message struct {
@@ -83,6 +86,7 @@ func (r *ToolRegistry) MarshalToolsForLLM() []map[string]any {
 
 type LLM interface {
 	Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error)
+	GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream *protocol.StreamWriter) (string, []ToolCall, error)
 	Name() string
 }
 
@@ -120,61 +124,93 @@ func NewAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
 	return a
 }
 
-func (a *Agent) Run(ctx context.Context, input string) (string, error) {
+func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWriter) (string, error) {
+	log.Info().Str("input", input).Msg("Agent starting run")
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
 
 	tools := a.tools.MarshalToolsForLLM()
 
 	for i := 0; i < a.maxIterations; i++ {
-		response, toolCalls, err := a.llm.Generate(ctx, a.messages, tools)
+		log.Debug().Int("iteration", i).Msg("Agent iteration start")
+		var response string
+		var toolCalls []ToolCall
+		var err error
+
+		if stream != nil {
+			response, toolCalls, err = a.llm.GenerateStream(ctx, a.messages, tools, stream)
+		} else {
+			response, toolCalls, err = a.llm.Generate(ctx, a.messages, tools)
+		}
+
 		if err != nil {
+			log.Error().Err(err).Int("iteration", i).Msg("LLM generation failed")
 			return "", fmt.Errorf("llm generation failed: %w", err)
 		}
 
+		log.Debug().Int("tool_calls", len(toolCalls)).Msg("LLM response received")
 		a.messages = append(a.messages, Message{Role: "assistant", Content: response})
 
 		if len(toolCalls) == 0 {
+			log.Info().Msg("Agent finished without tool calls")
 			return response, nil
 		}
 
 		for _, tc := range toolCalls {
+			log.Info().Str("tool", tc.Name).RawJSON("input", tc.Input).Msg("Executing tool")
+			if stream != nil {
+				stream.SendToolCall(tc.Name, tc.Input)
+			}
+
 			tool, ok := a.tools.Get(tc.Name)
 			if !ok {
+				msg := fmt.Sprintf("Error: tool %s not found", tc.Name)
 				a.messages = append(a.messages, Message{
 					Role:    "tool",
-					Content: fmt.Sprintf("Error: tool %s not found", tc.Name),
+					Content: msg,
 				})
+				if stream != nil {
+					stream.SendToolResponse(tc.Name, msg)
+				}
 				continue
 			}
 
 			if len(tc.Input) == 0 {
+				msg := fmt.Sprintf("Error: tool %s was called without any arguments. Please provide the required parameters in JSON format.", tc.Name)
 				a.messages = append(a.messages, Message{
 					Role:    "tool",
-					Content: fmt.Sprintf("Error: tool %s was called without any arguments. Please provide the required parameters in JSON format.", tc.Name),
+					Content: msg,
 				})
-				continue
-			}
-
-			var args map[string]any
-			if err := json.Unmarshal(tc.Input, &args); err != nil {
-				a.messages = append(a.messages, Message{
-					Role:    "tool",
-					Content: fmt.Sprintf("Error: tool %s received invalid JSON arguments: %s. Please provide valid JSON.", tc.Name, string(tc.Input)),
-				})
+				if stream != nil {
+					stream.SendToolResponse(tc.Name, msg)
+				}
 				continue
 			}
 
 			output, err := tool.Execute(ctx, tc.Input)
 			if err != nil {
+				log.Error().Err(err).Str("tool", tc.Name).Msg("Tool execution failed")
 				a.messages = append(a.messages, Message{
 					Role:    "tool",
 					Content: err.Error(),
 				})
+				if stream != nil {
+					stream.SendToolResponse(tc.Name, err.Error())
+				}
 			} else {
+				log.Debug().Str("tool", tc.Name).Msg("Tool execution successful")
 				a.messages = append(a.messages, Message{
 					Role:    "tool",
 					Content: output,
 				})
+				if stream != nil {
+					// Try to parse output as JSON to send structured response
+					var structured any
+					if json.Unmarshal([]byte(output), &structured) == nil {
+						stream.SendToolResponse(tc.Name, structured)
+					} else {
+						stream.SendToolResponse(tc.Name, output)
+					}
+				}
 			}
 		}
 	}

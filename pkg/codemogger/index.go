@@ -10,6 +10,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger/scan"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/search"
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/rs/zerolog/log"
 )
 
 type CodeIndex struct {
@@ -17,6 +18,7 @@ type CodeIndex struct {
 	dbPath         string
 	embedder       embed.Embedder
 	embeddingModel string
+	Config         *Config
 }
 
 func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
@@ -63,6 +65,7 @@ func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
 		dbPath:         dbPath,
 		embedder:       emb,
 		embeddingModel: cfg.Embedder.Model,
+		Config:         cfg,
 	}, nil
 }
 
@@ -73,6 +76,7 @@ func ProjectDbPath(dir string) string {
 }
 
 func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) {
+	log.Info().Str("dir", dir).Msg("Starting indexing")
 	start := time.Now()
 	rootDir, _ := filepath.Abs(dir)
 
@@ -223,7 +227,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	var errors []string
 	errors = append(errors, scanErrors...)
 
-	return &IndexResult{
+	res := &IndexResult{
 		Files:    filesProcessed,
 		Chunks:   chunksCreated,
 		Embedded: embedded,
@@ -231,7 +235,16 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		Removed:  removed,
 		Errors:   errors,
 		Duration: duration,
-	}, nil
+	}
+	log.Info().
+		Int("files", res.Files).
+		Int("chunks", res.Chunks).
+		Int("embedded", res.Embedded).
+		Int("skipped", res.Skipped).
+		Int("duration_ms", res.Duration).
+		Msg("Indexing completed")
+
+	return res, nil
 }
 
 func buildEmbedText(filePath, kind, name, signature, snippet string) string {
@@ -254,6 +267,7 @@ func buildEmbedText(filePath, kind, name, signature, snippet string) string {
 }
 
 func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, error) {
+	log.Info().Str("query", query).Interface("opts", opts).Msg("Searching index")
 	if opts == nil {
 		opts = &SearchOptions{}
 	}

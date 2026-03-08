@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,9 +11,12 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/format"
+	"github.com/liyu1981/code_explorer/pkg/logger"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	logger.Init()
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
@@ -80,6 +82,9 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 				if fileCfg.Embedder.OpenAI.Model != "" {
 					cfg.Embedder.OpenAI.Model = fileCfg.Embedder.OpenAI.Model
 				}
+				if fileCfg.LLM != nil {
+					cfg.LLM = fileCfg.LLM
+				}
 			}
 		}
 	}
@@ -118,7 +123,7 @@ func handleIndex() {
 	dir := indexCmd.Arg(0)
 	idx, err := getIndex(*dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open index: %v", err)
+		log.Fatal().Msgf("Failed to open index: %v", err)
 	}
 	defer idx.Close()
 
@@ -137,7 +142,7 @@ func handleIndex() {
 	fmt.Printf("Indexing %s...\n", dir)
 	res, err := idx.Index(dir, opts)
 	if err != nil {
-		log.Fatalf("\nIndexing failed: %v", err)
+		log.Fatal().Msgf("\nIndexing failed: %v", err)
 	}
 
 	fmt.Printf("Processed %d files, created %d chunks, embedded %d chunks, skipped %d, removed %d stale files\n",
@@ -168,7 +173,7 @@ func handleSearch() {
 	query := searchCmd.Arg(0)
 	idx, err := getIndex(*dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open index: %v", err)
+		log.Fatal().Msgf("Failed to open index: %v", err)
 	}
 	defer idx.Close()
 
@@ -180,7 +185,7 @@ func handleSearch() {
 
 	results, err := idx.Search(query, opts)
 	if err != nil {
-		log.Fatalf("Search failed: %v", err)
+		log.Fatal().Msgf("Search failed: %v", err)
 	}
 
 	if *output == "json" {
@@ -198,13 +203,13 @@ func handleListFiles() {
 
 	idx, err := getIndex(*dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open index: %v", err)
+		log.Fatal().Msgf("Failed to open index: %v", err)
 	}
 	defer idx.Close()
 
 	files, err := idx.ListFiles()
 	if err != nil {
-		log.Fatalf("Failed to list files: %v", err)
+		log.Fatal().Msgf("Failed to list files: %v", err)
 	}
 
 	fmt.Printf("%-50s %-20s %-10s\n", "Path", "Indexed At", "Chunks")
@@ -222,13 +227,13 @@ func handleListCodebases() {
 
 	idx, err := getIndex(*dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open index: %v", err)
+		log.Fatal().Msgf("Failed to open index: %v", err)
 	}
 	defer idx.Close()
 
 	codebases, err := idx.ListCodebases()
 	if err != nil {
-		log.Fatalf("Failed to list codebases: %v", err)
+		log.Fatal().Msgf("Failed to list codebases: %v", err)
 	}
 
 	fmt.Printf("%-5s %-40s %-20s %-10s %-10s\n", "ID", "Path", "Indexed At", "Files", "Chunks")

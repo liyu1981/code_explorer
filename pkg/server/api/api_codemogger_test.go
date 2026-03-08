@@ -42,7 +42,7 @@ func TestApiListCodebases(t *testing.T) {
 	defer cleanup()
 
 	h := NewHandler(&ApiConfig{Index: idx})
-	req := httptest.NewRequest("GET", "/api/codebases", nil)
+	req := httptest.NewRequest("GET", "/api/codemogger/codebases", nil)
 	rr := httptest.NewRecorder()
 
 	h.handleListCodebases(rr, req)
@@ -78,7 +78,7 @@ func TestApiIndex(t *testing.T) {
 		"dir":   tmpDir,
 		"langs": []string{"go"},
 	})
-	req := httptest.NewRequest("POST", "/api/index", bytes.NewBuffer(body))
+	req := httptest.NewRequest("POST", "/api/codemogger/index", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
 	h.handleIndex(rr, req)
@@ -105,7 +105,7 @@ func TestApiSearch(t *testing.T) {
 		"limit": 5,
 		"mode":  "hybrid",
 	})
-	req := httptest.NewRequest("POST", "/api/search", bytes.NewBuffer(body))
+	req := httptest.NewRequest("POST", "/api/codemogger/search", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
 	h.handleSearch(rr, req)
