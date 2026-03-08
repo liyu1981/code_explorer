@@ -30,6 +30,7 @@ interface CEEvent {
   object: string;
   id?: string;
   status?: "pending" | "active" | "completed";
+  label?: string;
   content?: string;
   source?: Source;
   resource?: Source;
@@ -205,14 +206,38 @@ function ResearchContent() {
 
                   switch (event.object) {
                     case "research.step.update":
-                      return {
-                        ...s,
-                        steps: s.steps.map((step) =>
-                          step.id === event.id
-                            ? { ...step, status: event.status ?? step.status }
-                            : step,
-                        ),
-                      };
+                      const existingStep = s.steps.find(
+                        (st) => st.id === event.id,
+                      );
+                      if (existingStep) {
+                        return {
+                          ...s,
+                          steps: s.steps.map((step) =>
+                            step.id === event.id
+                              ? {
+                                  ...step,
+                                  status: event.status ?? step.status,
+                                  label: event.label ?? step.label,
+                                }
+                              : step,
+                          ),
+                        };
+                      }
+                      // If step doesn't exist, add it
+                      if (event.id && event.label && event.status) {
+                        return {
+                          ...s,
+                          steps: [
+                            ...s.steps,
+                            {
+                              id: event.id,
+                              label: event.label,
+                              status: event.status,
+                            },
+                          ],
+                        };
+                      }
+                      return s;
                     case "research.reasoning.delta":
                       return {
                         ...s,

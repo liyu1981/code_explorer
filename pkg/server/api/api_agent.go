@@ -77,7 +77,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Send initial steps
 	// We can define standard steps here or let the agent emit them
-	sw.SendStepUpdate("plan", protocol.StepActive)
+	sw.SendStepUpdate("thinking", "Thinking about the research plan", protocol.StepActive)
 
 	// Run agent in a goroutine or directly
 	// For streaming, we should run it and let it write to sw
@@ -88,5 +88,6 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
 	}
 
+	sw.SendStepUpdate("thinking", "Thinking about the research plan", protocol.StepCompleted)
 	sw.WriteDone()
 }

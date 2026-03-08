@@ -98,10 +98,11 @@ func (s *StreamWriter) SendReasoning(content string) error {
 	})
 }
 
-func (s *StreamWriter) SendStepUpdate(id string, status StepStatus) error {
+func (s *StreamWriter) SendStepUpdate(id string, label string, status StepStatus) error {
 	return s.WriteCEEvent(CEEvent{
 		Object: "research.step.update",
 		ID:     id,
+		Label:  label,
 		Status: status,
 	})
 }

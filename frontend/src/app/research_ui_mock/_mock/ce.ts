@@ -15,6 +15,7 @@ export interface CEEvent {
   object: string;
   id?: string;
   status?: "pending" | "active" | "completed";
+  label?: string;
   content?: string;
   tool?: string;
   params?: any;
@@ -37,35 +38,87 @@ export const getMockStream = (query: string) => {
 
   // 1. Initial Step Updates
   stream.push(
-    `ce: ${JSON.stringify({ object: "research.step.update", id: "1", status: "active" })}`,
+    `ce: ${JSON.stringify({
+      object: "research.step.update",
+      id: "thinking",
+      label: "Thinking about the research plan",
+      status: "active",
+    })}`,
   );
   stream.push(
-    `ce: ${JSON.stringify({ object: "research.reasoning.delta", content: `Initializing deep research for: ${query}\n` })}`,
+    `ce: ${JSON.stringify({
+      object: "research.step.update",
+      id: "thinking",
+      label: "Thinking about the research plan",
+      status: "completed",
+    })}`,
+  );
+  stream.push(
+    `ce: ${JSON.stringify({
+      object: "research.step.update",
+      id: "1",
+      label: "Searching codebase for context",
+      status: "active",
+    })}`,
+  );
+  stream.push(
+    `ce: ${JSON.stringify({
+      object: "research.reasoning.delta",
+      content: `Initializing deep research for: ${query}\n`,
+    })}`,
   );
 
   // 2. Tool call simulation
   stream.push(
-    `ce: ${JSON.stringify({ object: "tool.call.request", tool: "grep_search", params: { pattern: "useSocket" } })}`,
+    `ce: ${JSON.stringify({
+      object: "tool.call.request",
+      tool: "grep_search",
+      params: { pattern: "useSocket" },
+    })}`,
   );
   stream.push(
-    `ce: ${JSON.stringify({ object: "research.reasoning.delta", content: "Searching for WebSocket patterns...\n" })}`,
+    `ce: ${JSON.stringify({
+      object: "research.reasoning.delta",
+      content: "Searching for WebSocket patterns...\n",
+    })}`,
   );
   stream.push(
-    `ce: ${JSON.stringify({ object: "tool.call.response", tool: "grep_search", response: { matches: ["src/hooks/useSocket.ts"] } })}`,
+    `ce: ${JSON.stringify({
+      object: "tool.call.response",
+      tool: "grep_search",
+      response: { matches: ["src/hooks/useSocket.ts"] },
+    })}`,
   );
 
   // 3. Step transition
   stream.push(
-    `ce: ${JSON.stringify({ object: "research.step.update", id: "1", status: "completed" })}`,
+    `ce: ${JSON.stringify({
+      object: "research.step.update",
+      id: "1",
+      label: "Searching codebase for context",
+      status: "completed",
+    })}`,
   );
   stream.push(
-    `ce: ${JSON.stringify({ object: "research.step.update", id: "2", status: "active" })}`,
+    `ce: ${JSON.stringify({
+      object: "research.step.update",
+      id: "2",
+      label: "Analyzing retrieved code chunks",
+      status: "active",
+    })}`,
   );
 
-  // 4. Source added
+  // 4. Source added (using resource.material now)
   for (const source of MOCK_SOURCES_1) {
     stream.push(
-      `ce: ${JSON.stringify({ object: "research.source.added", source })}`,
+      `ce: ${JSON.stringify({
+        object: "resource.material",
+        resource: {
+          ...source,
+          start_line: 1,
+          end_line: 10,
+        },
+      })}`,
     );
   }
 
@@ -83,10 +136,20 @@ export const getMockStream = (query: string) => {
 
   // 6. Finalize
   stream.push(
-    `ce: ${JSON.stringify({ object: "research.step.update", id: "2", status: "completed" })}`,
+    `ce: ${JSON.stringify({
+      object: "research.step.update",
+      id: "2",
+      label: "Analyzing retrieved code chunks",
+      status: "completed",
+    })}`,
   );
   stream.push(
-    `ce: ${JSON.stringify({ object: "research.step.update", id: "3", status: "completed" })}`,
+    `ce: ${JSON.stringify({
+      object: "research.step.update",
+      id: "3",
+      label: "Synthesizing deep research report",
+      status: "completed",
+    })}`,
   );
   stream.push(
     `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,

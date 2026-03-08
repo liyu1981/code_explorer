@@ -32,11 +32,7 @@ export const createSession = (): ResearchSession => ({
   id: nanoid(10),
   title: "New Research",
   state: "idle",
-  steps: [
-    { id: "1", label: "Searching codebase for context", status: "pending" },
-    { id: "2", label: "Analyzing retrieved code chunks", status: "pending" },
-    { id: "3", label: "Synthesizing deep research report", status: "pending" },
-  ],
+  steps: [],
   thoughtProcess: "",
   turns: [],
   createdAt: Date.now(),

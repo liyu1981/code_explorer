@@ -136,10 +136,19 @@ func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWr
 		var toolCalls []ToolCall
 		var err error
 
+		stepID := fmt.Sprintf("iteration-%d", i)
+		if stream != nil {
+			stream.SendStepUpdate(stepID, "Thinking and reasoning", protocol.StepActive)
+		}
+
 		if stream != nil {
 			response, toolCalls, err = a.llm.GenerateStream(ctx, a.messages, tools, stream)
 		} else {
 			response, toolCalls, err = a.llm.Generate(ctx, a.messages, tools)
+		}
+
+		if stream != nil {
+			stream.SendStepUpdate(stepID, "Thinking and reasoning", protocol.StepCompleted)
 		}
 
 		if err != nil {
@@ -157,7 +166,9 @@ func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWr
 
 		for _, tc := range toolCalls {
 			log.Info().Str("tool", tc.Name).RawJSON("input", tc.Input).Msg("Executing tool")
+			toolStepID := fmt.Sprintf("tool-%s-%d-%s", tc.Name, i, tc.ID)
 			if stream != nil {
+				stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepActive)
 				stream.SendToolCall(tc.Name, tc.Input)
 			}
 
@@ -170,6 +181,7 @@ func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWr
 				})
 				if stream != nil {
 					stream.SendToolResponse(tc.Name, msg)
+					stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
 				}
 				continue
 			}
@@ -182,6 +194,7 @@ func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWr
 				})
 				if stream != nil {
 					stream.SendToolResponse(tc.Name, msg)
+					stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
 				}
 				continue
 			}
@@ -211,6 +224,10 @@ func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWr
 						stream.SendToolResponse(tc.Name, output)
 					}
 				}
+			}
+
+			if stream != nil {
+				stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
 			}
 		}
 	}

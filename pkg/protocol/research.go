@@ -60,6 +60,7 @@ type CEEvent struct {
 	Object   string          `json:"object"`
 	ID       string          `json:"id,omitempty"`       // For step updates
 	Status   StepStatus      `json:"status,omitempty"`   // For step updates
+	Label    string          `json:"label,omitempty"`    // For step updates
 	Content  string          `json:"content,omitempty"`  // For reasoning deltas
 	Tool     string          `json:"tool,omitempty"`     // For tool calls
 	Params   any             `json:"params,omitempty"`   // For tool requests
