@@ -32,6 +32,7 @@ interface CEEvent {
   status?: "pending" | "active" | "completed";
   content?: string;
   source?: Source;
+  resource?: Source;
 }
 
 function ResearchContent() {
@@ -225,6 +226,21 @@ function ResearchContent() {
                           turns: s.turns.map((t) =>
                             t.id === turnId
                               ? { ...t, sources: [...t.sources, event.source!] }
+                              : t,
+                          ),
+                        };
+                      }
+                      return s;
+                    case "resource.material":
+                      if (event.resource) {
+                        return {
+                          ...s,
+                          turns: s.turns.map((t) =>
+                            t.id === turnId
+                              ? {
+                                  ...t,
+                                  sources: [...t.sources, event.resource!],
+                                }
                               : t,
                           ),
                         };

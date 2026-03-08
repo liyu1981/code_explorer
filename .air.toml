@@ -4,6 +4,11 @@ cmd = "go build -o ./tmp/ce ./cmd/ce/main.go"
 include_ext = ["go", "html", "js", "sql", "md"]
 include_dir = ["pkg", "cmd", "configs"]
 exclude_dir = ["frontend", "tmp", ".git"]
+send_interrupt = true
+kill_delay = "500ms"
 
 [run]
 cmd = "./tmp/ce"
+
+[misc]
+clean_on_exit = true

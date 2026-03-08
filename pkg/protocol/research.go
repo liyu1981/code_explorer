@@ -2,9 +2,11 @@ package protocol
 
 // SourceMaterial represents a specific code snippet or file used in the research.
 type SourceMaterial struct {
-	ID      string `json:"id"`      // Unique identifier for the source (e.g., "src-1")
-	Path    string `json:"path"`    // Relative path to the file in the codebase
-	Snippet string `json:"snippet"` // Relevant code snippet from the file
+	ID        string `json:"id"`         // Unique identifier for the source (e.g., "src-1")
+	Path      string `json:"path"`       // Relative path to the file in the codebase
+	Snippet   string `json:"snippet"`    // Relevant code snippet from the file
+	StartLine int    `json:"start_line"` // Starting line number of the snippet
+	EndLine   int    `json:"end_line"`   // Ending line number of the snippet
 }
 
 // ResearchTurn represents a single exchange in a research session.
@@ -63,4 +65,5 @@ type CEEvent struct {
 	Params   any             `json:"params,omitempty"`   // For tool requests
 	Response any             `json:"response,omitempty"` // For tool responses
 	Source   *SourceMaterial `json:"source,omitempty"`   // For added sources
+	Resource *SourceMaterial `json:"resource,omitempty"` // For resource materials
 }

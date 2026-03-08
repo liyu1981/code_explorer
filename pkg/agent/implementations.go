@@ -349,7 +349,7 @@ func (t *BaseTool) Parameters() map[string]any {
 	return t.parameters
 }
 
-func (t *BaseTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
+func (t *BaseTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
 	return t.executeFn(ctx, input)
 }
 

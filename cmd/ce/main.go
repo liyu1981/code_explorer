@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/logger"
@@ -92,8 +96,44 @@ func main() {
 	defer idx.Close()
 
 	srv := server.New(idx)
-	log.Info().Msgf("Starting server on :%s", port)
-	if err := http.ListenAndServe(":"+port, srv); err != nil {
-		log.Fatal().Err(err).Msg("Server failed")
+	httpSrv := &http.Server{
+		Addr:    ":" + port,
+		Handler: srv,
+	}
+
+	// Channel to listen for errors during startup
+	serverErrors := make(chan error, 1)
+
+	// Start the server in a goroutine
+	go func() {
+		log.Info().Msgf("Starting server on :%s", port)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErrors <- err
+		}
+	}()
+
+	// Channel to listen for interrupt signals
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	// Blocking wait for either an error or a shutdown signal
+	select {
+	case err := <-serverErrors:
+		log.Fatal().Err(err).Msg("Server failed to start")
+
+	case sig := <-shutdown:
+		log.Info().Msgf("Starting graceful shutdown, signal: %v", sig)
+
+		// Give the server time to finish current requests
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := httpSrv.Shutdown(ctx); err != nil {
+			log.Error().Err(err).Msg("Graceful shutdown failed, forcing close")
+			if err := httpSrv.Close(); err != nil {
+				log.Error().Err(err).Msg("Force close failed")
+			}
+		}
+		log.Info().Msg("Graceful shutdown complete")
 	}
 }

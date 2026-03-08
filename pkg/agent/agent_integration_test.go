@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
 type echoTool struct{}
@@ -22,7 +24,7 @@ func (t *echoTool) Parameters() map[string]any {
 		"required": []string{"message"},
 	}
 }
-func (t *echoTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
+func (t *echoTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
 	var req struct {
 		Message string `json:"message"`
 	}
@@ -51,7 +53,7 @@ func (t *calculateTool) Parameters() map[string]any {
 		"required": []string{"operation", "a", "b"},
 	}
 }
-func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
+func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
 	var req struct {
 		Operation string `json:"operation"`
 		A         int    `json:"a"`

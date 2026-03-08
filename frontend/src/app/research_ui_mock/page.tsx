@@ -194,6 +194,15 @@ function ResearchMockContent() {
                         : t,
                     ),
                   };
+                case "resource.material":
+                  return {
+                    ...s,
+                    turns: s.turns.map((t) =>
+                      t.id === turnId
+                        ? { ...t, sources: [...t.sources, event.resource] }
+                        : t,
+                    ),
+                  };
                 default:
                   return s;
               }

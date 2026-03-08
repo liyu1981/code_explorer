@@ -20,6 +20,7 @@ export interface CEEvent {
   params?: any;
   response?: any;
   source?: any;
+  resource?: any;
 }
 
 // Helper to chunk text for simulation

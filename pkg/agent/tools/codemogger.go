@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
 // ListFilesTool exposes codemogger's ListFiles functionality to the agent
@@ -33,7 +35,7 @@ func (t *ListFilesTool) Parameters() map[string]any {
 	}
 }
 
-func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
+func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
 	files, err := t.index.ListFiles()
 	if err != nil {
 		return "", fmt.Errorf("failed to list files: %w", err)
@@ -86,7 +88,7 @@ func (t *SearchTool) Parameters() map[string]any {
 	}
 }
 
-func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
+func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
 	var req struct {
 		Query string                `json:"query"`
 		Limit int                   `json:"limit"`
@@ -115,10 +117,29 @@ func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage) (string
 		return "", fmt.Errorf("search failed: %w", err)
 	}
 
-	data, err := json.Marshal(results)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal results: %w", err)
+	var markdown strings.Builder
+	for i, res := range results {
+		if stream != nil {
+			// Emit a reasoning update so the user sees progress for each file
+			stream.SendReasoning(fmt.Sprintf("Found relevant snippet in %s:%d\n", res.FilePath, res.StartLine))
+
+			stream.SendResourceMaterial(protocol.SourceMaterial{
+				ID:        fmt.Sprintf("search-%d", i),
+				Path:      res.FilePath,
+				Snippet:   res.Snippet,
+				StartLine: res.StartLine,
+				EndLine:   res.EndLine,
+			})
+		}
+
+		markdown.WriteString(fmt.Sprintf("### %s:%d-%d\n", res.FilePath, res.StartLine, res.EndLine))
+		markdown.WriteString("```\n")
+		markdown.WriteString(res.Snippet)
+		if !strings.HasSuffix(res.Snippet, "\n") {
+			markdown.WriteString("\n")
+		}
+		markdown.WriteString("```\n\n")
 	}
 
-	return string(data), nil
+	return markdown.String(), nil
 }

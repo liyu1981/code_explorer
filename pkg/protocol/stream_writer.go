@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 )
 
@@ -50,13 +51,26 @@ func (s *StreamWriter) WriteOpenAIChunk(id, model, content string, finishReason 
 
 // WriteCEEvent writes a custom Code Explorer event.
 func (s *StreamWriter) WriteCEEvent(event CEEvent) error {
-	return s.writePrefix("ce: ", event)
+	err := s.writePrefix("ce: ", event)
+	if err != nil {
+		return err
+	}
+	if flusher, ok := s.w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
 }
 
 // WriteDone writes the completion signal.
 func (s *StreamWriter) WriteDone() error {
 	_, err := fmt.Fprintf(s.w, "data: [DONE]\n\n")
-	return err
+	if err != nil {
+		return err
+	}
+	if flusher, ok := s.w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
 }
 
 func (s *StreamWriter) writePrefix(prefix string, v any) error {
@@ -65,7 +79,14 @@ func (s *StreamWriter) writePrefix(prefix string, v any) error {
 		return err
 	}
 	_, err = fmt.Fprintf(s.w, "%s%s\n\n", prefix, data)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if flusher, ok := s.w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
 }
 
 // Helper methods for common CE events
@@ -89,6 +110,13 @@ func (s *StreamWriter) SendSourceAdded(source SourceMaterial) error {
 	return s.WriteCEEvent(CEEvent{
 		Object: "research.source.added",
 		Source: &source,
+	})
+}
+
+func (s *StreamWriter) SendResourceMaterial(resource SourceMaterial) error {
+	return s.WriteCEEvent(CEEvent{
+		Object:   "resource.material",
+		Resource: &resource,
 	})
 }
 

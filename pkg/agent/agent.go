@@ -33,7 +33,7 @@ type Tool interface {
 	Name() string
 	Description() string
 	Parameters() map[string]any
-	Execute(ctx context.Context, input json.RawMessage) (string, error)
+	Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error)
 }
 
 type ToolRegistry struct {
@@ -186,7 +186,7 @@ func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWr
 				continue
 			}
 
-			output, err := tool.Execute(ctx, tc.Input)
+			output, err := tool.Execute(ctx, tc.Input, stream)
 			if err != nil {
 				log.Error().Err(err).Str("tool", tc.Name).Msg("Tool execution failed")
 				a.messages = append(a.messages, Message{

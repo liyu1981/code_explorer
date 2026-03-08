@@ -7,6 +7,8 @@ export interface Source {
   path: string;
   score?: number;
   snippet?: string;
+  start_line?: number;
+  end_line?: number;
 }
 
 interface SourceCardProps {
