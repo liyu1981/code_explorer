@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 import { nanoid } from "nanoid";
 import type { ReasoningStep } from "../research/_components/reasoning-trace";
 import type { Source } from "../research/_components/source-card";
@@ -11,10 +12,12 @@ export interface ResearchTurn {
   report: string;
   sources: Source[];
   timestamp: number;
+  updatedAt?: number;
 }
 
 export interface ResearchSession {
   id: string;
+  codebaseId: number;
   title: string;
   state: ResearchState;
   steps: ReasoningStep[];
@@ -22,14 +25,20 @@ export interface ResearchSession {
   turns: ResearchTurn[];
   activeTurnId?: string; // Currently streaming turn ID
   createdAt: number;
+  archivedAt?: number;
 }
 
-export const researchSessionsAtom = atom<ResearchSession[]>([]);
+// Persist research sessions to local storage
+export const researchSessionsAtom = atomWithStorage<ResearchSession[]>(
+  "ce-research-sessions",
+  [],
+);
 export const activeSessionIdAtom = atom<string | null>(null);
 
 // Helper to create a new session
-export const createSession = (): ResearchSession => ({
+export const createSession = (codebaseId: number): ResearchSession => ({
   id: nanoid(10),
+  codebaseId,
   title: "New Research",
   state: "idle",
   steps: [],

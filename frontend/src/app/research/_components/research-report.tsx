@@ -1,6 +1,7 @@
 "use client";
 
-import { MessageSquare, Sparkles } from "lucide-react";
+import { MessageSquare, Sparkles, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
 import { ResearchTurn } from "../../_jotai/research-store";
 import { SourceCard } from "./source-card";
@@ -16,6 +17,30 @@ export function ResearchReport({
   onFollowUp,
   isStreaming,
 }: ResearchReportProps) {
+  const [, setTick] = useState(0);
+
+  // Update relative times every minute
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getRelativeTime = (ts?: number) => {
+    if (!ts) return "";
+    const now = Date.now();
+    const diff = now - ts;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 30) return "just now";
+    if (seconds < 60) return `${seconds}s ago`;
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
   return (
     <div className="max-w-6xl mx-auto w-full py-8">
       {turns.map((turn, turnIndex) => (
@@ -37,9 +62,19 @@ export function ResearchReport({
                 <span className="text-lg font-bold tracking-tight text-foreground/80 flex-1">
                   {turn.query}
                 </span>
-                <span className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap">
-                  Turn #{turnIndex + 1}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap">
+                    Turn #{turnIndex + 1}
+                  </span>
+                  <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-tighter whitespace-nowrap">
+                    <Clock className="h-2.5 w-2.5" />
+                    <span>
+                      Updated:{" "}
+                      {getRelativeTime(turn.updatedAt || turn.timestamp)} :
+                      Created: {getRelativeTime(turn.timestamp)}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <Markdown

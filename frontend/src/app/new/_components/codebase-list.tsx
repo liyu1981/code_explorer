@@ -10,9 +10,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
-import { API_URL, fetcher } from "../../../lib/api";
+import { API_URL, fetcher, api } from "@/lib/api";
 import {
   createSession,
   researchSessionsAtom,
@@ -30,6 +30,9 @@ interface Codebase {
 export function CodebaseList() {
   const [, setSessions] = useAtom(researchSessionsAtom);
   const [codebaseFilter, setCodebaseFilter] = useState("");
+  const [existingSessions, setExistingSessions] = useState<Record<number, any>>(
+    {},
+  );
   const router = useRouter();
 
   const {
@@ -38,13 +41,53 @@ export function CodebaseList() {
     isLoading,
   } = useSWR<Codebase[]>(`${API_URL}/api/codemogger/codebases`, fetcher);
 
-  const handleNewResearch = (codebase?: string) => {
-    const newSession = createSession();
-    if (codebase) {
-      newSession.title = `Research: ${codebase}`;
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const response = await api.get("/api/research/sessions");
+        const sessions = response.data;
+        const sessionMap: Record<number, any> = {};
+        for (const s of sessions) {
+          if (!s.archivedAt) {
+            sessionMap[s.codebaseId] = s;
+          }
+        }
+        setExistingSessions(sessionMap);
+      } catch (e) {
+        console.error("Failed to load sessions", e);
+      }
+    };
+    loadSessions();
+  }, []);
+
+  const handleNewResearch = async (cb?: Codebase) => {
+    const codebaseId = cb?.id || 0;
+
+    // 1. Create new session
+    const newSession = createSession(codebaseId);
+    if (cb) {
+      newSession.title = `Research: ${cb.name || cb.root_path}`;
     }
-    setSessions((current) => [...current, newSession]);
+
+    // 2. Save to backend
+    await api.post("/api/research/sessions", {
+      id: newSession.id,
+      codebaseId: newSession.codebaseId,
+      title: newSession.title,
+      state: newSession.state,
+      createdAt: newSession.createdAt,
+    });
+
+    setSessions((current) => {
+      // Dedup just in case
+      const filtered = current.filter((s) => s.id !== newSession.id);
+      return [...filtered, newSession];
+    });
     router.push(`/research?id=${newSession.id}`);
+  };
+
+  const handleContinueResearch = (sessionId: string) => {
+    router.push(`/research?id=${sessionId}`);
   };
 
   const filteredCodebases =
@@ -136,14 +179,28 @@ export function CodebaseList() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleNewResearch(cb.name || cb.root_path)}
-                  className="ml-6 flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
-                >
-                  Start Research
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+                <div className="ml-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {existingSessions[cb.id] && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleContinueResearch(existingSessions[cb.id].id)
+                      }
+                      className="flex items-center gap-2 px-5 py-2.5 bg-secondary text-secondary-foreground rounded-full text-sm font-bold shadow-lg shadow-secondary/20 hover:scale-105 active:scale-95 transition-all"
+                    >
+                      Continue
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleNewResearch(cb)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+                  >
+                    New Research
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))
           ) : (

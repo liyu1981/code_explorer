@@ -70,7 +70,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 		}
 	}
 
-	// Create .codemogger if it doesn't exist
+	// Create db directory if it doesn't exist
 	dbDir := filepath.Dir(dbPath)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dbDir, 0755); err != nil {

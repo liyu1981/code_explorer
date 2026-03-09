@@ -8,6 +8,20 @@ import (
 	"time"
 )
 
+// IStreamWriter defines the interface for writing to the research stream.
+type IStreamWriter interface {
+	WriteOpenAIChunk(id, model, content string, finishReason *string) error
+	WriteCEEvent(event CEEvent) error
+	WriteDone() error
+	SendReasoning(content string) error
+	SendTurnStarted(id string, query string, timestamp int64) error
+	SendStepUpdate(id string, label string, status StepStatus) error
+	SendSourceAdded(source SourceMaterial) error
+	SendResourceMaterial(resource SourceMaterial) error
+	SendToolCall(tool string, params any) error
+	SendToolResponse(tool string, response any) error
+}
+
 // StreamWriter handles writing the research stream to an io.Writer.
 type StreamWriter struct {
 	w io.Writer
@@ -95,6 +109,15 @@ func (s *StreamWriter) SendReasoning(content string) error {
 	return s.WriteCEEvent(CEEvent{
 		Object:  "research.reasoning.delta",
 		Content: content,
+	})
+}
+
+func (s *StreamWriter) SendTurnStarted(id string, query string, timestamp int64) error {
+	return s.WriteCEEvent(CEEvent{
+		Object:    "research.turn.started",
+		ID:        id,
+		Query:     query,
+		Timestamp: timestamp,
 	})
 }
 

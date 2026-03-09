@@ -60,6 +60,13 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Agent
 	mux.HandleFunc("POST /api/agent/research", h.handleAgentResearch)
+
+	// Research Sessions
+	mux.HandleFunc("GET /api/research/sessions", h.handleListSessions)
+	mux.HandleFunc("GET /api/research/sessions/{id}/reports", h.handleGetSessionReports)
+	mux.HandleFunc("POST /api/research/sessions", h.handleSaveSession)
+	mux.HandleFunc("POST /api/research/sessions/{id}/archive", h.handleArchiveSession)
+	mux.HandleFunc("DELETE /api/research/sessions/{id}", h.handleDeleteSession)
 }
 
 // handleHealth returns the health status of the API

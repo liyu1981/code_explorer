@@ -176,7 +176,7 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 	return content, toolCalls, nil
 }
 
-func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, streamWriter *protocol.StreamWriter) (string, []ToolCall, error) {
+func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, streamWriter protocol.IStreamWriter) (string, []ToolCall, error) {
 	payload := map[string]any{
 		"model":    l.model,
 		"messages": messages,
@@ -316,7 +316,7 @@ func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[
 	return response, tcs, nil
 }
 
-func (l *MockLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream *protocol.StreamWriter) (string, []ToolCall, error) {
+func (l *MockLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream protocol.IStreamWriter) (string, []ToolCall, error) {
 	content, toolCalls, err := l.Generate(ctx, messages, tools)
 	if err != nil {
 		return "", nil, err
@@ -349,7 +349,7 @@ func (t *BaseTool) Parameters() map[string]any {
 	return t.parameters
 }
 
-func (t *BaseTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
+func (t *BaseTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	return t.executeFn(ctx, input)
 }
 

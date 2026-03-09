@@ -5,13 +5,15 @@ import { Archive } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
-import { API_URL } from "@/lib/api";
+import { API_URL, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import {
   activeSessionIdAtom,
+  createSession,
   researchSessionsAtom,
+  type ResearchSession,
 } from "../_jotai/research-store";
 import { ReasoningTrace } from "./_components/reasoning-trace";
 import { ResearchInput } from "./_components/research-input";
@@ -34,6 +36,8 @@ interface CEEvent {
   content?: string;
   source?: Source;
   resource?: Source;
+  query?: string;
+  timestamp?: number;
 }
 
 function ResearchContent() {
@@ -44,6 +48,136 @@ function ResearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlId = searchParams.get("id");
+
+  // Rehydration Effect
+  useEffect(() => {
+    const rehydrate = async () => {
+      if (!urlId) return;
+
+      // If already fully in memory, skip
+      const existing = sessions.find((s) => s.id === urlId);
+      if (existing && existing.turns.length > 0) return;
+
+      try {
+        const sessResponse = await api.get(
+          "/api/research/sessions?includeArchived=true",
+        );
+        const allSessions = sessResponse.data;
+        const sessionData = allSessions.find((s: any) => s.id === urlId);
+
+        if (!sessionData) return;
+
+        const reportsResponse = await api.get(
+          `/api/research/sessions/${urlId}/reports`,
+        );
+        const reports = reportsResponse.data;
+
+        // Reconstruct session state from events
+        const session: ResearchSession = {
+          id: sessionData.id,
+          codebaseId: sessionData.codebaseId,
+          title: sessionData.title,
+          state: sessionData.state as any,
+          createdAt: sessionData.createdAt,
+          archivedAt: sessionData.archivedAt,
+          steps: [],
+          thoughtProcess: "",
+          turns: [],
+        };
+
+        // Simple replayer for each report
+        for (const report of reports) {
+          const lines = report.streamData.split("\n\n");
+          let currentTurnId = "";
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") continue;
+              try {
+                const chunk: OpenAIChunk = JSON.parse(data);
+                const content = chunk.choices[0]?.delta?.content;
+                if (content && currentTurnId) {
+                  const turn = session.turns.find(
+                    (t) => t.id === currentTurnId,
+                  );
+                  if (turn) {
+                    turn.report += content;
+                    turn.updatedAt = report.updatedAt;
+                  }
+                }
+              } catch (e) {}
+            } else if (line.startsWith("ce: ")) {
+              const data = line.slice(4);
+              try {
+                const ce: CEEvent = JSON.parse(data);
+                switch (ce.object) {
+                  case "research.turn.started":
+                    currentTurnId = ce.id!;
+                    session.turns.push({
+                      id: currentTurnId,
+                      query: ce.query!,
+                      report: "",
+                      sources: [],
+                      timestamp: ce.timestamp!,
+                      updatedAt: report.updatedAt,
+                    });
+                    break;
+                  case "research.step.update": {
+                    const idx = session.steps.findIndex((s) => s.id === ce.id);
+                    if (idx > -1) {
+                      session.steps[idx] = {
+                        ...session.steps[idx],
+                        status: ce.status!,
+                        label: ce.label!,
+                      };
+                    } else {
+                      session.steps.push({
+                        id: ce.id!,
+                        label: ce.label!,
+                        status: ce.status!,
+                      });
+                    }
+                    break;
+                  }
+                  case "research.reasoning.delta":
+                    session.thoughtProcess += ce.content || "";
+                    break;
+                  case "research.source.added":
+                    if (ce.source && currentTurnId) {
+                      const turn = session.turns.find(
+                        (t) => t.id === currentTurnId,
+                      );
+                      if (turn) turn.sources.push(ce.source);
+                    }
+                    break;
+                  case "resource.material":
+                    if (ce.resource && currentTurnId) {
+                      const turn = session.turns.find(
+                        (t) => t.id === currentTurnId,
+                      );
+                      if (turn) turn.sources.push(ce.resource);
+                    }
+                    break;
+                }
+              } catch (e) {}
+            }
+          }
+        }
+
+        setSessions((prev) => {
+          const filtered = prev.filter((s) => s.id !== session.id);
+          return [...filtered, session];
+        });
+      } catch (e) {
+        console.error("Rehydration failed", e);
+      }
+    };
+
+    rehydrate();
+  }, [urlId, sessions, setSessions]);
 
   // Sync activeSessionId with URL
   useEffect(() => {
@@ -116,27 +250,15 @@ function ResearchContent() {
     query: string,
     _deep: boolean,
   ) => {
-    const turnId = nanoid();
-
-    // Initialize turn in session
+    // We don't initialize turn here manually anymore,
+    // it will be initialized by "research.turn.started" event from backend
     setSessions((current) =>
       current.map((s) =>
         s.id === sessionId
           ? {
               ...s,
               state: "searching",
-              activeTurnId: turnId,
               thoughtProcess: "",
-              turns: [
-                ...s.turns,
-                {
-                  id: turnId,
-                  query,
-                  report: "",
-                  sources: [],
-                  timestamp: Date.now(),
-                },
-              ],
             }
           : s,
       ),
@@ -148,7 +270,7 @@ function ResearchContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, sessionId }),
       });
 
       if (!response.ok) {
@@ -160,6 +282,7 @@ function ResearchContent() {
 
       const decoder = new TextDecoder();
       let buffer = "";
+      let currentTurnId = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -177,15 +300,19 @@ function ResearchContent() {
             try {
               const chunk: OpenAIChunk = JSON.parse(data);
               const content = chunk.choices[0]?.delta?.content;
-              if (content) {
+              if (content && currentTurnId) {
                 setSessions((current) =>
                   current.map((s) =>
                     s.id === sessionId
                       ? {
                           ...s,
                           turns: s.turns.map((t) =>
-                            t.id === turnId
-                              ? { ...t, report: t.report + content }
+                            t.id === currentTurnId
+                              ? {
+                                  ...t,
+                                  report: t.report + content,
+                                  updatedAt: Date.now(),
+                                }
                               : t,
                           ),
                         }
@@ -205,7 +332,24 @@ function ResearchContent() {
                   if (s.id !== sessionId) return s;
 
                   switch (event.object) {
-                    case "research.step.update":
+                    case "research.turn.started":
+                      currentTurnId = event.id!;
+                      return {
+                        ...s,
+                        activeTurnId: currentTurnId,
+                        turns: [
+                          ...s.turns,
+                          {
+                            id: currentTurnId,
+                            query: event.query!,
+                            report: "",
+                            sources: [],
+                            timestamp: event.timestamp!,
+                            updatedAt: Date.now(),
+                          },
+                        ],
+                      };
+                    case "research.step.update": {
                       const existingStep = s.steps.find(
                         (st) => st.id === event.id,
                       );
@@ -238,6 +382,7 @@ function ResearchContent() {
                         };
                       }
                       return s;
+                    }
                     case "research.reasoning.delta":
                       return {
                         ...s,
@@ -249,7 +394,7 @@ function ResearchContent() {
                         return {
                           ...s,
                           turns: s.turns.map((t) =>
-                            t.id === turnId
+                            t.id === currentTurnId
                               ? { ...t, sources: [...t.sources, event.source!] }
                               : t,
                           ),
@@ -261,7 +406,7 @@ function ResearchContent() {
                         return {
                           ...s,
                           turns: s.turns.map((t) =>
-                            t.id === turnId
+                            t.id === currentTurnId
                               ? {
                                   ...t,
                                   sources: [...t.sources, event.resource!],
@@ -285,22 +430,43 @@ function ResearchContent() {
     } catch (error) {
       console.error("Research failed:", error);
     } finally {
-      // Finalize
-      setSessions((current) =>
-        current.map((s) =>
+      // Finalize in memory
+      setSessions((current) => {
+        const updated = current.map((s) =>
           s.id === sessionId
             ? {
                 ...s,
-                state: "reported",
+                state: "reported" as const,
                 activeTurnId: undefined,
               }
             : s,
-        ),
-      );
+        );
+
+        // Persist final session state to backend
+        const session = updated.find((s) => s.id === sessionId);
+        if (session) {
+          api.post("/api/research/sessions", {
+            id: session.id,
+            codebaseId: session.codebaseId,
+            title: session.title,
+            state: "reported",
+            createdAt: session.createdAt,
+            archivedAt: session.archivedAt,
+          });
+        }
+
+        return updated;
+      });
     }
   };
 
-  const handleArchive = (id: string) => {
+  const handleArchive = async (id: string) => {
+    try {
+      await api.post(`/api/research/sessions/${id}/archive`);
+    } catch (e) {
+      console.error("Archive failed", e);
+    }
+
     setSessions((current) => current.filter((s) => s.id !== id));
     router.push("/");
   };

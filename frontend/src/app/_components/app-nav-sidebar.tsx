@@ -23,7 +23,8 @@ import { useWebSocketContext } from "./websocket-provider";
 
 function SidebarContent() {
   const [navExpanded, setNavExpanded] = useAtom(isSidebarExpandedAtom);
-  const [sessions] = useAtom(researchSessionsAtom);
+  const [allSessions] = useAtom(researchSessionsAtom);
+  const sessions = allSessions.filter((s) => !s.archivedAt);
   const [, setActiveSessionId] = useAtom(activeSessionIdAtom);
 
   const router = useRouter();

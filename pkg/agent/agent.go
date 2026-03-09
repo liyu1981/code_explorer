@@ -33,7 +33,7 @@ type Tool interface {
 	Name() string
 	Description() string
 	Parameters() map[string]any
-	Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error)
+	Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error)
 }
 
 type ToolRegistry struct {
@@ -86,7 +86,7 @@ func (r *ToolRegistry) MarshalToolsForLLM() []map[string]any {
 
 type LLM interface {
 	Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error)
-	GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream *protocol.StreamWriter) (string, []ToolCall, error)
+	GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream protocol.IStreamWriter) (string, []ToolCall, error)
 	Name() string
 }
 
@@ -124,7 +124,7 @@ func NewAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
 	return a
 }
 
-func (a *Agent) Run(ctx context.Context, input string, stream *protocol.StreamWriter) (string, error) {
+func (a *Agent) Run(ctx context.Context, input string, stream protocol.IStreamWriter) (string, error) {
 	log.Info().Str("input", input).Msg("Agent starting run")
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
 

@@ -57,14 +57,16 @@ type OpenAIStreamChunk struct {
 
 // CEEvent represents a custom Code Explorer research or tool event.
 type CEEvent struct {
-	Object   string          `json:"object"`
-	ID       string          `json:"id,omitempty"`       // For step updates
-	Status   StepStatus      `json:"status,omitempty"`   // For step updates
-	Label    string          `json:"label,omitempty"`    // For step updates
-	Content  string          `json:"content,omitempty"`  // For reasoning deltas
-	Tool     string          `json:"tool,omitempty"`     // For tool calls
-	Params   any             `json:"params,omitempty"`   // For tool requests
-	Response any             `json:"response,omitempty"` // For tool responses
-	Source   *SourceMaterial `json:"source,omitempty"`   // For added sources
-	Resource *SourceMaterial `json:"resource,omitempty"` // For resource materials
+	Object    string          `json:"object"`
+	ID        string          `json:"id,omitempty"`        // For step updates
+	Status    StepStatus      `json:"status,omitempty"`    // For step updates
+	Label     string          `json:"label,omitempty"`     // For step updates
+	Content   string          `json:"content,omitempty"`   // For reasoning deltas
+	Tool      string          `json:"tool,omitempty"`      // For tool calls
+	Params    any             `json:"params,omitempty"`    // For tool requests
+	Response  any             `json:"response,omitempty"`  // For tool responses
+	Source    *SourceMaterial `json:"source,omitempty"`    // For added sources
+	Resource  *SourceMaterial `json:"resource,omitempty"`  // For resource materials
+	Query     string          `json:"query,omitempty"`     // For turn started
+	Timestamp int64           `json:"timestamp,omitempty"` // For turn started
 }

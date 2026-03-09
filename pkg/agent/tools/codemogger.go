@@ -35,7 +35,7 @@ func (t *ListFilesTool) Parameters() map[string]any {
 	}
 }
 
-func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
+func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	files, err := t.index.ListFiles()
 	if err != nil {
 		return "", fmt.Errorf("failed to list files: %w", err)
@@ -88,7 +88,7 @@ func (t *SearchTool) Parameters() map[string]any {
 	}
 }
 
-func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
+func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	var req struct {
 		Query string                `json:"query"`
 		Limit int                   `json:"limit"`

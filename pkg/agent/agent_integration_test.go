@@ -24,7 +24,7 @@ func (t *echoTool) Parameters() map[string]any {
 		"required": []string{"message"},
 	}
 }
-func (t *echoTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
+func (t *echoTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	var req struct {
 		Message string `json:"message"`
 	}
@@ -53,7 +53,7 @@ func (t *calculateTool) Parameters() map[string]any {
 		"required": []string{"operation", "a", "b"},
 	}
 }
-func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stream *protocol.StreamWriter) (string, error) {
+func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	var req struct {
 		Operation string `json:"operation"`
 		A         int    `json:"a"`

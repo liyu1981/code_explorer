@@ -2,6 +2,7 @@ package codemogger
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -70,9 +71,9 @@ func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
 }
 
 func ProjectDbPath(dir string) string {
-	absDir, _ := filepath.Abs(dir)
-	dbDir := filepath.Join(absDir, ".codemogger")
-	return filepath.Join(dbDir, "index.db")
+	home, _ := os.UserHomeDir()
+	dbDir := filepath.Join(home, ".code_explorer")
+	return filepath.Join(dbDir, "ce.db")
 }
 
 func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) {
@@ -387,4 +388,8 @@ func (c *CodeIndex) Close() error {
 
 func (c *CodeIndex) SetEmbedder(emb embed.Embedder) {
 	c.embedder = emb
+}
+
+func (c *CodeIndex) GetStore() *db.Store {
+	return c.store
 }
