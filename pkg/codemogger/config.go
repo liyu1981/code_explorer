@@ -1,11 +1,25 @@
 package codemogger
 
 type Config struct {
-	DBPath     string         `json:"db_path,omitempty"`
-	Embedder   EmbedderConfig `json:"embedder"`
-	LLM        map[string]any `json:"llm,omitempty"`
-	Languages  []string       `json:"languages,omitempty"`
-	ChunkLines int            `json:"chunk_lines,omitempty"`
+	System     SystemConfig     `json:"system"`
+	Research   ResearchConfig   `json:"research"`
+	CodeMogger CodeMoggerConfig `json:"codemogger"`
+}
+
+type SystemConfig struct {
+	DBPath string         `json:"db_path,omitempty"`
+	LLM    map[string]any `json:"llm,omitempty"`
+}
+
+type ResearchConfig struct {
+	MaxReportsPerCodebase int `json:"max_reports_per_codebase"`
+}
+
+type CodeMoggerConfig struct {
+	InheritSystemLLM bool           `json:"inherit_system_llm"`
+	Embedder         EmbedderConfig `json:"embedder"`
+	Languages        []string       `json:"languages,omitempty"`
+	ChunkLines       int            `json:"chunk_lines,omitempty"`
 }
 
 type EmbedderConfig struct {
@@ -22,11 +36,24 @@ type OpenAIConfig struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		ChunkLines: 150,
-		Embedder: EmbedderConfig{
-			Type:  "local",
-			Model: "all-minilm:l6-v2",
+		System: SystemConfig{
+			LLM: map[string]any{
+				"type":     "openai",
+				"model":    "gpt-4o",
+				"endpoint": "https://api.openai.com/v1/chat/completions",
+			},
 		},
-		Languages: []string{"go", "rust", "python", "typescript", "javascript"},
+		Research: ResearchConfig{
+			MaxReportsPerCodebase: 10,
+		},
+		CodeMogger: CodeMoggerConfig{
+			InheritSystemLLM: true,
+			ChunkLines:       150,
+			Embedder: EmbedderConfig{
+				Type:  "local",
+				Model: "all-minilm:l6-v2",
+			},
+			Languages: []string{"go", "rust", "python", "typescript", "javascript"},
+		},
 	}
 }

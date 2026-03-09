@@ -6,15 +6,14 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/constant"
 )
 
-// handleVersion returns the current application version
 func (h *ApiHandler) handleVersion(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
+	maxReports := 10
+	if h.index != nil && h.index.Config != nil && h.index.Config.Research.MaxReportsPerCodebase > 0 {
+		maxReports = h.index.Config.Research.MaxReportsPerCodebase
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"version":               constant.Version,
-		"max_archived_sessions": 10, // Could be from config later
+		"max_archived_sessions": maxReports,
 	})
 }

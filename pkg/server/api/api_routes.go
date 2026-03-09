@@ -44,6 +44,8 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	// Global Helpers
 	mux.HandleFunc("/health", h.handleHealth)
 	mux.HandleFunc("/api/version", h.handleVersion)
+	mux.HandleFunc("/api/config", h.handleGetConfig)
+	mux.HandleFunc("POST /api/config", h.handleUpdateConfig)
 	mux.HandleFunc("/api/ws", h.handleWS)
 
 	// Codebases

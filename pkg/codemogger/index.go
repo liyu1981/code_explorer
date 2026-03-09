@@ -20,53 +20,61 @@ type CodeIndex struct {
 	embedder       embed.Embedder
 	embeddingModel string
 	Config         *Config
+	ConfigPath     string
 }
 
-func NewCodeIndex(dbPath string, cfg *Config) (*CodeIndex, error) {
+func NewCodeIndex(dbPath string, cfg *Config, configPath string) (*CodeIndex, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	var emb embed.Embedder
-	switch cfg.Embedder.Type {
+	embCfg := cfg.CodeMogger.Embedder
+
+	// If inherit from system LLM is true, we might need to override some settings
+	// but currently EmbedderConfig is slightly different from System LLM map.
+	// For simplicity, we just use EmbedderConfig.
+
+	switch embCfg.Type {
 	case "openai":
 		emb = embed.NewOpenAIEmbedder(
-			cfg.Embedder.OpenAI.APIBase,
-			cfg.Embedder.OpenAI.Model,
-			cfg.Embedder.OpenAI.APIKey,
-			1536, // Standard OpenAI dimension, though we should probably make this configurable
+			embCfg.OpenAI.APIBase,
+			embCfg.OpenAI.Model,
+			embCfg.OpenAI.APIKey,
+			1536, // Standard OpenAI dimension
 		)
 	default:
 		// Default to local Ollama (OpenAI compatible)
-		apiBase := cfg.Embedder.OpenAI.APIBase
+		apiBase := embCfg.OpenAI.APIBase
 		if apiBase == "" {
 			apiBase = "http://localhost:11434/v1"
 		}
-		model := cfg.Embedder.Model
+		model := embCfg.Model
 		if model == "" {
 			model = "all-minilm:l6-v2"
 		}
 		emb = embed.NewOpenAIEmbedder(
 			apiBase,
 			model,
-			cfg.Embedder.OpenAI.APIKey,
-			384, // Default all-minilm dimension
+			embCfg.OpenAI.APIKey,
+			384, // Default for all-minilm
 		)
 	}
 
-	dbConn, err := db.Open(dbPath)
+	sqlDb, err := db.Open(dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, err
 	}
 
-	store := db.NewStore(dbConn, dbPath)
+	store := db.NewStore(sqlDb, dbPath)
 
 	return &CodeIndex{
 		store:          store,
 		dbPath:         dbPath,
 		embedder:       emb,
-		embeddingModel: cfg.Embedder.Model,
+		embeddingModel: cfg.CodeMogger.Embedder.Model,
 		Config:         cfg,
+		ConfigPath:     configPath,
 	}, nil
 }
 
@@ -392,4 +400,8 @@ func (c *CodeIndex) SetEmbedder(emb embed.Embedder) {
 
 func (c *CodeIndex) GetStore() *db.Store {
 	return c.store
+}
+
+func (c *CodeIndex) GetDbPath() string {
+	return c.dbPath
 }

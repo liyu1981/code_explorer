@@ -127,10 +127,10 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
 
-	// Load agent config from index, env or default
+	// Load agent config from system config, env or default
 	llmCfg := make(map[string]any)
-	if h.index != nil && h.index.Config != nil && h.index.Config.LLM != nil {
-		for k, v := range h.index.Config.LLM {
+	if h.index != nil && h.index.Config != nil && h.index.Config.System.LLM != nil {
+		for k, v := range h.index.Config.System.LLM {
 			llmCfg[k] = v
 		}
 	} else {
@@ -286,7 +286,10 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 	}
 
 	// Prune
-	maxArchived := 10 // Should fetch from config
+	maxArchived := 10 // Default
+	if h.index.Config != nil && h.index.Config.Research.MaxReportsPerCodebase > 0 {
+		maxArchived = h.index.Config.Research.MaxReportsPerCodebase
+	}
 	_ = h.index.GetStore().PruneArchivedSessions(maxArchived)
 
 	writeJSON(w, http.StatusOK, sess)

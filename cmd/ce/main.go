@@ -36,35 +36,47 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 		if err == nil {
 			var fileCfg codemogger.Config
 			if err := json.Unmarshal(data, &fileCfg); err == nil {
-				// Merge configs (simplified)
-				if fileCfg.DBPath != "" {
-					cfg.DBPath = fileCfg.DBPath
+				// Merge configs
+				if fileCfg.System.DBPath != "" {
+					cfg.System.DBPath = fileCfg.System.DBPath
 				}
-				if fileCfg.Embedder.Type != "" {
-					cfg.Embedder.Type = fileCfg.Embedder.Type
+				if fileCfg.System.LLM != nil {
+					cfg.System.LLM = fileCfg.System.LLM
 				}
-				if fileCfg.Embedder.Model != "" {
-					cfg.Embedder.Model = fileCfg.Embedder.Model
+				if fileCfg.Research.MaxReportsPerCodebase > 0 {
+					cfg.Research.MaxReportsPerCodebase = fileCfg.Research.MaxReportsPerCodebase
 				}
-				if fileCfg.Embedder.OpenAI.APIBase != "" {
-					cfg.Embedder.OpenAI.APIBase = fileCfg.Embedder.OpenAI.APIBase
+				if fileCfg.CodeMogger.Embedder.Type != "" {
+					cfg.CodeMogger.Embedder.Type = fileCfg.CodeMogger.Embedder.Type
 				}
-				if fileCfg.Embedder.OpenAI.APIKey != "" {
-					cfg.Embedder.OpenAI.APIKey = fileCfg.Embedder.OpenAI.APIKey
+				if fileCfg.CodeMogger.Embedder.Model != "" {
+					cfg.CodeMogger.Embedder.Model = fileCfg.CodeMogger.Embedder.Model
 				}
-				if fileCfg.Embedder.OpenAI.Model != "" {
-					cfg.Embedder.OpenAI.Model = fileCfg.Embedder.OpenAI.Model
+				if fileCfg.CodeMogger.Embedder.OpenAI.APIBase != "" {
+					cfg.CodeMogger.Embedder.OpenAI.APIBase = fileCfg.CodeMogger.Embedder.OpenAI.APIBase
 				}
-				if fileCfg.LLM != nil {
-					cfg.LLM = fileCfg.LLM
+				if fileCfg.CodeMogger.Embedder.OpenAI.APIKey != "" {
+					cfg.CodeMogger.Embedder.OpenAI.APIKey = fileCfg.CodeMogger.Embedder.OpenAI.APIKey
+				}
+				if fileCfg.CodeMogger.Embedder.OpenAI.Model != "" {
+					cfg.CodeMogger.Embedder.OpenAI.Model = fileCfg.CodeMogger.Embedder.OpenAI.Model
+				}
+				if fileCfg.CodeMogger.InheritSystemLLM {
+					cfg.CodeMogger.InheritSystemLLM = true
+				}
+				if fileCfg.CodeMogger.ChunkLines > 0 {
+					cfg.CodeMogger.ChunkLines = fileCfg.CodeMogger.ChunkLines
+				}
+				if len(fileCfg.CodeMogger.Languages) > 0 {
+					cfg.CodeMogger.Languages = fileCfg.CodeMogger.Languages
 				}
 			}
 		}
 	}
 
 	if dbPath == "" {
-		if cfg.DBPath != "" {
-			dbPath = cfg.DBPath
+		if cfg.System.DBPath != "" {
+			dbPath = cfg.System.DBPath
 		} else {
 			dbPath = codemogger.ProjectDbPath(".")
 		}
@@ -78,7 +90,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 		}
 	}
 
-	return codemogger.NewCodeIndex(dbPath, cfg)
+	return codemogger.NewCodeIndex(dbPath, cfg, configPath)
 }
 
 func main() {
