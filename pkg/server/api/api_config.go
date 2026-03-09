@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/rs/zerolog/log"
 )
 
 func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -15,15 +16,17 @@ func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create a deep enough copy to prevent masking from affecting the live config
 	cfg := *h.index.Config
-	// Mask API keys
+
+	systemLLM := make(map[string]any)
 	if cfg.System.LLM != nil {
-		if apiKey, ok := cfg.System.LLM["api_key"].(string); ok && apiKey != "" {
-			cfg.System.LLM["api_key"] = "****"
+		for k, v := range cfg.System.LLM {
+			systemLLM[k] = v
 		}
-	}
-	if cfg.CodeMogger.Embedder.OpenAI.APIKey != "" {
-		cfg.CodeMogger.Embedder.OpenAI.APIKey = "****"
+		if apiKey, ok := systemLLM["api_key"].(string); ok && apiKey != "" {
+			systemLLM["api_key"] = "****"
+		}
 	}
 
 	// Create a response structure that matches the frontend Config interface
@@ -41,12 +44,18 @@ func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		System: systemResp{
 			DbPath:      h.index.GetDbPath(),
 			IsDefaultDb: h.index.Config.System.DBPath == "",
-			LLM:         cfg.System.LLM,
+			LLM:         systemLLM,
 		},
 		Research:   cfg.Research,
 		CodeMogger: cfg.CodeMogger,
 	}
 
+	// Also mask CodeMogger embedder key if not inheriting
+	if !res.CodeMogger.InheritSystemLLM && res.CodeMogger.Embedder.OpenAI.APIKey != "" {
+		res.CodeMogger.Embedder.OpenAI.APIKey = "****"
+	}
+
+	log.Debug().Interface("res", res).Msg("Sending config to UI")
 	writeJSON(w, http.StatusOK, res)
 }
 

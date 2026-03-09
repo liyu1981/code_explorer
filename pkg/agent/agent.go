@@ -124,8 +124,8 @@ func NewAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
 	return a
 }
 
-func (a *Agent) Run(ctx context.Context, input string, stream protocol.IStreamWriter) (string, error) {
-	log.Info().Str("input", input).Msg("Agent starting run")
+func (a *Agent) Run(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter) (string, error) {
+	log.Info().Str("input", input).Str("turn", turnID).Msg("Agent starting run")
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
 
 	tools := a.tools.MarshalToolsForLLM()
@@ -136,7 +136,7 @@ func (a *Agent) Run(ctx context.Context, input string, stream protocol.IStreamWr
 		var toolCalls []ToolCall
 		var err error
 
-		stepID := fmt.Sprintf("iteration-%d", i)
+		stepID := fmt.Sprintf("turn-%s-iteration-%d", turnID, i)
 		if stream != nil {
 			stream.SendStepUpdate(stepID, "Thinking and reasoning", protocol.StepActive)
 		}
@@ -166,7 +166,7 @@ func (a *Agent) Run(ctx context.Context, input string, stream protocol.IStreamWr
 
 		for _, tc := range toolCalls {
 			log.Info().Str("tool", tc.Name).RawJSON("input", tc.Input).Msg("Executing tool")
-			toolStepID := fmt.Sprintf("tool-%s-%d-%s", tc.Name, i, tc.ID)
+			toolStepID := fmt.Sprintf("turn-%s-tool-%s-%d-%s", turnID, tc.Name, i, tc.ID)
 			if stream != nil {
 				stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepActive)
 				stream.SendToolCall(tc.Name, tc.Input)

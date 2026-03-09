@@ -148,6 +148,15 @@ func (s *Store) DeleteReportsBySession(sessionID string) error {
 	return err
 }
 
+func (s *Store) DeleteResearchReport(turnID string) error {
+	if err := s.reconnect(); err != nil {
+		return err
+	}
+
+	_, err := s.db.Exec("DELETE FROM research_reports WHERE turn_id = ?", turnID)
+	return err
+}
+
 func (s *Store) PruneArchivedSessions(maxArchived int) error {
 	if err := s.reconnect(); err != nil {
 		return err

@@ -67,6 +67,7 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/research/sessions", h.handleListSessions)
 	mux.HandleFunc("GET /api/research/sessions/{id}/reports", h.handleGetSessionReports)
 	mux.HandleFunc("POST /api/research/sessions", h.handleSaveSession)
+	mux.HandleFunc("DELETE /api/research/sessions/{id}/reports/{turnId}", h.handleDeleteReport)
 	mux.HandleFunc("POST /api/research/sessions/{id}/archive", h.handleArchiveSession)
 	mux.HandleFunc("DELETE /api/research/sessions/{id}", h.handleDeleteSession)
 }

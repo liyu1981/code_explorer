@@ -471,6 +471,24 @@ function ResearchContent() {
     router.push("/");
   };
 
+  const handleDeleteTurn = async (turnId: string) => {
+    if (!activeSessionId) return;
+    try {
+      await api.delete(
+        `/api/research/sessions/${activeSessionId}/reports/${turnId}`,
+      );
+      setSessions((current) =>
+        current.map((s) =>
+          s.id === activeSessionId
+            ? { ...s, turns: s.turns.filter((t) => t.id !== turnId) }
+            : s,
+        ),
+      );
+    } catch (e) {
+      console.error("Delete turn failed", e);
+    }
+  };
+
   if (!activeSession) {
     return null;
   }
@@ -533,6 +551,7 @@ function ResearchContent() {
               <ResearchReport
                 turns={activeSession.turns}
                 onFollowUp={(q) => handleSearch(activeSession.id, q, true)}
+                onDeleteTurn={handleDeleteTurn}
                 isStreaming={isResearching}
               />
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Sparkles, Clock } from "lucide-react";
+import { MessageSquare, Sparkles, Clock, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
 import { ResearchTurn } from "../../_jotai/research-store";
@@ -9,12 +9,14 @@ import { SourceCard } from "./source-card";
 interface ResearchReportProps {
   turns: ResearchTurn[];
   onFollowUp?: (query: string) => void;
+  onDeleteTurn?: (turnId: string) => void;
   isStreaming?: boolean;
 }
 
 export function ResearchReport({
   turns,
   onFollowUp,
+  onDeleteTurn,
   isStreaming,
 }: ResearchReportProps) {
   const [, setTick] = useState(0);
@@ -62,18 +64,29 @@ export function ResearchReport({
                 <span className="text-lg font-bold tracking-tight text-foreground/80 flex-1">
                   {turn.query}
                 </span>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap">
-                    Turn #{turnIndex + 1}
-                  </span>
-                  <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-tighter whitespace-nowrap">
-                    <Clock className="h-2.5 w-2.5" />
-                    <span>
-                      Updated:{" "}
-                      {getRelativeTime(turn.updatedAt || turn.timestamp)} :
-                      Created: {getRelativeTime(turn.timestamp)}
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap">
+                      Turn #{turnIndex + 1}
                     </span>
+                    <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-tighter whitespace-nowrap">
+                      <Clock className="h-2.5 w-2.5" />
+                      <span>
+                        Updated:{" "}
+                        {getRelativeTime(turn.updatedAt || turn.timestamp)} :
+                        Created: {getRelativeTime(turn.timestamp)}
+                      </span>
+                    </div>
                   </div>
+                  {onDeleteTurn && !isStreaming && (
+                    <button
+                      onClick={() => onDeleteTurn(turn.id)}
+                      className="p-2 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                      title="Delete Turn"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 

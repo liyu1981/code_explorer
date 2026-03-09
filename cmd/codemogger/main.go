@@ -92,9 +92,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 				if fileCfg.CodeMogger.Embedder.OpenAI.Model != "" {
 					cfg.CodeMogger.Embedder.OpenAI.Model = fileCfg.CodeMogger.Embedder.OpenAI.Model
 				}
-				if fileCfg.CodeMogger.InheritSystemLLM {
-					cfg.CodeMogger.InheritSystemLLM = true
-				}
+				cfg.CodeMogger.InheritSystemLLM = fileCfg.CodeMogger.InheritSystemLLM
 				if fileCfg.CodeMogger.ChunkLines > 0 {
 					cfg.CodeMogger.ChunkLines = fileCfg.CodeMogger.ChunkLines
 				}

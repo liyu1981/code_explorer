@@ -190,18 +190,18 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Send initial steps
 	// We can define standard steps here or let the agent emit them
-	finalSw.SendStepUpdate("thinking", "Thinking about the research plan", protocol.StepActive)
+	finalSw.SendStepUpdate(fmt.Sprintf("turn-%s-thinking", turnID), "Thinking about the research plan", protocol.StepActive)
 
 	// Run agent in a goroutine or directly
 	// For streaming, we should run it and let it write to sw
-	_, err = ag.Run(r.Context(), req.Query, finalSw)
+	_, err = ag.Run(r.Context(), req.Query, turnID, finalSw)
 	if err != nil {
 		// In a stream, we might have already started sending data.
 		// Errors should ideally be sent as events.
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
 	}
 
-	finalSw.SendStepUpdate("thinking", "Thinking about the research plan", protocol.StepCompleted)
+	finalSw.SendStepUpdate(fmt.Sprintf("turn-%s-thinking", turnID), "Thinking about the research plan", protocol.StepCompleted)
 	finalSw.WriteDone()
 }
 
@@ -303,6 +303,19 @@ func (h *ApiHandler) handleDeleteSession(w http.ResponseWriter, r *http.Request)
 	id := r.PathValue("id")
 	if err := h.index.GetStore().DeleteResearchSession(id); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to delete session", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ApiHandler) handleDeleteReport(w http.ResponseWriter, r *http.Request) {
+	if h.index == nil {
+		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
+		return
+	}
+	turnId := r.PathValue("turnId")
+	if err := h.index.GetStore().DeleteResearchReport(turnId); err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to delete report", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

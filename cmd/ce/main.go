@@ -32,10 +32,12 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 	}
 
 	if _, err := os.Stat(configPath); err == nil {
+		log.Info().Str("path", configPath).Msg("Loading configuration")
 		data, err := os.ReadFile(configPath)
 		if err == nil {
 			var fileCfg codemogger.Config
 			if err := json.Unmarshal(data, &fileCfg); err == nil {
+				log.Info().Interface("config", fileCfg).Msg("Configuration loaded successfully")
 				// Merge configs
 				if fileCfg.System.DBPath != "" {
 					cfg.System.DBPath = fileCfg.System.DBPath
@@ -61,9 +63,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 				if fileCfg.CodeMogger.Embedder.OpenAI.Model != "" {
 					cfg.CodeMogger.Embedder.OpenAI.Model = fileCfg.CodeMogger.Embedder.OpenAI.Model
 				}
-				if fileCfg.CodeMogger.InheritSystemLLM {
-					cfg.CodeMogger.InheritSystemLLM = true
-				}
+				cfg.CodeMogger.InheritSystemLLM = fileCfg.CodeMogger.InheritSystemLLM
 				if fileCfg.CodeMogger.ChunkLines > 0 {
 					cfg.CodeMogger.ChunkLines = fileCfg.CodeMogger.ChunkLines
 				}
@@ -90,6 +90,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 		}
 	}
 
+	log.Info().Interface("final_config", cfg).Msg("Final configuration for NewCodeIndex")
 	return codemogger.NewCodeIndex(dbPath, cfg, configPath)
 }
 
