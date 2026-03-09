@@ -143,7 +143,7 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID string, fileChunks
 			_, err = tx.Exec(`
 				INSERT INTO codemogger_chunks 
 				(id, codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), NULL, '')
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), NULL, '')
 			`,
 				newChunkID, codebaseID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
 				chunk.Name, chunk.Signature, chunk.Snippet, chunk.StartLine, chunk.EndLine, chunk.FileHash,
