@@ -3,8 +3,8 @@
     "db_path": "~/.code_explorer/ce.db",
     "llm": {
       "type": "openai",
-      "model": "gpt-4o",
-      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "model": "qwen3.5:4b",
+      "endpoint": "http://localhost:20003/v1/chat/completions",
       "api_key": ""
     }
   },
@@ -17,7 +17,7 @@
       "type": "local",
       "model": "all-minilm:l6-v2",
       "openai": {
-        "api_base": "http://localhost:11434/v1",
+        "api_base": "http://localhost:20003/v1",
         "model": "all-minilm:l6-v2",
         "api_key": ""
       }
