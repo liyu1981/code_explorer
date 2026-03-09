@@ -14,7 +14,10 @@ interface MarkdownProps {
 export function Markdown({ content, className }: MarkdownProps) {
   return (
     <div
-      className={cn("prose prose-sm dark:prose-invert max-w-none", className)}
+      className={cn(
+        "prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent",
+        className,
+      )}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
