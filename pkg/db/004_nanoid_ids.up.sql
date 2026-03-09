@@ -38,23 +38,35 @@ DROP TABLE codemogger_chunks;
 ALTER TABLE new_codemogger_chunks RENAME TO codemogger_chunks;
 CREATE INDEX IF NOT EXISTS idx_chunks_codebase_id ON codemogger_chunks(codebase_id);
 
--- Re-create triggers for FTS
+-- Re-create FTS table and triggers for FTS using rowid
+DROP TABLE IF EXISTS codemogger_chunks_fts;
+CREATE VIRTUAL TABLE codemogger_chunks_fts USING fts5(
+    name,
+    signature,
+    snippet,
+    content='codemogger_chunks'
+);
+
 DROP TRIGGER IF EXISTS codemogger_chunks_ai;
 DROP TRIGGER IF EXISTS codemogger_chunks_ad;
 DROP TRIGGER IF EXISTS codemogger_chunks_au;
 
 CREATE TRIGGER codemogger_chunks_ai AFTER INSERT ON codemogger_chunks BEGIN
-  INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.id, new.name, new.signature, new.snippet);
+  INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.rowid, new.name, new.signature, new.snippet);
 END;
 
 CREATE TRIGGER codemogger_chunks_ad AFTER DELETE ON codemogger_chunks BEGIN
-  INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.id, old.name, old.signature, old.snippet);
+  INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.rowid, old.name, old.signature, old.snippet);
 END;
 
 CREATE TRIGGER codemogger_chunks_au AFTER UPDATE ON codemogger_chunks BEGIN
-  INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.id, old.name, old.signature, old.snippet);
-  INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.id, new.name, new.signature, new.snippet);
+  INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.rowid, old.name, old.signature, old.snippet);
+  INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.rowid, new.name, new.signature, new.snippet);
 END;
+
+-- Populate FTS with existing data
+INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet)
+SELECT rowid, name, signature, snippet FROM codemogger_chunks;
 
 -- 3. codemogger_indexed_files
 CREATE TABLE new_codemogger_indexed_files (

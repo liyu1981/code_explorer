@@ -386,7 +386,7 @@ func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool
 	sqlQuery := `
 		SELECT chunk_key, file_path, codemogger_chunks.name, kind, codemogger_chunks.signature, codemogger_chunks.snippet, start_line, end_line
 		FROM codemogger_chunks
-		JOIN codemogger_chunks_fts ON codemogger_chunks_fts.rowid = codemogger_chunks.id
+		JOIN codemogger_chunks_fts ON codemogger_chunks_fts.rowid = codemogger_chunks.rowid
 		WHERE codemogger_chunks_fts MATCH ?
 		ORDER BY rank
 		LIMIT ?
