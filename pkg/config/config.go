@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
 type Config struct {
@@ -101,7 +103,7 @@ func Load(configPath string) error {
 
 		// Merge with defaults
 		if fileCfg.System.DBPath != "" {
-			cfg.System.DBPath = fileCfg.System.DBPath
+			cfg.System.DBPath = util.ExpandPath(fileCfg.System.DBPath)
 		}
 		if fileCfg.System.LLM != nil {
 			cfg.System.LLM = fileCfg.System.LLM
