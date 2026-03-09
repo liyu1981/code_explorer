@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS research_events;
 
 CREATE TABLE IF NOT EXISTS research_reports (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     turn_id TEXT NOT NULL UNIQUE,
     stream_data TEXT NOT NULL DEFAULT '',

@@ -372,7 +372,7 @@ func convertResults(results []db.SearchResult) []SearchResult {
 }
 
 func (c *CodeIndex) ListFiles() ([]IndexedFile, error) {
-	files, err := c.store.CodemoggerListFiles(0)
+	files, err := c.store.CodemoggerListFiles("")
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +396,7 @@ func (c *CodeIndex) ListCodebases() ([]Codebase, error) {
 	converted := make([]Codebase, len(codebases))
 	for i, cb := range codebases {
 		converted[i] = Codebase{
-			ID:         int(cb.ID),
+			ID:         cb.ID,
 			RootPath:   cb.RootPath,
 			Name:       cb.Name,
 			IndexedAt:  cb.IndexedAt,

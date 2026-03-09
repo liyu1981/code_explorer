@@ -17,7 +17,7 @@ export interface ResearchTurn {
 
 export interface ResearchSession {
   id: string;
-  codebaseId: number;
+  codebaseId: string;
   codebasePath: string;
   title: string;
   state: ResearchState;
@@ -38,7 +38,7 @@ export const activeSessionIdAtom = atom<string | null>(null);
 
 // Helper to create a new session
 export const createSession = (
-  codebaseId: number,
+  codebaseId: string,
   codebasePath: string,
 ): ResearchSession => ({
   id: nanoid(10),

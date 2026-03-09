@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-func (s *Store) CodemoggerGetOrCreateCodebase(rootPath string, name string) (int64, error) {
+func (s *Store) CodemoggerGetOrCreateCodebase(rootPath string, name string) (string, error) {
 	if err := s.reconnect(); err != nil {
-		return 0, err
+		return "", err
 	}
 
 	var existing Codebase
@@ -22,7 +24,7 @@ func (s *Store) CodemoggerGetOrCreateCodebase(rootPath string, name string) (int
 		return existing.ID, nil
 	}
 	if err != sql.ErrNoRows {
-		return 0, err
+		return "", err
 	}
 
 	if name == "" {
@@ -37,16 +39,16 @@ func (s *Store) CodemoggerGetOrCreateCodebase(rootPath string, name string) (int
 		}
 	}
 
-	result, err := s.db.Exec(
-		"INSERT INTO codemogger_codebases (root_path, name, indexed_at) VALUES (?, ?, strftime('%s', 'now'))",
-		rootPath, name,
+	newID, _ := gonanoid.New()
+	_, err = s.db.Exec(
+		"INSERT INTO codemogger_codebases (id, root_path, name, indexed_at) VALUES (?, ?, ?, strftime('%s', 'now'))",
+		newID, rootPath, name,
 	)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
-	id, err := result.LastInsertId()
-	return id, err
+	return newID, nil
 }
 
 func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
@@ -86,7 +88,7 @@ func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerTouchCodebase(codebaseID int64) error {
+func (s *Store) CodemoggerTouchCodebase(codebaseID string) error {
 	if err := s.reconnect(); err != nil {
 		return err
 	}
@@ -95,7 +97,7 @@ func (s *Store) CodemoggerTouchCodebase(codebaseID int64) error {
 	return err
 }
 
-func (s *Store) CodemoggerGetFileHash(codebaseID int64, filePath string) (string, error) {
+func (s *Store) CodemoggerGetFileHash(codebaseID string, filePath string) (string, error) {
 	if err := s.reconnect(); err != nil {
 		return "", err
 	}
@@ -112,7 +114,7 @@ func (s *Store) CodemoggerGetFileHash(codebaseID int64, filePath string) (string
 	return fileHash, err
 }
 
-func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID int64, fileChunks []struct {
+func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID string, fileChunks []struct {
 	FilePath string
 	FileHash string
 	Chunks   []CodeChunk
@@ -137,12 +139,13 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID int64, fileChunks 
 		}
 
 		for _, chunk := range fc.Chunks {
+			newChunkID, _ := gonanoid.New()
 			_, err = tx.Exec(`
 				INSERT INTO codemogger_chunks 
-				(codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), NULL, '')
+				(id, codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), NULL, '')
 			`,
-				codebaseID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
+				newChunkID, codebaseID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
 				chunk.Name, chunk.Signature, chunk.Snippet, chunk.StartLine, chunk.EndLine, chunk.FileHash,
 			)
 			if err != nil {
@@ -150,15 +153,16 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID int64, fileChunks 
 			}
 		}
 
+		newFileID, _ := gonanoid.New()
 		_, err = tx.Exec(`
-			INSERT INTO codemogger_indexed_files (codebase_id, file_path, file_hash, chunk_count, indexed_at)
-			VALUES (?, ?, ?, ?, strftime('%s', 'now'))
+			INSERT INTO codemogger_indexed_files (id, codebase_id, file_path, file_hash, chunk_count, indexed_at)
+			VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'))
 			ON CONFLICT(codebase_id, file_path) DO UPDATE SET
 				file_hash = excluded.file_hash,
 				chunk_count = excluded.chunk_count,
 				indexed_at = excluded.indexed_at
 		`,
-			codebaseID, fc.FilePath, fc.FileHash, len(fc.Chunks),
+			newFileID, codebaseID, fc.FilePath, fc.FileHash, len(fc.Chunks),
 		)
 		if err != nil {
 			return err
@@ -168,7 +172,7 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID int64, fileChunks 
 	return tx.Commit()
 }
 
-func (s *Store) CodemoggerRemoveStaleFiles(codebaseID int64, activeFiles []string) (int, error) {
+func (s *Store) CodemoggerRemoveStaleFiles(codebaseID string, activeFiles []string) (int, error) {
 	if err := s.reconnect(); err != nil {
 		return 0, err
 	}
@@ -269,7 +273,7 @@ func (s *Store) CodemoggerBatchUpsertEmbeddings(items []struct {
 	return tx.Commit()
 }
 
-func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID int64, modelName string, limit int) ([]struct {
+func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID string, modelName string, limit int) ([]struct {
 	ChunkKey  string
 	Name      string
 	Signature string
@@ -321,7 +325,7 @@ func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID int64, modelName string,
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerRebuildFTSTable(codebaseID int64) error {
+func (s *Store) CodemoggerRebuildFTSTable(codebaseID string) error {
 	return nil
 }
 
@@ -415,7 +419,7 @@ func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerListFiles(codebaseID int64) ([]FileInfo, error) {
+func (s *Store) CodemoggerListFiles(codebaseID string) ([]FileInfo, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
@@ -423,7 +427,7 @@ func (s *Store) CodemoggerListFiles(codebaseID int64) ([]FileInfo, error) {
 	var rows *sql.Rows
 	var err error
 
-	if codebaseID > 0 {
+	if codebaseID != "" {
 		rows, err = s.db.Query(
 			"SELECT file_path, file_hash, chunk_count, indexed_at FROM codemogger_indexed_files WHERE codebase_id = ? ORDER BY file_path",
 			codebaseID,

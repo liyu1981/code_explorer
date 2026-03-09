@@ -1,13 +1,13 @@
 CREATE TABLE IF NOT EXISTS codemogger_codebases (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     root_path TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL DEFAULT '',
     indexed_at INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS codemogger_chunks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    codebase_id INTEGER NOT NULL,
+    id TEXT PRIMARY KEY,
+    codebase_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
     chunk_key TEXT NOT NULL UNIQUE,
     language TEXT NOT NULL,
@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS codemogger_chunks (
 );
 
 CREATE TABLE IF NOT EXISTS codemogger_indexed_files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    codebase_id INTEGER NOT NULL,
+    id TEXT PRIMARY KEY,
+    codebase_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
     file_hash TEXT NOT NULL,
     chunk_count INTEGER NOT NULL DEFAULT 0,

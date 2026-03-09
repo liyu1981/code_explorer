@@ -204,10 +204,10 @@ func handleListCodebases() {
 		log.Fatal().Msgf("Failed to list codebases: %v", err)
 	}
 
-	fmt.Printf("%-5s %-40s %-20s %-10s %-10s\n", "ID", "Path", "Indexed At", "Files", "Chunks")
-	fmt.Println(strings.Repeat("-", 95))
+	fmt.Printf("%-36s %-40s %-20s %-10s %-10s\n", "ID", "Path", "Indexed At", "Files", "Chunks")
+	fmt.Println(strings.Repeat("-", 126))
 	for _, c := range codebases {
 		indexedAt := time.Unix(c.IndexedAt, 0).Format("2006-01-02 15:04:05")
-		fmt.Printf("%-5d %-40s %-20s %-10d %-10d\n", c.ID, c.RootPath, indexedAt, c.FileCount, c.ChunkCount)
+		fmt.Printf("%-36s %-40s %-20s %-10d %-10d\n", c.ID, c.RootPath, indexedAt, c.FileCount, c.ChunkCount)
 	}
 }

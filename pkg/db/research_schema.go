@@ -2,7 +2,7 @@ package db
 
 type ResearchSession struct {
 	ID           string `json:"id"`
-	CodebaseID   int64  `json:"codebaseId"`
+	CodebaseID   string `json:"codebaseId"`
 	CodebasePath string `json:"codebasePath"`
 	Title        string `json:"title"`
 	State        string `json:"state"`

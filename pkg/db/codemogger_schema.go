@@ -9,15 +9,15 @@ import (
 )
 
 type Codebase struct {
-	ID        int64
+	ID        string
 	RootPath  string
 	Name      string
 	IndexedAt int64
 }
 
 type Chunk struct {
-	ID             int64
-	CodebaseID     int64
+	ID             string
+	CodebaseID     string
 	FilePath       string
 	ChunkKey       string
 	Language       string
@@ -34,8 +34,8 @@ type Chunk struct {
 }
 
 type IndexedFile struct {
-	ID         int64
-	CodebaseID int64
+	ID         string
+	CodebaseID string
 	FilePath   string
 	FileHash   string
 	ChunkCount int
@@ -75,7 +75,7 @@ type FileInfo struct {
 }
 
 type CodebaseInfo struct {
-	ID         int64
+	ID         string
 	RootPath   string
 	Name       string
 	IndexedAt  int64

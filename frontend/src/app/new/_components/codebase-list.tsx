@@ -24,7 +24,7 @@ import { useWebSocketContext } from "../../_components/websocket-provider";
 import { cn } from "@/lib/utils";
 
 interface Codebase {
-  id: number;
+  id: string;
   name: string;
   rootPath: string;
   indexedAt: number;
@@ -41,7 +41,7 @@ interface IndexProgress {
 export function CodebaseList() {
   const [, setSessions] = useAtom(researchSessionsAtom);
   const [codebaseFilter, setCodebaseFilter] = useState("");
-  const [existingSessions, setExistingSessions] = useState<Record<number, any>>(
+  const [existingSessions, setExistingSessions] = useState<Record<string, any>>(
     {},
   );
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -66,7 +66,7 @@ export function CodebaseList() {
       try {
         const response = await api.get("/api/research/sessions");
         const sessions = response.data;
-        const sessionMap: Record<number, any> = {};
+        const sessionMap: Record<string, any> = {};
         for (const s of sessions) {
           if (!s.archivedAt) {
             sessionMap[s.codebaseId] = s;
@@ -103,7 +103,7 @@ export function CodebaseList() {
   }, [subscribe, unsubscribe, mutate]);
 
   const handleNewResearch = async (cb?: Codebase) => {
-    const codebaseId = cb?.id || 0;
+    const codebaseId = cb?.id || "";
     const codebasePath = cb?.rootPath || "";
 
     // 1. Create new session

@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"time"
+
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 func (s *Store) SaveResearchSession(session *ResearchSession) error {
@@ -25,7 +27,7 @@ func (s *Store) SaveResearchSession(session *ResearchSession) error {
 	return err
 }
 
-func (s *Store) GetResearchSessionByCodebase(codebaseID int64) (*ResearchSession, error) {
+func (s *Store) GetResearchSessionByCodebase(codebaseID string) (*ResearchSession, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
@@ -103,13 +105,14 @@ func (s *Store) SaveResearchReportChunk(sessionID, turnID, chunk string) error {
 
 	now := time.Now().UnixMilli()
 	query := `
-		INSERT INTO research_reports (session_id, turn_id, stream_data, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO research_reports (id, session_id, turn_id, stream_data, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(turn_id) DO UPDATE SET
 			stream_data = stream_data || excluded.stream_data,
 			updated_at = excluded.updated_at
 	`
-	_, err := s.db.Exec(query, sessionID, turnID, chunk, now, now)
+	newID, _ := gonanoid.New()
+	_, err := s.db.Exec(query, newID, sessionID, turnID, chunk, now, now)
 	return err
 }
 

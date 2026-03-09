@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS research_sessions (
     id TEXT PRIMARY KEY,
-    codebase_id INTEGER NOT NULL,
+    codebase_id TEXT NOT NULL,
     title TEXT NOT NULL,
     state TEXT NOT NULL,
     created_at INTEGER NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS research_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS research_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     type TEXT NOT NULL,
     timestamp INTEGER NOT NULL,

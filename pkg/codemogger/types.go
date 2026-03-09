@@ -51,7 +51,7 @@ type IndexedFile struct {
 }
 
 type Codebase struct {
-	ID         int    `json:"id"`
+	ID         string `json:"id"`
 	RootPath   string `json:"rootPath"`
 	Name       string `json:"name"`
 	IndexedAt  int64  `json:"indexedAt"`
