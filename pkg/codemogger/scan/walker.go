@@ -9,6 +9,7 @@ import (
 
 	"github.com/boyter/gocodewalker"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/chunk"
+	"github.com/rs/zerolog/log"
 )
 
 type ScannedFile struct {
@@ -18,10 +19,12 @@ type ScannedFile struct {
 }
 
 func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string) {
+	log.Debug().Str("rootDir", rootDir).Interface("languages", languages).Msg("ScanDirectory started")
 	var files []ScannedFile
 	var errors []string
 
 	supportedExts := chunk.SupportedExtensions()
+	// ... (logic for languages filter)
 	if len(languages) > 0 {
 		var langExts []string
 		for _, lang := range languages {
@@ -41,10 +44,7 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 		}
 	}
 
-	extSet := make(map[string]bool)
-	for _, ext := range supportedExts {
-		extSet[ext] = true
-	}
+	log.Debug().Interface("supportedExts", supportedExts).Msg("Extensions filtered")
 
 	var allowExts []string
 	for _, ext := range supportedExts {
@@ -54,14 +54,14 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 	fileListQueue := make(chan *gocodewalker.File, 1000)
 	fileWalker := gocodewalker.NewFileWalker(rootDir, fileListQueue)
 	fileWalker.AllowListExtensions = allowExts
-	// IgnoreBinaryFiles=true seems to misidentify small text files in tests.
-	// We'll rely on AllowListExtensions and .gitignore instead.
 	fileWalker.IgnoreBinaryFiles = false
 	fileWalker.SetErrorHandler(func(err error) bool {
+		log.Error().Err(err).Msg("FileWalker error")
 		errors = append(errors, err.Error())
 		return true
 	})
 
+	log.Debug().Msg("Starting gocodewalker...")
 	go fileWalker.Start()
 
 	for f := range fileListQueue {
@@ -71,8 +71,10 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 			absPath = f.Location
 		}
 
+		log.Trace().Str("file", absPath).Msg("Processing file")
 		content, err := os.ReadFile(f.Location)
 		if err != nil {
+			log.Warn().Str("file", f.Location).Err(err).Msg("Failed to read file")
 			errors = append(errors, f.Location+": "+err.Error())
 			continue
 		}
@@ -86,5 +88,6 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 		})
 	}
 
+	log.Debug().Int("scannedFiles", len(files)).Msg("ScanDirectory finished")
 	return files, errors
 }

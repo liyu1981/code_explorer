@@ -110,8 +110,11 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get/create codebase: %w", err)
 	}
+	log.Debug().Str("codebaseID", codebaseID).Msg("Codebase entry identified")
 
+	log.Info().Msg("Scanning directory...")
 	files, scanErrors := scan.ScanDirectory(rootDir, opts.Languages)
+	log.Info().Int("filesFound", len(files)).Int("scanErrors", len(scanErrors)).Msg("Scan completed")
 	if opts.Progress != nil {
 		opts.Progress(len(files), len(files), "scan")
 	}
@@ -123,10 +126,12 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	var filesToProcess []scan.ScannedFile
 	activeFiles := make(map[string]bool)
 
+	log.Info().Msg("Checking file hashes...")
 	for i, file := range files {
 		activeFiles[file.AbsPath] = true
 		storedHash, err := c.store.CodemoggerGetFileHash(codebaseID, file.AbsPath)
 		if err != nil {
+			log.Warn().Str("file", file.AbsPath).Err(err).Msg("Failed to get file hash")
 			continue
 		}
 		if storedHash == file.Hash {
@@ -134,10 +139,11 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		} else {
 			filesToProcess = append(filesToProcess, file)
 		}
-		if opts.Progress != nil && i%10 == 0 {
+		if opts.Progress != nil && i%100 == 0 {
 			opts.Progress(i+1, len(files), "check")
 		}
 	}
+	log.Info().Int("toProcess", len(filesToProcess)).Int("skipped", skipped).Msg("Hash check completed")
 
 	var fileChunks []struct {
 		FilePath string
@@ -145,6 +151,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		Chunks   []db.CodeChunk
 	}
 
+	log.Info().Msg("Chunking files...")
 	for i, file := range filesToProcess {
 		langConfig := chunk.DetectLanguage(file.AbsPath)
 		if langConfig == nil {
@@ -184,20 +191,29 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 			opts.Progress(i+1, len(filesToProcess), "chunk")
 		}
 	}
+	log.Info().Int("filesProcessed", filesProcessed).Int("chunksCreated", chunksCreated).Msg("Chunking completed")
 
 	if len(fileChunks) > 0 {
+		log.Info().Msg("Saving chunks to database...")
 		if err := c.store.CodemoggerBatchUpsertAllFileChunks(codebaseID, fileChunks); err != nil {
 			return nil, fmt.Errorf("failed to upsert chunks: %w", err)
 		}
+		log.Info().Msg("Chunks saved successfully")
 	}
 
 	embedded := 0
+	log.Info().Str("model", c.embeddingModel).Msg("Starting embedding...")
 	for {
 		stale, err := c.store.CodemoggerGetStaleEmbeddings(codebaseID, c.embeddingModel, 1000)
-		if err != nil || len(stale) == 0 {
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to get stale embeddings")
+			break
+		}
+		if len(stale) == 0 {
 			break
 		}
 
+		log.Debug().Int("batchSize", len(stale)).Msg("Embedding batch")
 		if opts.Progress != nil {
 			opts.Progress(embedded, embedded+len(stale), "embed")
 		}
@@ -209,6 +225,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 
 		vectors, err := c.embedder.Embed(texts)
 		if err != nil {
+			log.Error().Err(err).Msg("Embedding failed")
 			break
 		}
 
@@ -230,14 +247,17 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		}
 
 		if err := c.store.CodemoggerBatchUpsertEmbeddings(items); err != nil {
+			log.Error().Err(err).Msg("Failed to save embeddings")
 			break
 		}
 		embedded += len(vectors)
+		log.Debug().Int("totalEmbedded", embedded).Msg("Embedding progress")
 
 		if len(stale) < 1000 {
 			break
 		}
 	}
+	log.Info().Int("embeddedCount", embedded).Msg("Embedding completed")
 
 	activeFilesList := make([]string, 0, len(activeFiles))
 	for k := range activeFiles {

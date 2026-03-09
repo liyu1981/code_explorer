@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/rs/zerolog/log"
 )
 
 func (h *ApiHandler) handleListCodebases(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +41,8 @@ func (h *ApiHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Info().Str("dir", req.Dir).Interface("langs", req.Langs).Msg("Indexing request received")
+
 	opts := &codemogger.IndexOptions{
 		Languages: req.Langs,
 	}
@@ -53,10 +56,13 @@ func (h *ApiHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
+		log.Debug().Str("dir", req.Dir).Msg("Starting background indexing goroutine")
 		res, err := h.index.Index(req.Dir, opts)
 		if err != nil {
+			log.Error().Err(err).Str("dir", req.Dir).Msg("Background indexing failed")
 			h.Publish("index_done", map[string]any{"error": err.Error()})
 		} else {
+			log.Info().Str("dir", req.Dir).Msg("Background indexing completed successfully")
 			h.Publish("index_done", res)
 		}
 	}()
