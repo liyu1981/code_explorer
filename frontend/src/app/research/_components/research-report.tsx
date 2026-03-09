@@ -1,6 +1,13 @@
 "use client";
 
-import { MessageSquare, Sparkles, Clock, Trash2 } from "lucide-react";
+import {
+  MessageSquare,
+  Sparkles,
+  Clock,
+  Trash2,
+  Copy,
+  Check,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
 import { ResearchTurn } from "../../_jotai/research-store";
@@ -20,12 +27,23 @@ export function ResearchReport({
   isStreaming,
 }: ResearchReportProps) {
   const [, setTick] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Update relative times every minute
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleCopy = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy!", err);
+    }
+  };
 
   const getRelativeTime = (ts?: number) => {
     if (!ts) return "";
@@ -57,8 +75,8 @@ export function ResearchReport({
             </div>
           )}
 
-          <div className="flex flex-col lg:flex-row gap-12 animate-in fade-in slide-in-from-bottom-4 duration-700 w-full">
-            <div className="flex-1 space-y-8 min-w-0">
+          <div className="flex flex-col lg:flex-row items-stretch gap-12 animate-in fade-in slide-in-from-bottom-4 duration-700 w-full">
+            <div className="flex-1 space-y-8 min-w-0 flex flex-col">
               <div className="flex items-center gap-3 text-primary/70">
                 <Sparkles className="h-5 w-5 flex-shrink-0" />
                 <span className="text-lg font-bold tracking-tight text-foreground/80 flex-1">
@@ -78,22 +96,37 @@ export function ResearchReport({
                       </span>
                     </div>
                   </div>
-                  {onDeleteTurn && !isStreaming && (
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => onDeleteTurn(turn.id)}
-                      className="p-2 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
-                      title="Delete Turn"
+                      onClick={() => handleCopy(turn.id, turn.report)}
+                      className="p-2 text-muted-foreground/30 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      title="Copy Markdown"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {copiedId === turn.id ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
                     </button>
-                  )}
+                    {onDeleteTurn && !isStreaming && (
+                      <button
+                        onClick={() => onDeleteTurn(turn.id)}
+                        className="p-2 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                        title="Delete Turn"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <Markdown
-                content={turn.report}
-                className="text-lg leading-relaxed text-foreground/90"
-              />
+              <div className="flex-1">
+                <Markdown
+                  content={turn.report}
+                  className="text-lg leading-relaxed text-foreground/90"
+                />
+              </div>
 
               {turnIndex === turns.length - 1 && !isStreaming && (
                 <div className="pt-12 border-t border-border/40">
