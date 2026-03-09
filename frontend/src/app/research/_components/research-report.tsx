@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
-import { ResearchTurn } from "../../_jotai/research-store";
+import type { ResearchTurn } from "../../_jotai/research-store";
 import { SourceCard } from "./source-card";
 
 interface ResearchReportProps {
@@ -102,10 +102,10 @@ export function ResearchReport({
                 </span>
                 <div className="flex items-center gap-4">
                   <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap">
+                    <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
                       Turn #{turnIndex + 1}
                     </span>
-                    <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-tighter whitespace-nowrap">
+                    <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground/50 uppercase tracking-tighter whitespace-nowrap">
                       <Clock className="h-2.5 w-2.5" />
                       <span>
                         Updated:{" "}
@@ -116,8 +116,9 @@ export function ResearchReport({
                   </div>
                   <div className="flex items-center gap-1">
                     <button
+                      type="button"
                       onClick={() => handleCopy(turn.id, turn.report)}
-                      className="p-2 text-muted-foreground/30 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                       title="Copy Markdown"
                     >
                       {copiedId === turn.id ? (
@@ -128,8 +129,9 @@ export function ResearchReport({
                     </button>
                     {onDeleteTurn && !isStreaming && (
                       <button
+                        type="button"
                         onClick={() => onDeleteTurn(turn.id)}
-                        className="p-2 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                        className="p-2 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
                         title="Delete Turn"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -142,7 +144,7 @@ export function ResearchReport({
               <div className="flex-1">
                 <Markdown
                   content={turn.report}
-                  className="text-lg leading-relaxed text-foreground/90"
+                  className="leading-relaxed text-foreground/90"
                 />
               </div>
 
@@ -161,6 +163,7 @@ export function ResearchReport({
                       "Are there security concerns?",
                     ].map((q) => (
                       <button
+                        type="button"
                         key={q}
                         onClick={() => onFollowUp?.(q)}
                         className="text-left px-5 py-4 rounded-2xl border border-border/40 bg-muted/20 hover:bg-muted/40 hover:border-primary/30 transition-all text-sm font-semibold"

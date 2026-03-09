@@ -7,7 +7,6 @@ import {
   oneDark,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +28,6 @@ export function Markdown({ content, className }: MarkdownProps) {
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
         components={{
           pre: ({ children }) => (
             <div className="not-prose rounded-xl overflow-hidden border border-border/60 bg-muted/30 my-6 shadow-sm">

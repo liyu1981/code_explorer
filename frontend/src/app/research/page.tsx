@@ -2,7 +2,6 @@
 
 import { useAtom } from "jotai";
 import { Archive } from "lucide-react";
-import { nanoid } from "nanoid";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { API_URL, api } from "@/lib/api";
@@ -11,7 +10,6 @@ import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import {
   activeSessionIdAtom,
-  createSession,
   researchSessionsAtom,
   type ResearchSession,
 } from "../_jotai/research-store";
@@ -499,6 +497,7 @@ function ResearchContent() {
             Research
           </h1>
           <button
+            type="button"
             onClick={() => handleArchive(activeSession.id)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors ml-auto"
             title="Archive Research"
