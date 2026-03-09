@@ -104,9 +104,10 @@ export function CodebaseList() {
 
   const handleNewResearch = async (cb?: Codebase) => {
     const codebaseId = cb?.id || 0;
+    const codebasePath = cb?.rootPath || "";
 
     // 1. Create new session
-    const newSession = createSession(codebaseId);
+    const newSession = createSession(codebaseId, codebasePath);
     if (cb) {
       newSession.title = `Research: ${cb.name || cb.rootPath}`;
     }

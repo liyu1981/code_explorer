@@ -18,6 +18,7 @@ export interface ResearchTurn {
 export interface ResearchSession {
   id: string;
   codebaseId: number;
+  codebasePath: string;
   title: string;
   state: ResearchState;
   steps: ReasoningStep[];
@@ -36,9 +37,13 @@ export const researchSessionsAtom = atomWithStorage<ResearchSession[]>(
 export const activeSessionIdAtom = atom<string | null>(null);
 
 // Helper to create a new session
-export const createSession = (codebaseId: number): ResearchSession => ({
+export const createSession = (
+  codebaseId: number,
+  codebasePath: string,
+): ResearchSession => ({
   id: nanoid(10),
   codebaseId,
+  codebasePath,
   title: "New Research",
   state: "idle",
   steps: [],

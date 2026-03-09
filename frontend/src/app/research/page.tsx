@@ -1,7 +1,7 @@
 "use client";
 
 import { useAtom } from "jotai";
-import { Archive } from "lucide-react";
+import { Archive, Folder } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { API_URL, api } from "@/lib/api";
@@ -74,6 +74,7 @@ function ResearchContent() {
         const session: ResearchSession = {
           id: sessionData.id,
           codebaseId: sessionData.codebaseId,
+          codebasePath: sessionData.codebasePath,
           title: sessionData.title,
           state: sessionData.state as any,
           createdAt: sessionData.createdAt,
@@ -493,11 +494,19 @@ function ResearchContent() {
     <AppContainer>
       <AppHeader>
         <div className="flex items-center gap-4 w-full">
-          <h1 className="text-xl font-bold tracking-tight text-primary">
-            Research
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-primary">
+              Research
+            </h1>
+            <div className="h-5 w-px bg-border/60 mx-1" />
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 rounded-lg border border-border/40">
+              <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-mono text-muted-foreground truncate max-w-[400px]">
+                {activeSession.codebasePath}
+              </span>
+            </div>
+          </div>
           <button
-            type="button"
             onClick={() => handleArchive(activeSession.id)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors ml-auto"
             title="Archive Research"

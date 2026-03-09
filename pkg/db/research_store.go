@@ -31,15 +31,16 @@ func (s *Store) GetResearchSessionByCodebase(codebaseID int64) (*ResearchSession
 	}
 
 	query := `
-		SELECT id, codebase_id, title, state, created_at, archived_at
-		FROM research_sessions
-		WHERE codebase_id = ? AND archived_at IS NULL
-		ORDER BY created_at DESC
+		SELECT rs.id, rs.codebase_id, c.root_path, rs.title, rs.state, rs.created_at, rs.archived_at
+		FROM research_sessions rs
+		JOIN codemogger_codebases c ON rs.codebase_id = c.id
+		WHERE rs.codebase_id = ? AND rs.archived_at IS NULL
+		ORDER BY rs.created_at DESC
 		LIMIT 1
 	`
 	var sess ResearchSession
 	err := s.db.QueryRow(query, codebaseID).Scan(
-		&sess.ID, &sess.CodebaseID, &sess.Title,
+		&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.Title,
 		&sess.State, &sess.CreatedAt, &sess.ArchivedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -57,13 +58,14 @@ func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, e
 	}
 
 	query := `
-		SELECT id, codebase_id, title, state, created_at, archived_at
-		FROM research_sessions
+		SELECT rs.id, rs.codebase_id, c.root_path, rs.title, rs.state, rs.created_at, rs.archived_at
+		FROM research_sessions rs
+		JOIN codemogger_codebases c ON rs.codebase_id = c.id
 	`
 	if !includeArchived {
-		query += " WHERE archived_at IS NULL"
+		query += " WHERE rs.archived_at IS NULL"
 	}
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY rs.created_at DESC"
 
 	rows, err := s.db.Query(query)
 	if err != nil {
@@ -75,7 +77,7 @@ func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, e
 	for rows.Next() {
 		var sess ResearchSession
 		if err := rows.Scan(
-			&sess.ID, &sess.CodebaseID, &sess.Title,
+			&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.Title,
 			&sess.State, &sess.CreatedAt, &sess.ArchivedAt,
 		); err != nil {
 			return nil, err

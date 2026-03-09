@@ -1,12 +1,13 @@
 package db
 
 type ResearchSession struct {
-	ID         string `json:"id"`
-	CodebaseID int64  `json:"codebaseId"`
-	Title      string `json:"title"`
-	State      string `json:"state"`
-	CreatedAt  int64  `json:"createdAt"`
-	ArchivedAt *int64 `json:"archivedAt,omitempty"`
+	ID           string `json:"id"`
+	CodebaseID   int64  `json:"codebaseId"`
+	CodebasePath string `json:"codebasePath"`
+	Title        string `json:"title"`
+	State        string `json:"state"`
+	CreatedAt    int64  `json:"createdAt"`
+	ArchivedAt   *int64 `json:"archivedAt,omitempty"`
 }
 
 type ResearchReport struct {
