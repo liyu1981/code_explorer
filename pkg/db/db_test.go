@@ -65,8 +65,8 @@ func TestOpenAndStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get or create codebase: %v", err)
 	}
-	if id <= 0 {
-		t.Errorf("expected valid id, got %d", id)
+	if id == "" {
+		t.Errorf("expected valid id, got empty string")
 	}
 
 	codebases, err := store.CodemoggerListCodebases()

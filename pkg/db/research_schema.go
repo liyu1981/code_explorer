@@ -11,7 +11,7 @@ type ResearchSession struct {
 }
 
 type ResearchReport struct {
-	ID         int64  `json:"id"`
+	ID         string `json:"id"`
 	SessionID  string `json:"sessionId"`
 	TurnID     string `json:"turnId"`
 	StreamData string `json:"streamData"`

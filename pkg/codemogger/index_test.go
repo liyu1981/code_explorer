@@ -45,8 +45,7 @@ class Calculator:
 `
 	os.WriteFile(pyFile, []byte(pyContent), 0644)
 
-	cfg := DefaultConfig()
-	idx, err := NewCodeIndex(dbPath, cfg)
+	idx, err := NewCodeIndex(dbPath)
 	if err != nil {
 		t.Fatalf("new code index: %v", err)
 	}
