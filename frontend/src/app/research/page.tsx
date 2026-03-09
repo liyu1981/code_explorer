@@ -502,11 +502,12 @@ function ResearchContent() {
             <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 rounded-lg border border-border/40">
               <Folder className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs font-mono text-muted-foreground truncate max-w-[400px]">
-                {activeSession.codebasePath}
+                {activeSession.title}
               </span>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => handleArchive(activeSession.id)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors ml-auto"
             title="Archive Research"
