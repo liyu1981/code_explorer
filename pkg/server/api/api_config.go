@@ -3,10 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 
-	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/rs/zerolog/log"
 )
 
@@ -17,7 +15,7 @@ func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a deep enough copy to prevent masking from affecting the live config
-	cfg := *h.index.Config
+	cfg := *config.Get()
 
 	systemLLM := make(map[string]any)
 	if cfg.System.LLM != nil {
@@ -37,13 +35,13 @@ func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := struct {
-		System     systemResp                  `json:"system"`
-		Research   codemogger.ResearchConfig   `json:"research"`
-		CodeMogger codemogger.CodeMoggerConfig `json:"codemogger"`
+		System     systemResp              `json:"system"`
+		Research   config.ResearchConfig   `json:"research"`
+		CodeMogger config.CodeMoggerConfig `json:"codemogger"`
 	}{
 		System: systemResp{
 			DbPath:      h.index.GetDbPath(),
-			IsDefaultDb: h.index.Config.System.DBPath == "",
+			IsDefaultDb: config.Get().System.DBPath == "",
 			LLM:         systemLLM,
 		},
 		Research:   cfg.Research,
@@ -65,14 +63,14 @@ func (h *ApiHandler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var newCfg codemogger.Config
+	var newCfg config.Config
 	if err := json.NewDecoder(r.Body).Decode(&newCfg); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 
-	// Update current config
-	current := h.index.Config
+	// Update current config singleton
+	current := config.Get()
 
 	// System
 	if newCfg.System.LLM != nil {
@@ -122,27 +120,15 @@ func (h *ApiHandler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) 
 		current.CodeMogger.Embedder.OpenAI.APIKey = emb.OpenAI.APIKey
 	}
 
-	// Save to file
-	configPath := h.index.ConfigPath
-	if configPath == "" {
-		home, _ := os.UserHomeDir()
-		configPath = filepath.Join(home, ".code_explorer", "config.json")
-	}
-
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to create config directory", err)
-		return
-	}
-
-	data, err := json.MarshalIndent(current, "", "  ")
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to marshal config", err)
-		return
-	}
-
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	// Save to file via singleton
+	if err := config.Save(); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to save config file", err)
 		return
+	}
+
+	// Also update the index internal state (e.g. re-init embedder if needed)
+	if err := h.index.ReloadConfig(); err != nil {
+		log.Error().Err(err).Msg("Failed to reload configuration live")
 	}
 
 	writeJSON(w, http.StatusOK, current)

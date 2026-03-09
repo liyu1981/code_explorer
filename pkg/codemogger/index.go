@@ -10,6 +10,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/scan"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/search"
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/rs/zerolog/log"
 )
@@ -19,32 +20,50 @@ type CodeIndex struct {
 	dbPath         string
 	embedder       embed.Embedder
 	embeddingModel string
-	Config         *Config
-	ConfigPath     string
 }
 
-func NewCodeIndex(dbPath string, cfg *Config, configPath string) (*CodeIndex, error) {
-	if cfg == nil {
-		cfg = DefaultConfig()
-	}
+func NewCodeIndex(dbPath string) (*CodeIndex, error) {
+	cfg := config.Get()
 
 	var emb embed.Embedder
 	embCfg := cfg.CodeMogger.Embedder
 
-	// If inherit from system LLM is true, we might need to override some settings
-	// but currently EmbedderConfig is slightly different from System LLM map.
-	// For simplicity, we just use EmbedderConfig.
+	// Handle inheritance from System LLM
+	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
+		// Do not inherit 'model' for embedder as it's usually different from LLM model
+		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
+			embCfg.Type = t
+		}
+		if ep, ok := cfg.System.LLM["endpoint"].(string); ok && ep != "" {
+			apiBase := ep
+			if i := 38; len(ep) > i && ep[len(ep)-i:] == "/v1/chat/completions" {
+				apiBase = ep[:len(ep)-i+3]
+			} else if i := 17; len(ep) > i && ep[len(ep)-i:] == "/chat/completions" {
+				apiBase = ep[:len(ep)-i]
+			}
+			embCfg.OpenAI.APIBase = apiBase
+		}
+		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
+			embCfg.OpenAI.APIKey = key
+		}
+	}
 
 	switch embCfg.Type {
 	case "openai":
+		model := embCfg.OpenAI.Model
+		if model == "" {
+			model = embCfg.Model
+		}
+		if model == "" {
+			model = "text-embedding-3-small"
+		}
 		emb = embed.NewOpenAIEmbedder(
 			embCfg.OpenAI.APIBase,
-			embCfg.OpenAI.Model,
+			model,
 			embCfg.OpenAI.APIKey,
-			1536, // Standard OpenAI dimension
+			1536,
 		)
 	default:
-		// Default to local Ollama (OpenAI compatible)
 		apiBase := embCfg.OpenAI.APIBase
 		if apiBase == "" {
 			apiBase = "http://localhost:11434/v1"
@@ -57,7 +76,7 @@ func NewCodeIndex(dbPath string, cfg *Config, configPath string) (*CodeIndex, er
 			apiBase,
 			model,
 			embCfg.OpenAI.APIKey,
-			384, // Default for all-minilm
+			384,
 		)
 	}
 
@@ -73,8 +92,6 @@ func NewCodeIndex(dbPath string, cfg *Config, configPath string) (*CodeIndex, er
 		dbPath:         dbPath,
 		embedder:       emb,
 		embeddingModel: cfg.CodeMogger.Embedder.Model,
-		Config:         cfg,
-		ConfigPath:     configPath,
 	}, nil
 }
 
@@ -396,6 +413,68 @@ func (c *CodeIndex) Close() error {
 
 func (c *CodeIndex) SetEmbedder(emb embed.Embedder) {
 	c.embedder = emb
+}
+
+func (c *CodeIndex) ReloadConfig() error {
+	cfg := config.Get()
+	var emb embed.Embedder
+	embCfg := cfg.CodeMogger.Embedder
+
+	// Handle inheritance from System LLM
+	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
+		// Do not inherit 'model' for embedder as it's usually different from LLM model
+		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
+			embCfg.Type = t
+		}
+		if ep, ok := cfg.System.LLM["endpoint"].(string); ok && ep != "" {
+			apiBase := ep
+			if i := 38; len(ep) > i && ep[len(ep)-i:] == "/v1/chat/completions" {
+				apiBase = ep[:len(ep)-i+3]
+			} else if i := 17; len(ep) > i && ep[len(ep)-i:] == "/chat/completions" {
+				apiBase = ep[:len(ep)-i]
+			}
+			embCfg.OpenAI.APIBase = apiBase
+		}
+		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
+			embCfg.OpenAI.APIKey = key
+		}
+	}
+
+	switch embCfg.Type {
+	case "openai":
+		model := embCfg.OpenAI.Model
+		if model == "" {
+			model = embCfg.Model
+		}
+		if model == "" {
+			model = "text-embedding-3-small"
+		}
+		emb = embed.NewOpenAIEmbedder(
+			embCfg.OpenAI.APIBase,
+			model,
+			embCfg.OpenAI.APIKey,
+			1536,
+		)
+	default:
+		apiBase := embCfg.OpenAI.APIBase
+		if apiBase == "" {
+			apiBase = "http://localhost:11434/v1"
+		}
+		model := embCfg.Model
+		if model == "" {
+			model = "all-minilm:l6-v2"
+		}
+		emb = embed.NewOpenAIEmbedder(
+			apiBase,
+			model,
+			embCfg.OpenAI.APIKey,
+			384,
+		)
+	}
+
+	c.embedder = emb
+	c.embeddingModel = cfg.CodeMogger.Embedder.Model
+	return nil
 }
 
 func (c *CodeIndex) GetStore() *db.Store {

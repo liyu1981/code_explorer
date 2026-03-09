@@ -7,5 +7,7 @@ import (
 )
 
 func OpenLibsqlDb(filePath string) (*sql.DB, error) {
-	return sql.Open("libsql", "file:"+filePath)
+	// Add busy timeout to handle concurrent access
+	dsn := "file:" + filePath + "?_busy_timeout=5000"
+	return sql.Open("libsql", dsn)
 }

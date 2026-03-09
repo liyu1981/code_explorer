@@ -133,11 +133,11 @@ function ResearchContent() {
                         status: ce.status!,
                         label: ce.label!,
                       };
-                    } else {
+                    } else if (ce.id && ce.label && ce.status) {
                       session.steps.push({
-                        id: ce.id!,
-                        label: ce.label!,
-                        status: ce.status!,
+                        id: ce.id,
+                        label: ce.label,
+                        status: ce.status,
                       });
                     }
                     break;
@@ -259,6 +259,7 @@ function ResearchContent() {
               ...s,
               state: "searching",
               thoughtProcess: "",
+              steps: [], // Clear steps for the new turn
             }
           : s,
       ),
@@ -350,38 +351,32 @@ function ResearchContent() {
                         ],
                       };
                     case "research.step.update": {
-                      const existingStep = s.steps.find(
+                      const updatedSteps = [...s.steps];
+                      const existingStepIdx = updatedSteps.findIndex(
                         (st) => st.id === event.id,
                       );
-                      if (existingStep) {
-                        return {
-                          ...s,
-                          steps: s.steps.map((step) =>
-                            step.id === event.id
-                              ? {
-                                  ...step,
-                                  status: event.status ?? step.status,
-                                  label: event.label ?? step.label,
-                                }
-                              : step,
-                          ),
+
+                      if (existingStepIdx > -1) {
+                        updatedSteps[existingStepIdx] = {
+                          ...updatedSteps[existingStepIdx],
+                          status:
+                            event.status ??
+                            updatedSteps[existingStepIdx].status,
+                          label:
+                            event.label ?? updatedSteps[existingStepIdx].label,
                         };
+                      } else if (event.id && event.label && event.status) {
+                        updatedSteps.push({
+                          id: event.id,
+                          label: event.label,
+                          status: event.status,
+                        });
                       }
-                      // If step doesn't exist, add it
-                      if (event.id && event.label && event.status) {
-                        return {
-                          ...s,
-                          steps: [
-                            ...s.steps,
-                            {
-                              id: event.id,
-                              label: event.label,
-                              status: event.status,
-                            },
-                          ],
-                        };
-                      }
-                      return s;
+
+                      return {
+                        ...s,
+                        steps: updatedSteps,
+                      };
                     }
                     case "research.reasoning.delta":
                       return {

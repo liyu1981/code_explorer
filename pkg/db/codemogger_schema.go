@@ -100,16 +100,20 @@ func (s *Store) reconnect() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.db.Ping(); err != nil {
-		s.db.Close()
-		db, err := sql.Open("libsql", "file:"+s.dbPath)
-		if err != nil {
-			return err
+	if s.db != nil {
+		if err := s.db.Ping(); err == nil {
+			return nil
 		}
-		s.db = db
-		return db.Ping()
+		s.db.Close()
 	}
-	return nil
+
+	dsn := "file:" + s.dbPath + "?_busy_timeout=5000"
+	db, err := sql.Open("libsql", dsn)
+	if err != nil {
+		return err
+	}
+	s.db = db
+	return db.Ping()
 }
 
 func (s *Store) DB() *sql.DB {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/rs/zerolog/log"
@@ -129,8 +130,8 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Load agent config from system config, env or default
 	llmCfg := make(map[string]any)
-	if h.index != nil && h.index.Config != nil && h.index.Config.System.LLM != nil {
-		for k, v := range h.index.Config.System.LLM {
+	if config.Get().System.LLM != nil {
+		for k, v := range config.Get().System.LLM {
 			llmCfg[k] = v
 		}
 	} else {
@@ -286,9 +287,9 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 	}
 
 	// Prune
-	maxArchived := 10 // Default
-	if h.index.Config != nil && h.index.Config.Research.MaxReportsPerCodebase > 0 {
-		maxArchived = h.index.Config.Research.MaxReportsPerCodebase
+	maxArchived := config.Get().Research.MaxReportsPerCodebase
+	if maxArchived <= 0 {
+		maxArchived = 10
 	}
 	_ = h.index.GetStore().PruneArchivedSessions(maxArchived)
 
@@ -313,8 +314,11 @@ func (h *ApiHandler) handleDeleteReport(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
 		return
 	}
+	id := r.PathValue("id")
 	turnId := r.PathValue("turnId")
+	log.Info().Str("sessionId", id).Str("turnId", turnId).Msg("Deleting research report")
 	if err := h.index.GetStore().DeleteResearchReport(turnId); err != nil {
+		log.Error().Err(err).Str("turnId", turnId).Msg("Failed to delete research report")
 		writeError(w, http.StatusInternalServerError, "Failed to delete report", err)
 		return
 	}

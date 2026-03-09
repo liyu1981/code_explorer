@@ -136,9 +136,10 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 		var toolCalls []ToolCall
 		var err error
 
-		stepID := fmt.Sprintf("turn-%s-iteration-%d", turnID, i)
+		// Use stable step ID for thinking in each turn
+		thinkingStepID := fmt.Sprintf("turn-%s-thinking", turnID)
 		if stream != nil {
-			stream.SendStepUpdate(stepID, "Thinking and reasoning", protocol.StepActive)
+			stream.SendStepUpdate(thinkingStepID, "Thinking and reasoning", protocol.StepActive)
 		}
 
 		if stream != nil {
@@ -148,7 +149,7 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 		}
 
 		if stream != nil {
-			stream.SendStepUpdate(stepID, "Thinking and reasoning", protocol.StepCompleted)
+			stream.SendStepUpdate(thinkingStepID, "Thinking and reasoning", protocol.StepCompleted)
 		}
 
 		if err != nil {
@@ -166,7 +167,9 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 
 		for _, tc := range toolCalls {
 			log.Info().Str("tool", tc.Name).RawJSON("input", tc.Input).Msg("Executing tool")
-			toolStepID := fmt.Sprintf("turn-%s-tool-%s-%d-%s", turnID, tc.Name, i, tc.ID)
+			// Use tool name as part of the ID to keep tool execution steps somewhat stable,
+			// but still allow multiple tools to be shown.
+			toolStepID := fmt.Sprintf("turn-%s-tool-%s", turnID, tc.Name)
 			if stream != nil {
 				stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepActive)
 				stream.SendToolCall(tc.Name, tc.Input)
@@ -187,7 +190,7 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 			}
 
 			if len(tc.Input) == 0 {
-				msg := fmt.Sprintf("Error: tool %s was called without any arguments. Please provide the required parameters in JSON format.", tc.Name)
+				msg := "Error: tool was called without any arguments."
 				a.messages = append(a.messages, Message{
 					Role:    "tool",
 					Content: msg,

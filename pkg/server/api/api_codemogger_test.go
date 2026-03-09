@@ -11,6 +11,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
+	"github.com/liyu1981/code_explorer/pkg/config"
 )
 
 func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
@@ -20,8 +21,8 @@ func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 	}
 
 	dbPath := filepath.Join(tmpDir, "test.db")
-	cfg := codemogger.DefaultConfig()
-	idx, err := codemogger.NewCodeIndex(dbPath, cfg)
+	config.Set(config.DefaultConfig())
+	idx, err := codemogger.NewCodeIndex(dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create index: %v", err)
 	}

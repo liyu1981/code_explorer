@@ -3,13 +3,14 @@ package api
 import (
 	"net/http"
 
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/constant"
 )
 
 func (h *ApiHandler) handleVersion(w http.ResponseWriter, r *http.Request) {
-	maxReports := 10
-	if h.index != nil && h.index.Config != nil && h.index.Config.Research.MaxReportsPerCodebase > 0 {
-		maxReports = h.index.Config.Research.MaxReportsPerCodebase
+	maxReports := config.Get().Research.MaxReportsPerCodebase
+	if maxReports <= 0 {
+		maxReports = 10
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

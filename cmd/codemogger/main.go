@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/format"
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/logger"
 	"github.com/rs/zerolog/log"
 )
@@ -49,59 +49,13 @@ func printUsage() {
 }
 
 func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
-	cfg := codemogger.DefaultConfig()
-
-	// Try to load config from file
+	// Try to load config from file via singleton
 	configPath := os.Getenv("CODE_EXPLORER_CONFIG")
-	if configPath == "" {
-		if _, err := os.Stat(".config.json"); err == nil {
-			configPath = ".config.json"
-		} else {
-			home, _ := os.UserHomeDir()
-			configPath = filepath.Join(home, ".code_explorer", "config.json")
-		}
+	if err := config.Load(configPath); err != nil {
+		log.Warn().Err(err).Msg("Failed to load configuration, using defaults")
 	}
 
-	if _, err := os.Stat(configPath); err == nil {
-		data, err := os.ReadFile(configPath)
-		if err == nil {
-			var fileCfg codemogger.Config
-			if err := json.Unmarshal(data, &fileCfg); err == nil {
-				// Merge configs
-				if fileCfg.System.DBPath != "" {
-					cfg.System.DBPath = fileCfg.System.DBPath
-				}
-				if fileCfg.System.LLM != nil {
-					cfg.System.LLM = fileCfg.System.LLM
-				}
-				if fileCfg.Research.MaxReportsPerCodebase > 0 {
-					cfg.Research.MaxReportsPerCodebase = fileCfg.Research.MaxReportsPerCodebase
-				}
-				if fileCfg.CodeMogger.Embedder.Type != "" {
-					cfg.CodeMogger.Embedder.Type = fileCfg.CodeMogger.Embedder.Type
-				}
-				if fileCfg.CodeMogger.Embedder.Model != "" {
-					cfg.CodeMogger.Embedder.Model = fileCfg.CodeMogger.Embedder.Model
-				}
-				if fileCfg.CodeMogger.Embedder.OpenAI.APIBase != "" {
-					cfg.CodeMogger.Embedder.OpenAI.APIBase = fileCfg.CodeMogger.Embedder.OpenAI.APIBase
-				}
-				if fileCfg.CodeMogger.Embedder.OpenAI.APIKey != "" {
-					cfg.CodeMogger.Embedder.OpenAI.APIKey = fileCfg.CodeMogger.Embedder.OpenAI.APIKey
-				}
-				if fileCfg.CodeMogger.Embedder.OpenAI.Model != "" {
-					cfg.CodeMogger.Embedder.OpenAI.Model = fileCfg.CodeMogger.Embedder.OpenAI.Model
-				}
-				cfg.CodeMogger.InheritSystemLLM = fileCfg.CodeMogger.InheritSystemLLM
-				if fileCfg.CodeMogger.ChunkLines > 0 {
-					cfg.CodeMogger.ChunkLines = fileCfg.CodeMogger.ChunkLines
-				}
-				if len(fileCfg.CodeMogger.Languages) > 0 {
-					cfg.CodeMogger.Languages = fileCfg.CodeMogger.Languages
-				}
-			}
-		}
-	}
+	cfg := config.Get()
 
 	if dbPath == "" {
 		if cfg.System.DBPath != "" {
@@ -119,7 +73,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 		}
 	}
 
-	return codemogger.NewCodeIndex(dbPath, cfg, configPath)
+	return codemogger.NewCodeIndex(dbPath)
 }
 
 func handleIndex() {
