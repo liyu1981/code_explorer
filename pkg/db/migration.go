@@ -5,6 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -361,8 +362,13 @@ func (m *Migrator) applyMigration(mig Migration, up bool) error {
 	return m.setVersion(newVersion, false)
 }
 
-func backupDatabase(db *sql.DB, dbPath string) error {
+func backupDatabase(dbPath string) error {
 	if dbPath == ":memory:" || dbPath == "" {
+		return nil
+	}
+
+	// Check if source file exists
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil
 	}
 
@@ -375,9 +381,21 @@ func backupDatabase(db *sql.DB, dbPath string) error {
 	timestamp := time.Now().Format("20060102_150405")
 	backupPath := filepath.Join(backupDir, fmt.Sprintf("%s_%s.bak", filepath.Base(dbPath), timestamp))
 
-	_, err := db.Exec(fmt.Sprintf("VACUUM INTO '%s'", backupPath))
+	// Simple file copy
+	src, err := os.Open(dbPath)
 	if err != nil {
-		return fmt.Errorf("failed to backup database: %w", err)
+		return err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(backupPath)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return fmt.Errorf("failed to copy database file: %w", err)
 	}
 
 	return nil
@@ -413,7 +431,7 @@ func runMigrations(db *sql.DB, dbPath string) error {
 	}
 
 	// Perform backup before running migrations
-	if err := backupDatabase(db, dbPath); err != nil {
+	if err := backupDatabase(dbPath); err != nil {
 		return err
 	}
 
