@@ -34,10 +34,16 @@ export function Markdown({ content, className }: MarkdownProps) {
               {children}
             </div>
           ),
-          code: ({ inline, className, children, ...props }: any) => {
+          code: ({ node, inline, className, children, ...props }: any) => {
             const match = /language-(\w+)/.exec(className || "");
             const language = match ? match[1] : "text";
-            const codeString = String(children).replace(/\n$/, "");
+
+            // Extract text content safely from children
+            const codeString = Array.isArray(children)
+              ? children.join("")
+              : typeof children === "string"
+                ? children
+                : String(children || "");
 
             if (!inline && match) {
               return (
@@ -70,7 +76,7 @@ export function Markdown({ content, className }: MarkdownProps) {
                   }}
                   {...props}
                 >
-                  {codeString}
+                  {codeString.replace(/\n$/, "")}
                 </SyntaxHighlighter>
               );
             }
