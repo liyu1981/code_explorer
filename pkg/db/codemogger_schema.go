@@ -84,7 +84,7 @@ type FileInfo struct {
 	IndexedAt  int64
 }
 
-// CodebaseInfo remains for backward compatibility or joined views, 
+// CodebaseInfo remains for backward compatibility or joined views,
 // but we prefer using Codebase and CodemoggerMetadata separately.
 type CodebaseInfo struct {
 	ID         string `json:"id"`

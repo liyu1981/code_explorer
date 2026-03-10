@@ -29,7 +29,12 @@ function ResearchMockContent() {
     if (sessions.length === 0) {
       setSessions((current) => {
         if (current.length === 0) {
-          const mockSession = createSession("mock-id", "/mock/path");
+          const mockSession = createSession(
+            "mock-id",
+            "/mock/path",
+            "mock-project",
+            "v1.0.0",
+          );
           mockSession.title = "Mock Research Session";
           return [mockSession];
         }

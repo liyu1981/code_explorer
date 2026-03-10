@@ -19,6 +19,8 @@ export interface ResearchSession {
   id: string;
   codebaseId: string;
   codebasePath: string;
+  codebaseName: string;
+  codebaseVersion: string;
   title: string;
   state: ResearchState;
   steps: ReasoningStep[];
@@ -40,10 +42,14 @@ export const activeSessionIdAtom = atom<string | null>(null);
 export const createSession = (
   codebaseId: string,
   codebasePath: string,
+  codebaseName: string,
+  codebaseVersion: string,
 ): ResearchSession => ({
   id: nanoid(10),
   codebaseId,
   codebasePath,
+  codebaseName,
+  codebaseVersion,
   title: "New Research",
   state: "idle",
   steps: [],

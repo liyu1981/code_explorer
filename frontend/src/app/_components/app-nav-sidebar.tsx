@@ -165,24 +165,35 @@ function SidebarContent() {
                 key={session.id}
                 onClick={() => handleSessionClick(session.id)}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                  "w-full flex items-start gap-3 px-3 py-2.5 rounded-md transition-colors",
                   searchParams.get("id") === session.id
                     ? "bg-primary/10 text-primary"
                     : "hover:bg-muted text-muted-foreground hover:text-foreground",
-                  !navExpanded && "justify-center",
+                  !navExpanded && "justify-center items-center",
                 )}
-                title={session.title}
+                title={`${session.title} (${session.codebaseName})`}
               >
                 <Search
                   className={cn(
-                    "h-5 w-5 flex-shrink-0",
+                    "h-5 w-5 flex-shrink-0 mt-0.5",
                     searchParams.get("id") === session.id && "text-primary",
                   )}
                 />
                 {navExpanded && (
-                  <span className="text-sm font-medium truncate">
-                    {session.title}
-                  </span>
+                  <div className="flex flex-col items-start min-w-0 flex-1">
+                    <span className="text-sm font-bold leading-tight break-words text-left w-full">
+                      {session.title}
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-1 opacity-60">
+                      <span className="text-[10px] font-mono truncate max-w-[100px]">
+                        {session.codebaseName}
+                      </span>
+                      <span className="text-[10px]">•</span>
+                      <span className="text-[10px] font-mono truncate">
+                        {session.codebaseVersion}
+                      </span>
+                    </div>
+                  </div>
                 )}
               </button>
             ))}

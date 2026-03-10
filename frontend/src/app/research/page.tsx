@@ -75,6 +75,8 @@ function ResearchContent() {
           id: sessionData.id,
           codebaseId: sessionData.codebaseId,
           codebasePath: sessionData.codebasePath,
+          codebaseName: sessionData.codebaseName,
+          codebaseVersion: sessionData.codebaseVersion,
           title: sessionData.title,
           state: sessionData.state as any,
           createdAt: sessionData.createdAt,
@@ -439,14 +441,35 @@ function ResearchContent() {
         // Persist final session state to backend
         const session = updated.find((s) => s.id === sessionId);
         if (session) {
-          api.post("/api/research/sessions", {
-            id: session.id,
-            codebaseId: session.codebaseId,
-            title: session.title,
-            state: "reported",
-            createdAt: session.createdAt,
-            archivedAt: session.archivedAt,
-          });
+          api
+            .post("/api/research/sessions", {
+              id: session.id,
+              codebaseId: session.codebaseId,
+              title: session.title,
+              state: "reported",
+              createdAt: session.createdAt,
+              archivedAt: session.archivedAt,
+            })
+            .then(() => {
+              // If it's the first turn and title is "New Research", summarize it
+              if (
+                session.title === "New Research" &&
+                session.turns.length === 1
+              ) {
+                api
+                  .post(`/api/research/sessions/${session.id}/summarize`)
+                  .then((res) => {
+                    const updatedSess = res.data;
+                    setSessions((prev) =>
+                      prev.map((s) =>
+                        s.id === updatedSess.id
+                          ? { ...s, title: updatedSess.title }
+                          : s,
+                      ),
+                    );
+                  });
+              }
+            });
         }
 
         return updated;

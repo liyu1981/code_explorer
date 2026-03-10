@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Tag,
   GitBranch,
+  History,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -21,9 +22,11 @@ import { API_URL, fetcher, api } from "@/lib/api";
 import {
   createSession,
   researchSessionsAtom,
+  activeSessionIdAtom,
 } from "../../_jotai/research-store";
 import { useWebSocketContext } from "../../_components/websocket-provider";
 import { cn } from "@/lib/utils";
+import * as Dialog from "@radix-ui/react-dialog";
 
 interface Codebase {
   id: string;
@@ -47,20 +50,80 @@ interface IndexProgress {
   stage: string;
 }
 
+function SessionSelectionDialog({
+  isOpen,
+  onClose,
+  sessions,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  sessions: any[];
+  onSelect: (sessionId: string) => void;
+}) {
+  return (
+    <Dialog.Root open={isOpen} onOpenChange={onClose}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-in fade-in duration-300" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-background border border-border rounded-2xl shadow-2xl z-50 p-6 animate-in zoom-in-95 duration-300">
+          <div className="flex items-center justify-between mb-6">
+            <Dialog.Title className="text-xl font-bold tracking-tight">
+              Continue Research
+            </Dialog.Title>
+            <Dialog.Close className="p-2 hover:bg-muted rounded-full transition-colors">
+              <X className="h-5 w-5" />
+            </Dialog.Close>
+          </div>
+
+          <Dialog.Description className="text-muted-foreground mb-6">
+            Select a previous research session to continue.
+          </Dialog.Description>
+
+          <div className="space-y-3 max-h-[400px] overflow-auto pr-2">
+            {sessions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onSelect(s.id)}
+                className="w-full text-left p-4 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all group"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="font-bold text-primary group-hover:text-primary-foreground transition-colors truncate">
+                    {s.title}
+                  </h4>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {new Date(s.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <History className="h-3 w-3" />
+                  <span>
+                    {s.state === "reported" ? "Complete" : "In Progress"}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function CodebaseItem({
   cb,
-  existingSession,
+  sessions,
   indexingPath,
   handleCreateIndex,
   handleNewResearch,
   handleContinueResearch,
 }: {
   cb: Codebase;
-  existingSession?: any;
+  sessions: any[];
   indexingPath: string | null;
   handleCreateIndex: (path: string) => void;
   handleNewResearch: (cb: Codebase) => void;
-  handleContinueResearch: (sessionId: string) => void;
+  handleContinueResearch: (cb: Codebase, sessions: any[]) => void;
 }) {
   const { data: status, isLoading } = useSWR<IndexingStatus>(
     `${API_URL}/api/codemogger/status?codebase_id=${cb.id}`,
@@ -138,10 +201,10 @@ function CodebaseItem({
           />
         </button>
 
-        {existingSession && (
+        {sessions.length > 0 && (
           <button
             type="button"
-            onClick={() => handleContinueResearch(existingSession.id)}
+            onClick={() => handleContinueResearch(cb, sessions)}
             className="flex items-center gap-2 px-5 py-2.5 bg-secondary text-secondary-foreground rounded-full text-sm font-bold shadow-lg shadow-secondary/20 hover:scale-105 active:scale-95 transition-all"
           >
             Continue
@@ -163,16 +226,21 @@ function CodebaseItem({
 
 export function CodebaseList() {
   const [, setSessions] = useAtom(researchSessionsAtom);
+  const [, setActiveSessionId] = useAtom(activeSessionIdAtom);
   const [codebaseFilter, setCodebaseFilter] = useState("");
-  const [existingSessions, setExistingSessions] = useState<Record<string, any>>(
-    {},
-  );
+  const [existingSessions, setExistingSessions] = useState<
+    Record<string, any[]>
+  >({});
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newPath, setNewPath] = useState("");
   const [indexingPath, setIndexingPath] = useState<string | null>(null);
   const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(
     null,
   );
+
+  // Dialog state
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogSessions, setDialogSessions] = useState<any[]>([]);
 
   const router = useRouter();
   const { subscribe, unsubscribe } = useWebSocketContext();
@@ -189,10 +257,13 @@ export function CodebaseList() {
       try {
         const response = await api.get("/api/research/sessions");
         const sessions = response.data;
-        const sessionMap: Record<string, any> = {};
+        const sessionMap: Record<string, any[]> = {};
         for (const s of sessions) {
           if (!s.archivedAt) {
-            sessionMap[s.codebaseId] = s;
+            if (!sessionMap[s.codebaseId]) {
+              sessionMap[s.codebaseId] = [];
+            }
+            sessionMap[s.codebaseId].push(s);
           }
         }
         setExistingSessions(sessionMap);
@@ -204,235 +275,253 @@ export function CodebaseList() {
   }, []);
 
   useEffect(() => {
-    const onProgress = (payload: IndexProgress) => {
+    const onProgress = (payload: any) => {
       setIndexProgress(payload);
     };
-    const onDone = (payload: any) => {
+
+    const onFinished = (payload: any) => {
       setIndexingPath(null);
       setIndexProgress(null);
-      mutate(); // Refresh list
-      if (payload.error) {
-        alert(`Indexing failed: ${payload.error}`);
-      }
+      mutate();
     };
 
-    subscribe("index_progress", onProgress);
-    subscribe("index_done", onDone);
+    subscribe("codemogger.index.progress", onProgress);
+    subscribe("codemogger.index.finished", onFinished);
 
     return () => {
-      unsubscribe("index_progress", onProgress);
-      unsubscribe("index_done", onDone);
+      unsubscribe("codemogger.index.progress", onProgress);
+      unsubscribe("codemogger.index.finished", onFinished);
     };
   }, [subscribe, unsubscribe, mutate]);
 
-  const handleNewResearch = async (cb?: Codebase) => {
-    const codebaseId = cb?.id || "";
-    const codebasePath = cb?.rootPath || "";
-
-    // 1. Create new session
-    const newSession = createSession(codebaseId, codebasePath);
-    if (cb) {
-      newSession.title = `Research: ${cb.name || cb.rootPath}`;
-    }
-
-    // 2. Save to backend
-    await api.post("/api/research/sessions", {
-      id: newSession.id,
-      codebaseId: newSession.codebaseId,
-      title: newSession.title,
-      state: newSession.state,
-      createdAt: newSession.createdAt,
-    });
-
-    setSessions((current) => {
-      const filtered = current.filter((s) => s.id !== newSession.id);
-      return [...filtered, newSession];
-    });
-    router.push(`/research?id=${newSession.id}`);
-  };
-
   const handleCreateIndex = async (path: string) => {
+    setIndexingPath(path);
     try {
-      setIndexingPath(path);
-      setIsAddingNew(false);
-      await api.post("/api/codemogger/index", { dir: path });
+      await api.post("/api/codemogger/index", { root_path: path });
     } catch (e) {
-      console.error("Failed to start indexing", e);
+      console.error("Indexing failed", e);
       setIndexingPath(null);
-      alert(
-        "Failed to start indexing. Make sure the path is absolute and accessible.",
-      );
     }
   };
 
-  const handleContinueResearch = (sessionId: string) => {
-    router.push(`/research?id=${sessionId}`);
+  const handleAddNewCodebase = async () => {
+    if (!newPath) return;
+    try {
+      await api.post("/api/codemogger/index", { root_path: newPath });
+      setIsAddingNew(false);
+      setNewPath("");
+      mutate();
+    } catch (e) {
+      console.error("Adding codebase failed", e);
+    }
   };
 
-  const filteredCodebases =
-    codebases?.filter(
-      (c) =>
-        (c.name || "").toLowerCase().includes(codebaseFilter.toLowerCase()) ||
-        (c.rootPath || "").toLowerCase().includes(codebaseFilter.toLowerCase()),
-    ) || [];
+  const handleNewResearch = async (cb: Codebase) => {
+    const newSession = createSession(cb.id, cb.rootPath, cb.name, cb.version);
+    setSessions((prev) => [newSession, ...prev]);
+    setActiveSessionId(newSession.id);
 
-  if (error) {
+    try {
+      await api.post("/api/research/sessions", {
+        id: newSession.id,
+        codebaseId: newSession.codebaseId,
+        title: newSession.title,
+        state: newSession.state,
+        createdAt: newSession.createdAt,
+      });
+      router.push(`/research?id=${newSession.id}`);
+    } catch (e) {
+      console.error("Failed to save new session", e);
+    }
+  };
+
+  const handleContinueResearch = (cb: Codebase, sessions: any[]) => {
+    if (sessions.length === 1) {
+      selectSession(sessions[0].id);
+    } else {
+      setDialogSessions(sessions);
+      setIsDialogOpen(true);
+    }
+  };
+
+  const selectSession = async (sessionId: string) => {
+    setIsDialogOpen(false);
+
+    // Check if session is already in memory
+    setSessions((prev) => {
+      const existing = prev.find((s) => s.id === sessionId);
+      if (existing) {
+        setActiveSessionId(sessionId);
+        router.push(`/research?id=${sessionId}`);
+        return prev;
+      }
+
+      // If not in memory, it will be rehydrated in the research page
+      // but we need a placeholder to avoid empty state flash or just push
+      setActiveSessionId(sessionId);
+      router.push(`/research?id=${sessionId}`);
+      return prev;
+    });
+  };
+
+  if (isLoading) {
     return (
-      <div className="max-w-3xl mx-auto py-20 text-center space-y-4">
-        <p className="text-destructive text-lg font-medium">
-          Failed to load codebases
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary/50" />
+        <p className="text-muted-foreground animate-pulse">
+          Loading your codebases...
         </p>
-        <button
-          type="button"
-          onClick={() => handleNewResearch()}
-          className="text-primary font-semibold hover:underline"
-        >
-          Start a general research instead
-        </button>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-destructive gap-4">
+        <X className="h-10 w-10" />
+        <p>Failed to load codebases. Is the backend running?</p>
+      </div>
+    );
+  }
+
+  const filteredCodebases = codebases?.filter(
+    (cb) =>
+      cb.name.toLowerCase().includes(codebaseFilter.toLowerCase()) ||
+      cb.rootPath.toLowerCase().includes(codebaseFilter.toLowerCase()),
+  );
+
   return (
-    <div className="max-w-3xl mx-auto space-y-12">
-      <div className="space-y-4 text-center">
-        <h2 className="text-4xl font-bold tracking-tight text-foreground">
-          Search for a codebase
-        </h2>
-        <p className="text-lg text-muted-foreground">
-          Select an indexed project to begin your deep research analysis.
-        </p>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <SessionSelectionDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        sessions={dialogSessions}
+        onSelect={selectSession}
+      />
+
+      <div className="flex items-center justify-between">
+        <div className="relative flex-1 max-w-xl">
+          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/50" />
+          <input
+            type="text"
+            placeholder="Search codebases by name or path..."
+            className="w-full bg-muted/50 border-none rounded-2xl py-4 pl-12 pr-4 text-lg focus:ring-4 focus:ring-primary/10 transition-all outline-none"
+            value={codebaseFilter}
+            onChange={(e) => setCodebaseFilter(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsAddingNew(true)}
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+        >
+          <Plus className="h-5 w-5" />
+          Add Codebase
+        </button>
       </div>
 
-      <div className="space-y-8">
-        <div className="flex items-center gap-4">
-          <div className="relative group flex-1">
-            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            <input
-              type="text"
-              placeholder="Filter by name or path..."
-              value={codebaseFilter}
-              onChange={(e) => setCodebaseFilter(e.target.value)}
-              className="w-full bg-card border border-border/50 rounded-2xl pl-12 pr-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/50 transition-all shadow-sm text-lg"
-            />
-          </div>
-
-          <button
-            onClick={() => setIsAddingNew(true)}
-            className="flex items-center gap-2 px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
-          >
-            <Plus className="h-5 w-5" />
-            New Codebase
-          </button>
-        </div>
-
-        {isAddingNew && (
-          <div className="bg-card border border-primary/20 rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">Add Local Codebase</h3>
-              <button
-                onClick={() => setIsAddingNew(false)}
-                className="p-2 hover:bg-muted rounded-full"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleCreateIndex(newPath);
-              }}
-              className="space-y-6"
+      {isAddingNew && (
+        <div className="bg-card border border-primary/20 rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold tracking-tight">
+              Add New Codebase
+            </h3>
+            <button
+              type="button"
+              onClick={() => setIsAddingNew(false)}
+              className="p-2 hover:bg-muted rounded-full transition-colors"
             >
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">
-                  Absolute Directory Path
-                </label>
-                <input
-                  type="text"
-                  placeholder="/home/user/project"
-                  value={newPath}
-                  onChange={(e) => setNewPath(e.target.value)}
-                  className="w-full bg-muted/30 border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono text-sm"
-                  autoFocus
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label
+                htmlFor="path"
+                className="text-sm font-bold text-muted-foreground uppercase tracking-widest px-1"
               >
-                Start Indexing
-              </button>
-            </form>
-          </div>
-        )}
-
-        {indexingPath && (
-          <div className="bg-primary/5 border border-primary/20 rounded-3xl p-8 space-y-6 animate-pulse">
-            <div className="flex items-center gap-4">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <div className="flex-1">
-                <h3 className="text-lg font-bold">Indexing Codebase...</h3>
-                <p className="text-xs text-muted-foreground font-mono truncate">
-                  {indexingPath}
-                </p>
-              </div>
-            </div>
-
-            {indexProgress && (
-              <div className="space-y-3">
-                <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-primary/70">
-                  <span>{indexProgress.stage}</span>
-                  <span>
-                    {indexProgress.current} / {indexProgress.total}
-                  </span>
-                </div>
-                <div className="h-2 w-full bg-primary/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-500 ease-out"
-                    style={{
-                      width: `${(indexProgress.current / indexProgress.total) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-1">
-          {isLoading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <p>Loading codebases...</p>
-            </div>
-          ) : filteredCodebases.length > 0 ? (
-            filteredCodebases.map((cb) => (
-              <CodebaseItem
-                key={cb.id}
-                cb={cb}
-                existingSession={existingSessions[cb.id]}
-                indexingPath={indexingPath}
-                handleCreateIndex={handleCreateIndex}
-                handleNewResearch={handleNewResearch}
-                handleContinueResearch={handleContinueResearch}
+                Local Directory Path
+              </label>
+              <input
+                id="path"
+                type="text"
+                placeholder="/absolute/path/to/project"
+                className="w-full bg-muted/50 border-border rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-primary outline-none"
+                value={newPath}
+                onChange={(e) => setNewPath(e.target.value)}
               />
-            ))
-          ) : (
-            <div className="py-20 text-center space-y-3">
-              <p className="text-muted-foreground text-lg">
-                No codebases match your search.
-              </p>
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
               <button
                 type="button"
-                onClick={() => handleNewResearch()}
-                className="text-primary font-semibold hover:underline"
+                onClick={() => setIsAddingNew(false)}
+                className="px-6 py-3 rounded-xl font-bold hover:bg-muted transition-colors"
               >
-                Start a general research instead
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddNewCodebase}
+                className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+              >
+                Initialize Index
               </button>
             </div>
-          )}
+          </div>
         </div>
+      )}
+
+      {indexingPath && indexProgress && (
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 animate-pulse">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="font-bold text-primary">
+                Indexing codebase...
+              </span>
+            </div>
+            <span className="text-sm font-mono text-primary/70">
+              {Math.round((indexProgress.current / indexProgress.total) * 100)}%
+            </span>
+          </div>
+          <div className="w-full bg-primary/10 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-primary h-full transition-all duration-300"
+              style={{
+                width: `${(indexProgress.current / indexProgress.total) * 100}%`,
+              }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-primary/60 font-medium">
+            Stage: {indexProgress.stage} ({indexProgress.current} /{" "}
+            {indexProgress.total})
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-4">
+        {filteredCodebases?.map((cb) => (
+          <CodebaseItem
+            key={cb.id}
+            cb={cb}
+            sessions={existingSessions[cb.id] || []}
+            indexingPath={indexingPath}
+            handleCreateIndex={handleCreateIndex}
+            handleNewResearch={handleNewResearch}
+            handleContinueResearch={handleContinueResearch}
+          />
+        ))}
+        {filteredCodebases?.length === 0 && (
+          <div className="text-center py-24 bg-muted/20 rounded-3xl border border-dashed border-border">
+            <Database className="h-16 w-16 text-muted-foreground/20 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-muted-foreground">
+              No codebases found
+            </h3>
+            <p className="text-muted-foreground/60">
+              Try a different search or add a new codebase to get started.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

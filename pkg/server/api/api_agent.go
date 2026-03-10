@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
@@ -129,26 +130,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
 
 	// Load agent config from system config, env or default
-	llmCfg := make(map[string]any)
-	if config.Get().System.LLM != nil {
-		for k, v := range config.Get().System.LLM {
-			llmCfg[k] = v
-		}
-	} else {
-		llmCfg["type"] = "openai"
-		llmCfg["model"] = os.Getenv("LLM_MODEL")
-		llmCfg["endpoint"] = os.Getenv("LLM_ENDPOINT")
-	}
-
-	if llmCfg["model"] == nil || llmCfg["model"] == "" {
-		llmCfg["model"] = "gpt-4o"
-	}
-	if llmCfg["endpoint"] == nil || llmCfg["endpoint"] == "" {
-		llmCfg["endpoint"] = "https://api.openai.com/v1/chat/completions"
-	}
-	if llmCfg["type"] == nil || llmCfg["type"] == "" {
-		llmCfg["type"] = "openai"
-	}
+	llmCfg := getSystemLLMConfig()
 
 	log.Info().
 		Str("type", fmt.Sprintf("%v", llmCfg["type"])).
@@ -206,6 +188,30 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	finalSw.WriteDone()
 }
 
+func getSystemLLMConfig() map[string]any {
+	llmCfg := make(map[string]any)
+	if config.Get().System.LLM != nil {
+		for k, v := range config.Get().System.LLM {
+			llmCfg[k] = v
+		}
+	} else {
+		llmCfg["type"] = "openai"
+		llmCfg["model"] = os.Getenv("LLM_MODEL")
+		llmCfg["endpoint"] = os.Getenv("LLM_ENDPOINT")
+	}
+
+	if llmCfg["model"] == nil || llmCfg["model"] == "" {
+		llmCfg["model"] = "gpt-4o"
+	}
+	if llmCfg["endpoint"] == nil || llmCfg["endpoint"] == "" {
+		llmCfg["endpoint"] = "https://api.openai.com/v1/chat/completions"
+	}
+	if llmCfg["type"] == nil || llmCfg["type"] == "" {
+		llmCfg["type"] = "openai"
+	}
+	return llmCfg
+}
+
 func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	if h.index == nil {
 		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
@@ -215,6 +221,21 @@ func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) 
 	sessions, err := h.index.GetStore().ListResearchSessions(includeArchived)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list sessions", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (h *ApiHandler) handleListSessionsByCodebase(w http.ResponseWriter, r *http.Request) {
+	if h.index == nil {
+		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
+		return
+	}
+	codebaseId := r.PathValue("codebaseId")
+	includeArchived := r.URL.Query().Get("includeArchived") == "true"
+	sessions, err := h.index.GetStore().GetResearchSessionsByCodebase(codebaseId, includeArchived)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list sessions for codebase", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, sessions)
@@ -245,18 +266,95 @@ func (h *ApiHandler) handleSaveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure one active session per codebase
-	if sess.ArchivedAt == nil {
-		existing, _ := h.index.GetStore().GetResearchSessionByCodebase(sess.CodebaseID)
-		if existing != nil && existing.ID != sess.ID {
-			_ = h.index.GetStore().DeleteResearchSession(existing.ID)
-		}
-	}
-
 	if err := h.index.GetStore().SaveResearchSession(&sess); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to save session", err)
 		return
 	}
+
+	// Prune sessions for this codebase if limit is reached
+	maxSessions := config.Get().Research.MaxReportsPerCodebase
+	if maxSessions <= 0 {
+		maxSessions = 10
+	}
+	_ = h.index.GetStore().PruneSessionsByCodebase(sess.CodebaseID, maxSessions)
+
+	writeJSON(w, http.StatusOK, sess)
+}
+
+func (h *ApiHandler) handleSummarizeSession(w http.ResponseWriter, r *http.Request) {
+	if h.index == nil {
+		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
+		return
+	}
+	id := r.PathValue("id")
+
+	// Get reports to find the first question and part of the report
+	reports, err := h.index.GetStore().GetResearchReportsBySession(id)
+	if err != nil || len(reports) == 0 {
+		writeError(w, http.StatusNotFound, "Reports not found for session", err)
+		return
+	}
+
+	// Reconstruct the first turn context
+	var firstQuery string
+	var firstReport string
+	lines := strings.Split(reports[0].StreamData, "\n\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "ce: ") {
+			var event protocol.CEEvent
+			if err := json.Unmarshal([]byte(line[4:]), &event); err == nil && event.Object == "research.turn.started" {
+				firstQuery = event.Query
+			}
+		} else if strings.HasPrefix(line, "data: ") {
+			var chunk struct {
+				Choices []struct {
+					Delta struct {
+						Content string `json:"content"`
+					} `json:"delta"`
+				} `json:"choices"`
+			}
+			if err := json.Unmarshal([]byte(line[6:]), &chunk); err == nil && len(chunk.Choices) > 0 {
+				firstReport += chunk.Choices[0].Delta.Content
+			}
+		}
+		if len(firstReport) > 500 {
+			break
+		}
+	}
+
+	// Use LLM to summarize
+	llmCfg := getSystemLLMConfig()
+	model := llmCfg["model"].(string)
+	endpoint := llmCfg["endpoint"].(string)
+	apiKey := ""
+	if v, ok := llmCfg["api_key"].(string); ok {
+		apiKey = v
+	}
+
+	llm := agent.NewHTTPClientLLM(model, endpoint, apiKey)
+	prompt := fmt.Sprintf("Based on the following research query and partial report, generate a concise title (strictly maximum 5 words).\n\nQuery: %s\n\nReport: %s", firstQuery, firstReport)
+	title, _, err := llm.Generate(r.Context(), []agent.Message{{Role: "user", Content: prompt}}, nil)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to generate title with LLM")
+		writeError(w, http.StatusInternalServerError, "Failed to generate title", err)
+		return
+	}
+
+	title = strings.Trim(title, "\" \n\r")
+
+	// Update session title
+	sess, err := h.index.GetStore().GetResearchSession(id)
+	if err != nil || sess == nil {
+		writeError(w, http.StatusNotFound, "Session not found", err)
+		return
+	}
+
+	sess.Title = title
+	if err := h.index.GetStore().SaveResearchSession(sess); err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to update session title", err)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, sess)
 }
 
@@ -266,15 +364,8 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 		return
 	}
 	id := r.PathValue("id")
-	sessions, _ := h.index.GetStore().ListResearchSessions(true)
-	var sess *db.ResearchSession
-	for _, s := range sessions {
-		if s.ID == id {
-			sess = &s
-			break
-		}
-	}
-	if sess == nil {
+	sess, err := h.index.GetStore().GetResearchSession(id)
+	if err != nil || sess == nil {
 		writeError(w, http.StatusNotFound, "Session not found", nil)
 		return
 	}
@@ -285,13 +376,6 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "Failed to archive session", err)
 		return
 	}
-
-	// Prune
-	maxArchived := config.Get().Research.MaxReportsPerCodebase
-	if maxArchived <= 0 {
-		maxArchived = 10
-	}
-	_ = h.index.GetStore().PruneArchivedSessions(maxArchived)
 
 	writeJSON(w, http.StatusOK, sess)
 }

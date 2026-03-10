@@ -27,22 +27,20 @@ func (s *Store) SaveResearchSession(session *ResearchSession) error {
 	return err
 }
 
-func (s *Store) GetResearchSessionByCodebase(codebaseID string) (*ResearchSession, error) {
+func (s *Store) GetResearchSession(id string) (*ResearchSession, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
 
 	query := `
-		SELECT rs.id, rs.codebase_id, c.root_path, rs.title, rs.state, rs.created_at, rs.archived_at
+		SELECT rs.id, rs.codebase_id, c.root_path, c.name, c.version, rs.title, rs.state, rs.created_at, rs.archived_at
 		FROM research_sessions rs
 		JOIN codebases c ON rs.codebase_id = c.id
-		WHERE rs.codebase_id = ? AND rs.archived_at IS NULL
-		ORDER BY rs.created_at DESC
-		LIMIT 1
+		WHERE rs.id = ?
 	`
 	var sess ResearchSession
-	err := s.db.QueryRow(query, codebaseID).Scan(
-		&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.Title,
+	err := s.db.QueryRow(query, id).Scan(
+		&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.CodebaseName, &sess.CodebaseVersion, &sess.Title,
 		&sess.State, &sess.CreatedAt, &sess.ArchivedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -54,13 +52,49 @@ func (s *Store) GetResearchSessionByCodebase(codebaseID string) (*ResearchSessio
 	return &sess, nil
 }
 
+func (s *Store) GetResearchSessionsByCodebase(codebaseID string, includeArchived bool) ([]ResearchSession, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT rs.id, rs.codebase_id, c.root_path, c.name, c.version, rs.title, rs.state, rs.created_at, rs.archived_at
+		FROM research_sessions rs
+		JOIN codebases c ON rs.codebase_id = c.id
+		WHERE rs.codebase_id = ?
+	`
+	if !includeArchived {
+		query += " AND rs.archived_at IS NULL"
+	}
+	query += " ORDER BY rs.created_at DESC"
+
+	rows, err := s.db.Query(query, codebaseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ResearchSession
+	for rows.Next() {
+		var sess ResearchSession
+		if err := rows.Scan(
+			&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.CodebaseName, &sess.CodebaseVersion, &sess.Title,
+			&sess.State, &sess.CreatedAt, &sess.ArchivedAt,
+		); err != nil {
+			return nil, err
+		}
+		results = append(results, sess)
+	}
+	return results, rows.Err()
+}
+
 func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
 
 	query := `
-		SELECT rs.id, rs.codebase_id, c.root_path, rs.title, rs.state, rs.created_at, rs.archived_at
+		SELECT rs.id, rs.codebase_id, c.root_path, c.name, c.version, rs.title, rs.state, rs.created_at, rs.archived_at
 		FROM research_sessions rs
 		JOIN codebases c ON rs.codebase_id = c.id
 	`
@@ -79,7 +113,7 @@ func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, e
 	for rows.Next() {
 		var sess ResearchSession
 		if err := rows.Scan(
-			&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.Title,
+			&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.CodebaseName, &sess.CodebaseVersion, &sess.Title,
 			&sess.State, &sess.CreatedAt, &sess.ArchivedAt,
 		); err != nil {
 			return nil, err
@@ -160,6 +194,46 @@ func (s *Store) DeleteResearchReport(turnID string) error {
 
 	_, err := s.db.Exec("DELETE FROM research_reports WHERE turn_id = ?", turnID)
 	return err
+}
+
+func (s *Store) PruneSessionsByCodebase(codebaseID string, maxSessions int) error {
+	if err := s.reconnect(); err != nil {
+		return err
+	}
+
+	// Find sessions to delete (oldest first, prioritized archived)
+	query := `
+		SELECT id FROM research_sessions
+		WHERE codebase_id = ?
+		ORDER BY archived_at IS NOT NULL DESC, created_at ASC
+		LIMIT (SELECT MAX(0, COUNT(*) - ?) FROM research_sessions WHERE codebase_id = ?)
+	`
+	rows, err := s.db.Query(query, codebaseID, maxSessions, codebaseID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+	}
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	for _, id := range ids {
+		if err := s.DeleteResearchSession(id); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *Store) PruneArchivedSessions(maxArchived int) error {
