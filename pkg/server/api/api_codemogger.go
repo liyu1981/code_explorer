@@ -80,31 +80,16 @@ func (h *ApiHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	log.Info().Str("dir", req.Dir).Interface("langs", req.Langs).Msg("Indexing request received")
 
-	opts := &codemogger.IndexOptions{
-		Languages: req.Langs,
+	taskId, err := h.taskManager.Submit(r.Context(), "codemogger-index", req, 3)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to submit indexing task", err)
+		return
 	}
 
-	opts.Progress = func(current, total int, stage string) {
-		h.Publish("index_progress", map[string]any{
-			"current": current,
-			"total":   total,
-			"stage":   stage,
-		})
-	}
-
-	go func() {
-		log.Debug().Str("dir", req.Dir).Msg("Starting background indexing goroutine")
-		res, err := h.index.Index(req.Dir, opts)
-		if err != nil {
-			log.Error().Err(err).Str("dir", req.Dir).Msg("Background indexing failed")
-			h.Publish("index_done", map[string]any{"error": err.Error()})
-		} else {
-			log.Info().Str("dir", req.Dir).Msg("Background indexing completed successfully")
-			h.Publish("index_done", res)
-		}
-	}()
-
-	writeJSON(w, http.StatusAccepted, map[string]string{"status": "indexing started"})
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status": "indexing_queued",
+		"taskId": taskId,
+	})
 }
 
 func (h *ApiHandler) handleSearch(w http.ResponseWriter, r *http.Request) {

@@ -615,6 +615,7 @@ function ResearchContent() {
                   onSaveTurn={handleSaveTurn}
                   isStreaming={isResearching}
                 />
+                <div className="h-[400px]" />
               </div>
             )
           )}

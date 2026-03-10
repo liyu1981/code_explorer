@@ -9,6 +9,7 @@ import {
   Wifi,
   WifiOff,
   Bookmark,
+  MoreVertical,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -29,6 +30,7 @@ function SidebarContent() {
   const [navExpanded, setNavExpanded] = useAtom(isSidebarExpandedAtom);
   const [allSessions] = useAtom(researchSessionsAtom);
   const [activeReports] = useAtom(activeSavedReportsAtom);
+  const [isMoreOpen, setIsMoreOpen] = React.useState(false);
   const sessions = allSessions.filter((s) => !s.archivedAt);
   const [, setActiveSessionId] = useAtom(activeSessionIdAtom);
 
@@ -50,9 +52,10 @@ function SidebarContent() {
   const topMenuItems = navItems.filter(
     (item) => (item as any).position !== "bottom",
   );
-  const bottomMenuItems = navItems.filter(
-    (item) => (item as any).position === "bottom",
+  const moreItems = navItems.filter((item) =>
+    ["tasks", "saved_reports", "sessions"].includes(item.id),
   );
+  const settingsItem = navItems.find((item) => item.id === "settings");
 
   React.useEffect(() => {
     setActiveMenu(getActiveMenuFromPath());
@@ -64,6 +67,7 @@ function SidebarContent() {
       setActiveMenu(itemId);
       setActiveSessionId(null);
       router.push(item.path);
+      setIsMoreOpen(false);
     }
   };
 
@@ -269,35 +273,91 @@ function SidebarContent() {
         )}
       </nav>
 
-      <div className="p-2 border-t space-y-1">
-        {bottomMenuItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => handleMenuClick(item.id)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
-                pathname.startsWith(item.path)
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-muted text-muted-foreground hover:text-foreground",
-                !navExpanded && "justify-center",
-              )}
-              title={item.label}
-            >
-              <Icon
+      <div className="p-2 border-t space-y-1 relative">
+        {/* More Menu Popout to the right */}
+        {isMoreOpen && (
+          <div
+            className={cn(
+              "absolute bottom-2 left-full ml-2 bg-card border border-border rounded-xl shadow-2xl p-1 z-50 animate-in slide-in-from-left-2 duration-200 min-w-[160px]",
+            )}
+          >
+            <div className="space-y-1">
+              {moreItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname.startsWith(item.path);
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    onClick={() => handleMenuClick(item.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                    )}
+                    title={item.label}
+                  >
+                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs font-semibold">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setIsMoreOpen(!isMoreOpen)}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
+            isMoreOpen
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            !navExpanded && "justify-center",
+          )}
+          title="More"
+        >
+          <MoreVertical className="h-5 w-5 flex-shrink-0" />
+          {navExpanded && (
+            <div className="flex items-center justify-between flex-1">
+              <span className="text-sm font-medium">More</span>
+              <ChevronRight
                 className={cn(
-                  "h-5 w-5 flex-shrink-0",
-                  pathname.startsWith(item.path) && "text-primary",
+                  "h-3 w-3 transition-transform",
+                  isMoreOpen && "rotate-90",
                 )}
               />
-              {navExpanded && (
-                <span className="text-sm font-medium">{item.label}</span>
+            </div>
+          )}
+        </button>
+
+        {settingsItem && (
+          <button
+            type="button"
+            key={settingsItem.id}
+            onClick={() => handleMenuClick(settingsItem.id)}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors mb-1",
+              pathname.startsWith(settingsItem.path)
+                ? "bg-primary/10 text-primary"
+                : "hover:bg-muted text-muted-foreground hover:text-foreground",
+              !navExpanded && "justify-center",
+            )}
+            title={settingsItem.label}
+          >
+            <settingsItem.icon
+              className={cn(
+                "h-5 w-5 flex-shrink-0",
+                pathname.startsWith(settingsItem.path) && "text-primary",
               )}
-            </button>
-          );
-        })}
+            />
+            {navExpanded && (
+              <span className="text-sm font-medium">{settingsItem.label}</span>
+            )}
+          </button>
+        )}
 
         <div
           className={cn(

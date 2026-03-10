@@ -1,4 +1,10 @@
-import { PlusCircle, Settings, History, Bookmark } from "lucide-react";
+import {
+  PlusCircle,
+  Settings,
+  History,
+  Bookmark,
+  Activity,
+} from "lucide-react";
 
 export const navTitle = "Code Explorer";
 
@@ -16,6 +22,13 @@ export const navItems: NavItem[] = [
     label: "New Research",
     path: "/new",
     icon: PlusCircle,
+  },
+  {
+    id: "tasks",
+    label: "Tasks",
+    path: "/tasks",
+    icon: Activity,
+    position: "bottom",
   },
   {
     id: "saved_reports",

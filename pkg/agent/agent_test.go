@@ -12,8 +12,8 @@ type mockTool struct {
 	name string
 }
 
-func (m *mockTool) Name() string { return m.name }
-func (m *mockTool) Description() string { return "mock description" }
+func (m *mockTool) Name() string               { return m.name }
+func (m *mockTool) Description() string        { return "mock description" }
 func (m *mockTool) Parameters() map[string]any { return nil }
 func (m *mockTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	return "result", nil

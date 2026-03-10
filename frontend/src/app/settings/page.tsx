@@ -21,6 +21,7 @@ interface Config {
     db_path?: string;
     is_default_db?: boolean;
     llm?: Record<string, any>;
+    max_task_retention_days?: number;
   };
   research: {
     max_reports_per_codebase: number;
@@ -46,6 +47,7 @@ const DEFAULTS = {
   llm_type: "openai",
   llm_model: "gpt-4o",
   llm_endpoint: "https://api.openai.com/v1/chat/completions",
+  max_task_retention_days: 180,
   max_reports: 10,
   max_reports_per_session: 50,
   chunk_lines: 150,
@@ -255,6 +257,42 @@ export default function SettingsPage() {
                       readOnly
                       className="w-full bg-muted/50 border border-border/60 rounded-2xl px-4 py-4 outline-none text-muted-foreground cursor-not-allowed font-mono text-sm"
                     />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
+                      Task Retention (Days)
+                      <DefaultBadge
+                        isDefault={
+                          (config?.system?.max_task_retention_days ||
+                            DEFAULTS.max_task_retention_days) ===
+                          DEFAULTS.max_task_retention_days
+                        }
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      value={
+                        config?.system?.max_task_retention_days ??
+                        DEFAULTS.max_task_retention_days
+                      }
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev!,
+                          system: {
+                            ...prev!.system,
+                            max_task_retention_days: Number.parseInt(
+                              e.target.value,
+                            ),
+                          },
+                        }))
+                      }
+                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
+                    />
+                    <p className="text-[11px] text-muted-foreground font-medium px-1">
+                      Number of days to keep background task history. Older
+                      tasks will be automatically purged.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -32,7 +32,7 @@ func TestRouterStep(t *testing.T) {
 	})
 
 	routes := map[string]PipelineStep{
-		"apple": stepA,
+		"apple":  stepA,
 		"banana": stepB,
 	}
 	router := NewRouterStep(routes)

@@ -1,13 +1,17 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"strconv"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/agent/tools"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/task"
+	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
 // ApiHandler represents the API handler
@@ -15,6 +19,7 @@ type ApiHandler struct {
 	index        *codemogger.CodeIndex
 	hub          *WsHub
 	agentFactory *agent.AgentFactory
+	taskManager  *task.Manager
 }
 
 // ApiConfig holds the API handler configuration
@@ -35,8 +40,19 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		hub:          NewWsHub(),
 		agentFactory: factory,
 	}
+
+	if config.Index != nil {
+		h.taskManager = task.NewManager(config.Index.GetStore(), runtime.NumCPU()-1, h.Publish)
+		h.registerQueueHandlers()
+		h.taskManager.StartWorkers(context.Background(), util.IsDev())
+	}
+
 	go h.hub.run()
 	return h
+}
+
+func (h *ApiHandler) registerQueueHandlers() {
+	h.taskManager.RegisterHandler("codemogger-index", h.index.HandleIndexTask)
 }
 
 // RegisterRoutes configures all API routes on the provided mux
@@ -47,6 +63,9 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/config", h.handleGetConfig)
 	mux.HandleFunc("POST /api/config", h.handleUpdateConfig)
 	mux.HandleFunc("/api/ws", h.handleWS)
+
+	// Tasks
+	mux.HandleFunc("GET /api/tasks", h.handleListTasks)
 
 	// Codebases
 	mux.HandleFunc("GET /api/codebases", h.handleListSystemCodebases)

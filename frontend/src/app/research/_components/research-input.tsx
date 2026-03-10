@@ -56,7 +56,7 @@ export function ResearchInput({
           rows={1}
         />
 
-        {suggestions && suggestions.length > 0 && (
+        {suggestions && suggestions.length > 0 && query.trim() === "" && (
           <div className="flex flex-wrap gap-2 px-4 pb-4">
             {suggestions.map((s) => (
               <button

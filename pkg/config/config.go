@@ -17,8 +17,9 @@ type Config struct {
 }
 
 type SystemConfig struct {
-	DBPath string         `json:"db_path,omitempty"`
-	LLM    map[string]any `json:"llm,omitempty"`
+	DBPath               string         `json:"db_path,omitempty"`
+	LLM                  map[string]any `json:"llm,omitempty"`
+	MaxTaskRetentionDays int            `json:"max_task_retention_days,omitempty"`
 }
 
 type ResearchConfig struct {
@@ -109,6 +110,9 @@ func Load(configPath string) error {
 		if fileCfg.System.LLM != nil {
 			cfg.System.LLM = fileCfg.System.LLM
 		}
+		if fileCfg.System.MaxTaskRetentionDays > 0 {
+			cfg.System.MaxTaskRetentionDays = fileCfg.System.MaxTaskRetentionDays
+		}
 		if fileCfg.Research.MaxReportsPerCodebase > 0 {
 			cfg.Research.MaxReportsPerCodebase = fileCfg.Research.MaxReportsPerCodebase
 		}
@@ -178,6 +182,7 @@ func DefaultConfig() *Config {
 				"model":    "gpt-4o",
 				"endpoint": "https://api.openai.com/v1/chat/completions",
 			},
+			MaxTaskRetentionDays: 180,
 		},
 		Research: ResearchConfig{
 			MaxReportsPerCodebase: 10,
