@@ -120,17 +120,21 @@ CREATE VIRTUAL TABLE codemogger_chunks_fts USING fts5(
 );
 
 DROP TRIGGER IF EXISTS codemogger_chunks_ai;
-CREATE TRIGGER codemogger_chunks_ai AFTER INSERT ON codemogger_chunks BEGIN
+DROP TRIGGER IF EXISTS codemogger_chunks_ad;
+DROP TRIGGER IF EXISTS codemogger_chunks_au;
+
+DROP TRIGGER IF EXISTS codemogger_chunks_after_insert;
+CREATE TRIGGER codemogger_chunks_after_insert AFTER INSERT ON codemogger_chunks BEGIN
   INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.rowid, new.name, new.signature, new.snippet);
 END;
 
-DROP TRIGGER IF EXISTS codemogger_chunks_ad;
-CREATE TRIGGER codemogger_chunks_ad AFTER DELETE ON codemogger_chunks BEGIN
+DROP TRIGGER IF EXISTS codemogger_chunks_after_delete;
+CREATE TRIGGER codemogger_chunks_after_delete AFTER DELETE ON codemogger_chunks BEGIN
   INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.rowid, old.name, old.signature, old.snippet);
 END;
 
-DROP TRIGGER IF EXISTS codemogger_chunks_au;
-CREATE TRIGGER codemogger_chunks_au AFTER UPDATE ON codemogger_chunks BEGIN
+DROP TRIGGER IF EXISTS codemogger_chunks_after_update;
+CREATE TRIGGER codemogger_chunks_after_update AFTER UPDATE ON codemogger_chunks BEGIN
   INSERT INTO codemogger_chunks_fts(codemogger_chunks_fts, rowid, name, signature, snippet) VALUES('delete', old.rowid, old.name, old.signature, old.snippet);
   INSERT INTO codemogger_chunks_fts(rowid, name, signature, snippet) VALUES (new.rowid, new.name, new.signature, new.snippet);
 END;
