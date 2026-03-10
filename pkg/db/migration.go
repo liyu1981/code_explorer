@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/libsql"
 	_ "github.com/tursodatabase/go-libsql"
@@ -358,9 +361,63 @@ func (m *Migrator) applyMigration(mig Migration, up bool) error {
 	return m.setVersion(newVersion, false)
 }
 
-func runMigrations(db *sql.DB) error {
+func backupDatabase(db *sql.DB, dbPath string) error {
+	if dbPath == ":memory:" || dbPath == "" {
+		return nil
+	}
+
+	// Ensure the backup directory exists
+	backupDir := filepath.Join(filepath.Dir(dbPath), "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return fmt.Errorf("failed to create backup directory: %w", err)
+	}
+
+	timestamp := time.Now().Format("20060102_150405")
+	backupPath := filepath.Join(backupDir, fmt.Sprintf("%s_%s.bak", filepath.Base(dbPath), timestamp))
+
+	_, err := db.Exec(fmt.Sprintf("VACUUM INTO '%s'", backupPath))
+	if err != nil {
+		return fmt.Errorf("failed to backup database: %w", err)
+	}
+
+	return nil
+}
+
+func runMigrations(db *sql.DB, dbPath string) error {
 	m := NewMigrator(db, MigrationFiles)
-	err := m.Up()
+
+	// Check if there are any migrations to run
+	version, dirty, err := m.getVersion()
+	if err != nil && !strings.Contains(err.Error(), "no such table") {
+		return err
+	}
+	if dirty {
+		return fmt.Errorf("database is dirty, version %d", version)
+	}
+
+	migrations, err := m.getMigrations()
+	if err != nil {
+		return err
+	}
+
+	needsMigration := false
+	for _, mig := range migrations {
+		if mig.Version > version {
+			needsMigration = true
+			break
+		}
+	}
+
+	if !needsMigration {
+		return nil
+	}
+
+	// Perform backup before running migrations
+	if err := backupDatabase(db, dbPath); err != nil {
+		return err
+	}
+
+	err = m.Up()
 	if err == ErrNoChange {
 		return nil
 	}
@@ -374,7 +431,7 @@ func Migrate(dbPath string) error {
 	}
 	defer db.Close()
 
-	return runMigrations(db)
+	return runMigrations(db, dbPath)
 }
 
 func Rollback(dbPath string) error {

@@ -18,7 +18,7 @@ func Open(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	if err := runMigrations(db); err != nil {
+	if err := runMigrations(db, dbPath); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
