@@ -6,6 +6,7 @@ import {
   Database,
   ExternalLink,
   Folder,
+  History,
   Loader2,
   Search,
   Trash2,
@@ -111,7 +112,8 @@ export default function SessionsManagementPage() {
   return (
     <AppContainer>
       <AppHeader>
-        <div className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-4 w-full">
+          <History className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-bold tracking-tight text-primary">
             Manage Sessions
           </h1>

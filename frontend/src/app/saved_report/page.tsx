@@ -103,16 +103,9 @@ function SavedReportContent() {
         <div className="flex items-center gap-4 w-full">
           <div className="flex items-center gap-3">
             <Bookmark className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold tracking-tight text-primary">
-              Saved Snapshot
+            <h1 className="text-xl font-bold tracking-tight text-primary truncate max-w-[600px]">
+              {report.query}
             </h1>
-            <div className="h-5 w-px bg-border/60 mx-1" />
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 rounded-lg border border-border/40">
-              <Folder className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-mono text-muted-foreground truncate max-w-[400px]">
-                {report.codebaseName}
-              </span>
-            </div>
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <button
