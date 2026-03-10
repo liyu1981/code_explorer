@@ -29,65 +29,62 @@ export function Markdown({ content, className }: MarkdownProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          pre: ({ children }) => (
-            <div className="not-prose rounded-xl overflow-hidden border border-border/60 bg-muted/30 my-6 shadow-sm">
-              {children}
-            </div>
-          ),
-          code: ({ node, inline, className, children, ...props }: any) => {
+          code: (props: any) => {
+            const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || "");
-            const language = match ? match[1] : "text";
+            const language = match ? match[1] : "";
 
-            // Extract text content safely from children
-            const codeString = Array.isArray(children)
-              ? children.join("")
-              : typeof children === "string"
-                ? children
-                : String(children || "");
+            // Extract text content safely
+            const codeString = String(children || "").replace(/\n$/, "");
 
-            if (!inline && match) {
+            // If it has language- class, it's a code block
+            if (match) {
               return (
-                <SyntaxHighlighter
-                  language={language}
-                  style={isDark ? oneDark : oneLight}
-                  showLineNumbers={true}
-                  lineNumberStyle={{
-                    minWidth: "3em",
-                    paddingRight: "1.5em",
-                    color: isDark ? "#636d83" : "#a0a0a0",
-                    userSelect: "none",
-                    textAlign: "right",
-                    borderRight: `1px solid ${isDark ? "#2c313c" : "#e0e0e0"}`,
-                    marginRight: "1em",
-                  }}
-                  customStyle={{
-                    margin: 0,
-                    padding: "1.25rem 0",
-                    fontSize: "13px",
-                    lineHeight: "1.6",
-                    background: isDark ? "#282c34" : "#fafafa",
-                    fontFamily: "var(--font-geist-mono)",
-                  }}
-                  codeTagProps={{
-                    style: {
-                      display: "block",
-                      padding: "0 1.25rem",
-                    },
-                  }}
-                  {...props}
-                >
-                  {codeString.replace(/\n$/, "")}
-                </SyntaxHighlighter>
+                <div className="not-prose rounded-xl overflow-hidden border border-border/60 bg-muted/30 my-6 shadow-sm">
+                  <SyntaxHighlighter
+                    language={language}
+                    style={isDark ? oneDark : oneLight}
+                    PreTag="div"
+                    showLineNumbers={true}
+                    lineNumberStyle={{
+                      minWidth: "3em",
+                      paddingRight: "1.5em",
+                      color: isDark ? "#636d83" : "#a0a0a0",
+                      userSelect: "none",
+                      textAlign: "right",
+                      borderRight: `1px solid ${isDark ? "#2c313c" : "#e0e0e0"}`,
+                      marginRight: "1em",
+                    }}
+                    customStyle={{
+                      margin: 0,
+                      padding: "1.25rem 0",
+                      fontSize: "13px",
+                      lineHeight: "1.6",
+                      background: isDark ? "#282c34" : "#fafafa",
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
+                    codeTagProps={{
+                      style: {
+                        display: "block",
+                        padding: "0 1.25rem",
+                      },
+                    }}
+                    {...rest}
+                  >
+                    {codeString}
+                  </SyntaxHighlighter>
+                </div>
               );
             }
 
+            // Inline code
             return (
               <code
                 className={cn(
                   "bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono font-medium text-foreground",
                   className,
                 )}
-                {...props}
+                {...rest}
               >
                 {children}
               </code>
