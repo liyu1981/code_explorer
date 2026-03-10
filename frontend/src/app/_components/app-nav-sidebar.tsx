@@ -8,6 +8,7 @@ import {
   Search,
   Wifi,
   WifiOff,
+  Bookmark,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -17,13 +18,17 @@ import {
   activeSessionIdAtom,
   researchSessionsAtom,
 } from "../_jotai/research-store";
-import { isSidebarExpandedAtom } from "../_jotai/ui-store";
+import {
+  isSidebarExpandedAtom,
+  activeSavedReportsAtom,
+} from "../_jotai/ui-store";
 import { navItems, navTitle } from "../nav-items";
 import { useWebSocketContext } from "./websocket-provider";
 
 function SidebarContent() {
   const [navExpanded, setNavExpanded] = useAtom(isSidebarExpandedAtom);
   const [allSessions] = useAtom(researchSessionsAtom);
+  const [activeReports] = useAtom(activeSavedReportsAtom);
   const sessions = allSessions.filter((s) => !s.archivedAt);
   const [, setActiveSessionId] = useAtom(activeSessionIdAtom);
 
@@ -66,6 +71,12 @@ function SidebarContent() {
     setActiveSessionId(id);
     setActiveMenu("");
     router.push(`/research?id=${id}`);
+  };
+
+  const handleReportClick = (id: string) => {
+    setActiveSessionId(null);
+    setActiveMenu("");
+    router.push(`/saved_report?id=${id}`);
   };
 
   const connectionStatusMap: Record<ReadyState, string> = {
@@ -166,7 +177,8 @@ function SidebarContent() {
                 onClick={() => handleSessionClick(session.id)}
                 className={cn(
                   "w-full flex items-start gap-3 px-3 py-2.5 rounded-md transition-colors",
-                  searchParams.get("id") === session.id
+                  searchParams.get("id") === session.id &&
+                    pathname === "/research"
                     ? "bg-primary/10 text-primary"
                     : "hover:bg-muted text-muted-foreground hover:text-foreground",
                   !navExpanded && "justify-center items-center",
@@ -176,7 +188,9 @@ function SidebarContent() {
                 <Search
                   className={cn(
                     "h-5 w-5 flex-shrink-0 mt-0.5",
-                    searchParams.get("id") === session.id && "text-primary",
+                    searchParams.get("id") === session.id &&
+                      pathname === "/research" &&
+                      "text-primary",
                   )}
                 />
                 {navExpanded && (
@@ -199,6 +213,60 @@ function SidebarContent() {
             ))}
           </div>
         </div>
+
+        {activeReports.length > 0 && (
+          <div className="space-y-1">
+            <div
+              className={cn(
+                "flex items-center px-3 mb-2 mt-4",
+                navExpanded ? "justify-between" : "justify-center",
+              )}
+            >
+              {navExpanded && (
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                  Saved Report
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              {activeReports.map((report) => (
+                <button
+                  key={report.id}
+                  onClick={() => handleReportClick(report.id)}
+                  className={cn(
+                    "w-full flex items-start gap-3 px-3 py-2.5 rounded-md transition-colors",
+                    searchParams.get("id") === report.id &&
+                      pathname === "/saved_report"
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                    !navExpanded && "justify-center items-center",
+                  )}
+                  title={report.query}
+                >
+                  <Bookmark
+                    className={cn(
+                      "h-5 w-5 flex-shrink-0 mt-0.5",
+                      searchParams.get("id") === report.id &&
+                        pathname === "/saved_report" &&
+                        "text-primary",
+                    )}
+                  />
+                  {navExpanded && (
+                    <div className="flex flex-col items-start min-w-0 flex-1 text-left">
+                      <span className="text-sm font-bold leading-tight line-clamp-2">
+                        {report.query}
+                      </span>
+                      <span className="text-[10px] mt-1 opacity-60 truncate w-full">
+                        {report.title}
+                      </span>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="p-2 border-t space-y-1">

@@ -80,7 +80,7 @@ function SessionSelectionDialog({
           </Dialog.Description>
 
           <div className="space-y-3 max-h-[400px] overflow-auto pr-2">
-            {sessions.map((s) => (
+            {sessions.slice(0, 10).map((s) => (
               <button
                 key={s.id}
                 type="button"
@@ -88,9 +88,16 @@ function SessionSelectionDialog({
                 className="w-full text-left p-4 rounded-xl border border-border hover:border-primary/60 transition-all group"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-bold text-primary transition-colors truncate">
-                    {s.title}
-                  </h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-primary transition-colors truncate max-w-[200px]">
+                      {s.title}
+                    </h4>
+                    {s.archivedAt && (
+                      <span className="px-1.5 py-0.5 rounded-md bg-muted text-[8px] font-bold uppercase tracking-wider text-muted-foreground border border-border/50">
+                        Archived
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] text-muted-foreground font-mono">
                     {new Date(s.createdAt).toLocaleDateString()}
                   </span>
@@ -255,16 +262,16 @@ export function CodebaseList() {
   useEffect(() => {
     const loadSessions = async () => {
       try {
-        const response = await api.get("/api/research/sessions");
+        const response = await api.get(
+          "/api/research/sessions?includeArchived=true",
+        );
         const sessions = response.data;
         const sessionMap: Record<string, any[]> = {};
         for (const s of sessions) {
-          if (!s.archivedAt) {
-            if (!sessionMap[s.codebaseId]) {
-              sessionMap[s.codebaseId] = [];
-            }
-            sessionMap[s.codebaseId].push(s);
+          if (!sessionMap[s.codebaseId]) {
+            sessionMap[s.codebaseId] = [];
           }
+          sessionMap[s.codebaseId].push(s);
         }
         setExistingSessions(sessionMap);
       } catch (e) {
@@ -297,7 +304,7 @@ export function CodebaseList() {
   const handleCreateIndex = async (path: string) => {
     setIndexingPath(path);
     try {
-      await api.post("/api/codemogger/index", { root_path: path });
+      await api.post("/api/codemogger/index", { dir: path });
     } catch (e) {
       console.error("Indexing failed", e);
       setIndexingPath(null);
@@ -307,12 +314,12 @@ export function CodebaseList() {
   const handleAddNewCodebase = async () => {
     if (!newPath) return;
     try {
-      await api.post("/api/codemogger/index", { root_path: newPath });
+      await api.post("/api/codemogger/index", { dir: newPath });
       setIsAddingNew(false);
       setNewPath("");
       mutate();
     } catch (e) {
-      console.error("Adding codebase failed", e);
+      console.error("Failed to add codebase", e);
     }
   };
 

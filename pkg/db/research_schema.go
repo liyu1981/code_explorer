@@ -20,3 +20,15 @@ type ResearchReport struct {
 	CreatedAt  int64  `json:"createdAt"`
 	UpdatedAt  int64  `json:"updatedAt"`
 }
+
+type SavedReport struct {
+	ID           string `json:"id"`
+	SessionID    string `json:"sessionId"`
+	CodebaseID   string `json:"codebaseId"`
+	Title        string `json:"title"`
+	Query        string `json:"query"`
+	Content      string `json:"content"`
+	CodebaseName string `json:"codebaseName"`
+	CodebasePath string `json:"codebasePath"`
+	CreatedAt    int64  `json:"createdAt"`
+}

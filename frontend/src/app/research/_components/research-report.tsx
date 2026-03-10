@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  MessageSquare,
-  Sparkles,
-  Clock,
-  Trash2,
-  Copy,
-  Check,
-} from "lucide-react";
+import { Sparkles, Clock, Trash2, Copy, Check, Bookmark } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
 import type { ResearchTurn } from "../../_jotai/research-store";
@@ -15,15 +8,15 @@ import { SourceCard } from "./source-card";
 
 interface ResearchReportProps {
   turns: ResearchTurn[];
-  onFollowUp?: (query: string) => void;
   onDeleteTurn?: (turnId: string) => void;
+  onSaveTurn?: (turn: ResearchTurn) => void;
   isStreaming?: boolean;
 }
 
 export function ResearchReport({
   turns,
-  onFollowUp,
   onDeleteTurn,
+  onSaveTurn,
   isStreaming,
 }: ResearchReportProps) {
   const [, setTick] = useState(0);
@@ -115,6 +108,16 @@ export function ResearchReport({
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    {onSaveTurn && !isStreaming && (
+                      <button
+                        type="button"
+                        onClick={() => onSaveTurn(turn)}
+                        className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        title="Save Snapshot"
+                      >
+                        <Bookmark className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleCopy(turn.id, turn.report)}
@@ -147,33 +150,6 @@ export function ResearchReport({
                   className="leading-relaxed text-foreground/90"
                 />
               </div>
-
-              {turnIndex === turns.length - 1 && !isStreaming && (
-                <div className="pt-12 border-t border-border/40">
-                  <div className="flex items-center gap-2 mb-6">
-                    <MessageSquare className="h-4 w-4 text-muted-foreground/60" />
-                    <h3 className="font-bold text-muted-foreground/60 uppercase tracking-[0.15em] text-[11px]">
-                      Deepen Research
-                    </h3>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      "Analyze performance implications",
-                      "How is this tested?",
-                      "Are there security concerns?",
-                    ].map((q) => (
-                      <button
-                        type="button"
-                        key={q}
-                        onClick={() => onFollowUp?.(q)}
-                        className="text-left px-5 py-4 rounded-2xl border border-border/40 bg-muted/20 hover:bg-muted/40 hover:border-primary/30 transition-all text-sm font-semibold"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             <aside className="w-full lg:w-80 flex-shrink-0 space-y-8">

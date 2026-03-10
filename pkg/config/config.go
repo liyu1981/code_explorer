@@ -23,6 +23,7 @@ type SystemConfig struct {
 
 type ResearchConfig struct {
 	MaxReportsPerCodebase int `json:"max_reports_per_codebase"`
+	MaxReportsPerSession  int `json:"max_reports_per_session"`
 }
 
 type CodeMoggerConfig struct {
@@ -111,6 +112,9 @@ func Load(configPath string) error {
 		if fileCfg.Research.MaxReportsPerCodebase > 0 {
 			cfg.Research.MaxReportsPerCodebase = fileCfg.Research.MaxReportsPerCodebase
 		}
+		if fileCfg.Research.MaxReportsPerSession > 0 {
+			cfg.Research.MaxReportsPerSession = fileCfg.Research.MaxReportsPerSession
+		}
 		cfg.CodeMogger.InheritSystemLLM = fileCfg.CodeMogger.InheritSystemLLM
 		if fileCfg.CodeMogger.Embedder.Type != "" {
 			cfg.CodeMogger.Embedder.Type = fileCfg.CodeMogger.Embedder.Type
@@ -177,6 +181,7 @@ func DefaultConfig() *Config {
 		},
 		Research: ResearchConfig{
 			MaxReportsPerCodebase: 10,
+			MaxReportsPerSession:  50,
 		},
 		CodeMogger: CodeMoggerConfig{
 			InheritSystemLLM: true,

@@ -4,7 +4,7 @@ import { useAtom } from "jotai";
 import {
   Save,
   Loader2,
-  Settings2,
+  Settings,
   Monitor,
   Search,
   Database,
@@ -46,6 +46,7 @@ const DEFAULTS = {
   llm_model: "gpt-4o",
   llm_endpoint: "https://api.openai.com/v1/chat/completions",
   max_reports: 10,
+  max_reports_per_session: 50,
   chunk_lines: 150,
   embedder_type: "local",
   embedder_model: "all-minilm:l6-v2",
@@ -145,11 +146,26 @@ export default function SettingsPage() {
   return (
     <AppContainer>
       <AppHeader>
-        <div className="flex items-center gap-4">
-          <Settings2 className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-bold tracking-tight text-primary">
-            Settings
-          </h1>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-4">
+            <Settings className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-bold tracking-tight text-primary">
+              Settings
+            </h1>
+          </div>
+          <button
+            type="submit"
+            form="settings-form"
+            disabled={saving}
+            className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Save Changes
+          </button>
         </div>
       </AppHeader>
 
@@ -196,6 +212,7 @@ export default function SettingsPage() {
         {/* Content Area */}
         <div className="flex-1 overflow-auto bg-background/50">
           <form
+            id="settings-form"
             onSubmit={handleSave}
             className="max-w-3xl mx-auto p-8 lg:p-12 space-y-12 pb-32"
           >
@@ -372,7 +389,7 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 gap-8">
                   <div className="space-y-3">
                     <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      Max Archived Sessions per Codebase
+                      Max Sessions per Codebase
                       <DefaultBadge
                         isDefault={
                           (config?.research?.max_reports_per_codebase ||
@@ -400,8 +417,47 @@ export default function SettingsPage() {
                       className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
                     />
                     <p className="text-[11px] text-muted-foreground font-medium px-1">
-                      Oldest sessions will be automatically pruned when this
-                      limit is reached.
+                      The total number of research sessions (active and
+                      archived) kept per codebase. Oldest sessions (prioritizing
+                      archived) will be automatically pruned when this limit is
+                      reached.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
+                      Max Reports per Session
+                      <DefaultBadge
+                        isDefault={
+                          (config?.research?.max_reports_per_session ||
+                            DEFAULTS.max_reports_per_session) ===
+                          DEFAULTS.max_reports_per_session
+                        }
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      value={
+                        config?.research?.max_reports_per_session ??
+                        DEFAULTS.max_reports_per_session
+                      }
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev!,
+                          research: {
+                            ...prev!.research,
+                            max_reports_per_session: Number.parseInt(
+                              e.target.value,
+                            ),
+                          },
+                        }))
+                      }
+                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
+                    />
+                    <p className="text-[11px] text-muted-foreground font-medium px-1">
+                      The maximum number of reports (turns) kept within a single
+                      research session. Oldest reports will be automatically
+                      pruned when this limit is reached.
                     </p>
                   </div>
                 </div>
@@ -615,21 +671,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-
-            <div className="fixed bottom-8 right-8 z-50">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-3 px-10 py-5 bg-primary text-primary-foreground rounded-full font-bold shadow-2xl shadow-primary/40 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
-              >
-                {saving ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  <Save className="h-6 w-6" />
-                )}
-                Save Configuration
-              </button>
-            </div>
           </form>
         </div>
       </div>

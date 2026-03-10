@@ -8,9 +8,14 @@ import { cn } from "@/lib/utils";
 interface ResearchInputProps {
   onSearch: (query: string, deepSearch: boolean) => void;
   isCompact?: boolean;
+  suggestions?: string[];
 }
 
-export function ResearchInput({ onSearch, isCompact }: ResearchInputProps) {
+export function ResearchInput({
+  onSearch,
+  isCompact,
+  suggestions,
+}: ResearchInputProps) {
   const [query, setQuery] = useState("");
   const [isDeepSearch, setIsDeepSearch] = useState(false);
 
@@ -50,6 +55,21 @@ export function ResearchInput({ onSearch, isCompact }: ResearchInputProps) {
           className="w-full min-h-[80px] max-h-[400px] resize-none bg-transparent p-4 text-lg outline-none placeholder:text-muted-foreground/60 leading-relaxed"
           rows={1}
         />
+
+        {suggestions && suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-4 pb-4">
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => onSearch(s, true)}
+                className="px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-xs font-semibold text-muted-foreground transition-all border border-border/50 hover:border-primary/30"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex items-center justify-between px-2 pb-2">
           <button

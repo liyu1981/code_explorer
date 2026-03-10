@@ -1,9 +1,10 @@
 "use client";
 
 import { useAtom } from "jotai";
-import { Archive, Folder } from "lucide-react";
+import { Archive, Folder, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { API_URL, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AppContainer } from "../_components/app-container";
@@ -12,6 +13,7 @@ import {
   activeSessionIdAtom,
   researchSessionsAtom,
   type ResearchSession,
+  type ResearchTurn,
 } from "../_jotai/research-store";
 import { ReasoningTrace } from "./_components/reasoning-trace";
 import { ResearchInput } from "./_components/research-input";
@@ -68,7 +70,7 @@ function ResearchContent() {
         const reportsResponse = await api.get(
           `/api/research/sessions/${urlId}/reports`,
         );
-        const reports = reportsResponse.data;
+        const reports = reportsResponse.data || [];
 
         // Reconstruct session state from events
         const session: ResearchSession = {
@@ -451,11 +453,8 @@ function ResearchContent() {
               archivedAt: session.archivedAt,
             })
             .then(() => {
-              // If it's the first turn and title is "New Research", summarize it
-              if (
-                session.title === "New Research" &&
-                session.turns.length === 1
-              ) {
+              // If it's the first turn, summarize it to get a proper title
+              if (session.turns.length === 1) {
                 api
                   .post(`/api/research/sessions/${session.id}/summarize`)
                   .then((res) => {
@@ -485,7 +484,12 @@ function ResearchContent() {
     }
 
     setSessions((current) => current.filter((s) => s.id !== id));
-    router.push("/");
+    router.push("/new");
+  };
+
+  const handleClose = (id: string) => {
+    setSessions((current) => current.filter((s) => s.id !== id));
+    router.push("/new");
   };
 
   const handleDeleteTurn = async (turnId: string) => {
@@ -506,12 +510,40 @@ function ResearchContent() {
     }
   };
 
+  const handleSaveTurn = async (turn: ResearchTurn) => {
+    if (!activeSession) return;
+    try {
+      await api.post("/api/saved_reports", {
+        sessionId: activeSession.id,
+        codebaseId: activeSession.codebaseId,
+        title: activeSession.title,
+        query: turn.query,
+        content: turn.report,
+        codebaseName: activeSession.codebaseName,
+        codebasePath: activeSession.codebasePath,
+      });
+      toast.success("Snapshot saved successfully!");
+    } catch (e) {
+      console.error("Save snapshot failed", e);
+      toast.error("Failed to save snapshot.");
+    }
+  };
+
   if (!activeSession) {
     return null;
   }
 
   const isResearching =
     activeSession.state === "searching" || activeSession.state === "reasoning";
+
+  const isIdle =
+    activeSession.state === "idle" && activeSession.turns.length === 0;
+
+  const followUpSuggestions = [
+    "Analyze performance implications",
+    "How is this tested?",
+    "Are there security concerns?",
+  ];
 
   return (
     <AppContainer>
@@ -529,15 +561,26 @@ function ResearchContent() {
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => handleArchive(activeSession.id)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors ml-auto"
-            title="Archive Research"
-          >
-            <Archive className="h-4 w-4" />
-            Archive
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => handleClose(activeSession.id)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              title="Close Page"
+            >
+              <X className="h-4 w-4" />
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={() => handleArchive(activeSession.id)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+              title="Archive Research"
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </button>
+          </div>
         </div>
       </AppHeader>
 
@@ -547,12 +590,10 @@ function ResearchContent() {
           ref={scrollContainerRef}
           className={cn(
             "flex-1 overflow-auto transition-all duration-500",
-            activeSession.state === "idle"
-              ? "flex items-center justify-center"
-              : "p-6",
+            isIdle ? "flex items-center justify-center" : "p-6",
           )}
         >
-          {activeSession.state === "idle" && (
+          {isIdle ? (
             <div className="w-full max-w-4xl space-y-12 animate-in fade-in zoom-in-95 duration-700">
               <div className="text-center space-y-4">
                 <h2 className="text-6xl font-bold tracking-tighter">
@@ -571,17 +612,17 @@ function ResearchContent() {
                 />
               </div>
             </div>
-          )}
-
-          {(activeSession.turns.length > 0 || isResearching) && (
-            <div className="max-w-6xl mx-auto w-full space-y-12 pb-48">
-              <ResearchReport
-                turns={activeSession.turns}
-                onFollowUp={(q) => handleSearch(activeSession.id, q, true)}
-                onDeleteTurn={handleDeleteTurn}
-                isStreaming={isResearching}
-              />
-            </div>
+          ) : (
+            (activeSession.turns.length > 0 || isResearching) && (
+              <div className="max-w-6xl mx-auto w-full space-y-12 pb-48">
+                <ResearchReport
+                  turns={activeSession.turns}
+                  onDeleteTurn={handleDeleteTurn}
+                  onSaveTurn={handleSaveTurn}
+                  isStreaming={isResearching}
+                />
+              </div>
+            )
           )}
         </div>
 
@@ -610,12 +651,13 @@ function ResearchContent() {
         )}
         {/* Sticky Input Area */}
 
-        {activeSession.state !== "idle" && (
+        {!isIdle && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-20 pb-8 px-6 z-20 pointer-events-none">
             <div className="max-w-6xl mx-auto pointer-events-auto">
               <ResearchInput
                 onSearch={(q, deep) => handleSearch(activeSession.id, q, deep)}
                 isCompact
+                suggestions={!isResearching ? followUpSuggestions : []}
               />
             </div>
           </div>

@@ -186,6 +186,13 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	finalSw.SendStepUpdate(fmt.Sprintf("turn-%s-thinking", turnID), "Thinking about the research plan", protocol.StepCompleted)
 	finalSw.WriteDone()
+
+	// Prune reports for this session if limit is reached
+	maxReports := config.Get().Research.MaxReportsPerSession
+	if maxReports <= 0 {
+		maxReports = 50
+	}
+	_ = h.index.GetStore().PruneReportsBySession(req.SessionID, maxReports)
 }
 
 func getSystemLLMConfig() map[string]any {
@@ -233,6 +240,30 @@ func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (h *ApiHandler) handleGetSessionsPaginated(w http.ResponseWriter, r *http.Request) {
+	if h.index == nil {
+		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
+		return
+	}
+
+	codebaseId := r.URL.Query().Get("codebaseId")
+	page := getIntParam(r, "page", 1)
+	pageSize := getIntParam(r, "pageSize", 10)
+
+	sessions, total, err := h.index.GetStore().GetResearchSessionsPaginated(codebaseId, page, pageSize)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to get sessions", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"sessions": sessions,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
 }
 
 func (h *ApiHandler) handleGetSessionReports(w http.ResponseWriter, r *http.Request) {

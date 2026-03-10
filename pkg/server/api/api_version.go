@@ -14,7 +14,7 @@ func (h *ApiHandler) handleVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":               constant.Version,
-		"max_archived_sessions": maxReports,
+		"version":                   constant.Version,
+		"max_sessions_per_codebase": maxReports,
 	})
 }
