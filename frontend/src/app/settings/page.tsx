@@ -24,6 +24,7 @@ interface Config {
   };
   research: {
     max_reports_per_codebase: number;
+    max_reports_per_session: number;
   };
   codemogger: {
     inherit_system_llm: boolean;

@@ -32,10 +32,10 @@ type Migration struct {
 
 type Migrator struct {
 	db *sql.DB
-	fs embed.FS
+	fs fs.FS
 }
 
-func NewMigrator(db *sql.DB, fsys embed.FS) *Migrator {
+func NewMigrator(db *sql.DB, fsys fs.FS) *Migrator {
 	return &Migrator{db: db, fs: fsys}
 }
 

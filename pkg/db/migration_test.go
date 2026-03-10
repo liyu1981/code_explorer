@@ -1,12 +1,17 @@
 package db
 
 import (
+	"embed"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/libsql"
 )
+
+//go:embed test_migrations/*.sql
+var testMigrationFiles embed.FS
 
 func TestMigrateFunction(t *testing.T) {
 	dir, err := os.MkdirTemp("", "migration-*")
@@ -83,20 +88,27 @@ func TestRollback(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	dbPath := filepath.Join(dir, "test.db")
+	db, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
 
-	if err := Migrate(dbPath); err != nil {
+	// Use sub-filesystem for test migrations
+	testFS, err := fs.Sub(testMigrationFiles, "test_migrations")
+	if err != nil {
+		t.Fatalf("sub fs: %v", err)
+	}
+
+	m := NewMigrator(db, testFS)
+
+	if err := m.Up(); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if err := Rollback(dbPath); err != nil {
+	if err := m.Down(); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
-
-	db, err := libsql.OpenLibsqlDb(dbPath)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	defer db.Close()
 
 	var tables []string
 	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'schema_migrations' ORDER BY name")
@@ -126,16 +138,28 @@ func TestStep(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	dbPath := filepath.Join(dir, "test.db")
+	db, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
 
-	if err := Migrate(dbPath); err != nil {
+	testFS, err := fs.Sub(testMigrationFiles, "test_migrations")
+	if err != nil {
+		t.Fatalf("sub fs: %v", err)
+	}
+
+	m := NewMigrator(db, testFS)
+
+	if err := m.Up(); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if err := Step(dbPath, 1); err != nil {
+	if err := m.Step(1); err != nil {
 		t.Fatalf("step forward: %v", err)
 	}
 
-	if err := Step(dbPath, -1); err != nil {
+	if err := m.Step(-1); err != nil {
 		t.Fatalf("step backward: %v", err)
 	}
 }
@@ -148,16 +172,28 @@ func TestForce(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	dbPath := filepath.Join(dir, "test.db")
+	db, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
 
-	if err := Migrate(dbPath); err != nil {
+	testFS, err := fs.Sub(testMigrationFiles, "test_migrations")
+	if err != nil {
+		t.Fatalf("sub fs: %v", err)
+	}
+
+	m := NewMigrator(db, testFS)
+
+	if err := m.Up(); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if err := Force(dbPath, 0); err != nil {
+	if err := m.Force(0); err != nil {
 		t.Fatalf("force: %v", err)
 	}
 
-	if err := Force(dbPath, 1); err != nil {
+	if err := m.Force(1); err != nil {
 		t.Fatalf("force: %v", err)
 	}
 }
@@ -170,20 +206,27 @@ func TestDrop(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	dbPath := filepath.Join(dir, "test.db")
+	db, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
 
-	if err := Migrate(dbPath); err != nil {
+	// Use sub-filesystem for test migrations
+	testFS, err := fs.Sub(testMigrationFiles, "test_migrations")
+	if err != nil {
+		t.Fatalf("sub fs: %v", err)
+	}
+
+	m := NewMigrator(db, testFS)
+
+	if err := m.Up(); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if err := Drop(dbPath); err != nil {
+	if err := m.Drop(); err != nil {
 		t.Fatalf("drop: %v", err)
 	}
-
-	db, err := libsql.OpenLibsqlDb(dbPath)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	defer db.Close()
 
 	var tables []string
 	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'schema_migrations' ORDER BY name")

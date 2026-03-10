@@ -1,18 +1,25 @@
 package server
 
 import (
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/server/api"
 	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
+//go:embed all:ui/out
+var frontendFS embed.FS
+
 // UIServer represents the UI server
 type UIServer struct {
 	listenAddr string
 	server     *http.Server
+	staticFS   fs.FS
 	ApiHandler *api.ApiHandler
 }
 
@@ -24,8 +31,14 @@ type Config struct {
 
 // NewUIServer creates a new UI server instance
 func NewUIServer(config *Config) *UIServer {
+	staticFS, err := fs.Sub(frontendFS, "ui/out")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &UIServer{
 		listenAddr: config.ListenAddr,
+		staticFS:   staticFS,
 		ApiHandler: config.ApiHandler,
 	}
 }
@@ -37,14 +50,39 @@ func (s *UIServer) SetupRoutes() http.Handler {
 	// Install API routes FIRST (so they take precedence)
 	s.ApiHandler.RegisterRoutes(mux)
 
-	// Fallback for root
+	// Create custom file server handler for SPA routing
+	fileServer := http.FileServer(http.FS(s.staticFS))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte("code_explorer server is running"))
+		path := r.URL.Path
+
+		// 1. If requesting root, just serve it (will find index.html)
+		if path == "/" {
+			fileServer.ServeHTTP(w, r)
 			return
 		}
-		http.NotFound(w, r)
+
+		// 2. Remove trailing slash for HTML file lookup
+		cleanPath := strings.TrimSuffix(path, "/")
+
+		// 3. Check if the file exists exactly as requested
+		_, err := s.staticFS.Open(strings.TrimPrefix(path, "/"))
+		if err == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// 4. If not found, try appending ".html" to the clean path
+		htmlPath := strings.TrimPrefix(cleanPath, "/") + ".html"
+		if _, err := s.staticFS.Open(htmlPath); err == nil {
+			// Create a new request with modified path
+			newReq := r.Clone(r.Context())
+			newReq.URL.Path = cleanPath + ".html"
+			fileServer.ServeHTTP(w, newReq)
+			return
+		}
+
+		// 5. Fallback: Serve the standard file server (handles 404s)
+		fileServer.ServeHTTP(w, r)
 	})
 
 	// Wrap with middleware
@@ -79,14 +117,20 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
+		// Don't log static assets to reduce noise
+		if !strings.HasPrefix(r.URL.Path, "/_next") && !strings.HasPrefix(r.URL.Path, "/static") {
+			log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
+		}
 	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// allow CORS when in dev mode
-		if util.IsDev() {
+		// Always enable CORS headers to support access via IP or different hostnames
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else if util.IsDev() {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 

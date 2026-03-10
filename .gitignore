@@ -1,7 +1,11 @@
+*.db
+ce
+ce_output.txt
 .config.json
 .codemogger/
 vendor/
 tmp/
+pkg/server/ui/out/
 
 #####
 

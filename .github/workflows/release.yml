@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install
+      - name: Build frontend
+        run: chmod +x ./scripts/build_and_copy_frontend.sh && ./scripts/build_and_copy_frontend.sh
+      - name: Upload frontend assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-assets
+          path: pkg/server/ui/out/
+
+  release:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: darwin
+            arch: amd64
+          - os: darwin
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - name: Download frontend assets
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-assets
+          path: pkg/server/ui/out/
+      - name: Set version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          sed -i "s/const Version = \".*\"/const Version = \"$VERSION\"/" pkg/constant/version.go
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          binary_name="ce-${{ matrix.os }}-${{ matrix.arch }}"
+          chmod +x ./scripts/build.sh
+          ./scripts/build.sh "$binary_name"
+          tar -czvf "$binary_name.tar.gz" "$binary_name"
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ce-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

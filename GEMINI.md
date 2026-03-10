@@ -4,3 +4,4 @@
 - Before commit must do: `go fmt ./...` in project root and `pnpm format` in `frontend` folder
 - do not use `interface{}` in golang, just use `any`
 - no autoincrement integer as id primary key.
+- Use Go version 1.25 and Node version 24.
