@@ -13,7 +13,9 @@ export default function NewResearchPage() {
         </h1>
       </AppHeader>
       <div className="flex-1 overflow-auto p-6 md:p-12 bg-background/50">
-        <CodebaseList />
+        <div className="max-w-6xl mx-auto w-full">
+          <CodebaseList />
+        </div>
       </div>
     </AppContainer>
   );

@@ -85,10 +85,10 @@ function SessionSelectionDialog({
                 key={s.id}
                 type="button"
                 onClick={() => onSelect(s.id)}
-                className="w-full text-left p-4 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all group"
+                className="w-full text-left p-4 rounded-xl border border-border hover:border-primary/60 transition-all group"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-bold text-primary group-hover:text-primary-foreground transition-colors truncate">
+                  <h4 className="font-bold text-primary transition-colors truncate">
                     {s.title}
                   </h4>
                   <span className="text-[10px] text-muted-foreground font-mono">

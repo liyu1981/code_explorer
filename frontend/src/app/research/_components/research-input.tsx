@@ -31,7 +31,7 @@ export function ResearchInput({ onSearch, isCompact }: ResearchInputProps) {
   return (
     <div
       className={cn(
-        "w-full max-w-3xl mx-auto transition-all duration-500",
+        "w-full max-w-6xl mx-auto transition-all duration-500",
         isCompact ? "p-4" : "p-8",
       )}
     >

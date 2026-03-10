@@ -80,7 +80,7 @@ export function ResearchReport({
   };
 
   return (
-    <div className="max-w-6xl mx-auto w-full py-8">
+    <div className="w-full py-8">
       {turns.map((turn, turnIndex) => (
         <div key={turn.id} className="w-full" data-turn-id={turn.id}>
           {turnIndex > 0 && (

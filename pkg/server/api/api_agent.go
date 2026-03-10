@@ -217,25 +217,19 @@ func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
 		return
 	}
+	codebaseId := r.URL.Query().Get("codebaseId")
 	includeArchived := r.URL.Query().Get("includeArchived") == "true"
-	sessions, err := h.index.GetStore().ListResearchSessions(includeArchived)
+
+	var sessions []db.ResearchSession
+	var err error
+	if codebaseId != "" {
+		sessions, err = h.index.GetStore().GetResearchSessionsByCodebase(codebaseId, includeArchived)
+	} else {
+		sessions, err = h.index.GetStore().ListResearchSessions(includeArchived)
+	}
+
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list sessions", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, sessions)
-}
-
-func (h *ApiHandler) handleListSessionsByCodebase(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-	codebaseId := r.PathValue("codebaseId")
-	includeArchived := r.URL.Query().Get("includeArchived") == "true"
-	sessions, err := h.index.GetStore().GetResearchSessionsByCodebase(codebaseId, includeArchived)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to list sessions for codebase", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, sessions)

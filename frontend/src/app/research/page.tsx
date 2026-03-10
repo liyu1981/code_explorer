@@ -563,7 +563,7 @@ function ResearchContent() {
                   analytical reasoning.
                 </p>
               </div>
-              <div className="max-w-3xl mx-auto p-8">
+              <div className="max-w-6xl mx-auto p-8">
                 <ResearchInput
                   onSearch={(q, deep) =>
                     handleSearch(activeSession.id, q, deep)
@@ -588,7 +588,7 @@ function ResearchContent() {
         {/* Floating Thought Process Indicator */}
         {isResearching && (
           <div className="absolute top-[1rem] left-0 right-0 z-50 px-6 animate-in fade-in slide-in-from-top-4 duration-500 pointer-events-none">
-            <div className="max-w-3xl mx-auto pointer-events-auto">
+            <div className="max-w-6xl mx-auto pointer-events-auto">
               <div className="bg-background/80 backdrop-blur-xl border border-primary/20 shadow-2xl rounded-2xl overflow-hidden shadow-primary/5">
                 <div className="p-4 border-b border-border/50 bg-muted/30">
                   <ReasoningTrace steps={activeSession.steps} />
@@ -612,7 +612,7 @@ function ResearchContent() {
 
         {activeSession.state !== "idle" && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-20 pb-8 px-6 z-20 pointer-events-none">
-            <div className="max-w-3xl mx-auto pointer-events-auto">
+            <div className="max-w-6xl mx-auto pointer-events-auto">
               <ResearchInput
                 onSearch={(q, deep) => handleSearch(activeSession.id, q, deep)}
                 isCompact
