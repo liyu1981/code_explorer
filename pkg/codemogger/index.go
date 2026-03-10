@@ -3,7 +3,9 @@ package codemogger
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger/chunk"
@@ -106,11 +108,26 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	start := time.Now()
 	rootDir, _ := filepath.Abs(dir)
 
-	codebaseID, err := c.store.CodemoggerGetOrCreateCodebase(rootDir, "")
+	// 1. Get/Create system codebase
+	cb, err := c.store.GetOrCreateCodebase(rootDir, "", "local")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get/create codebase: %w", err)
+		return nil, fmt.Errorf("failed to get/create system codebase: %w", err)
 	}
-	log.Debug().Str("codebaseID", codebaseID).Msg("Codebase entry identified")
+	log.Debug().Str("codebaseID", cb.ID).Msg("System codebase entry identified")
+
+	// 2. Ensure codemogger metadata exists
+	metadataID, err := c.store.CodemoggerEnsureMetadata(cb.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure codemogger metadata: %w", err)
+	}
+	log.Debug().Str("metadataID", metadataID).Msg("Codemogger metadata entry identified")
+
+	// 3. Detect version (git commit)
+	version := detectVersion(rootDir)
+	if version != "" {
+		_ = c.store.UpdateCodebaseVersion(cb.ID, version)
+		log.Debug().Str("version", version).Msg("Detected codebase version")
+	}
 
 	log.Info().Msg("Scanning directory...")
 	files, scanErrors := scan.ScanDirectory(rootDir, opts.Languages)
@@ -129,7 +146,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	log.Info().Msg("Checking file hashes...")
 	for i, file := range files {
 		activeFiles[file.AbsPath] = true
-		storedHash, err := c.store.CodemoggerGetFileHash(codebaseID, file.AbsPath)
+		storedHash, err := c.store.CodemoggerGetFileHash(metadataID, file.AbsPath)
 		if err != nil {
 			log.Warn().Str("file", file.AbsPath).Err(err).Msg("Failed to get file hash")
 			continue
@@ -195,7 +212,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 
 	if len(fileChunks) > 0 {
 		log.Info().Msg("Saving chunks to database...")
-		if err := c.store.CodemoggerBatchUpsertAllFileChunks(codebaseID, fileChunks); err != nil {
+		if err := c.store.CodemoggerBatchUpsertAllFileChunks(metadataID, fileChunks); err != nil {
 			return nil, fmt.Errorf("failed to upsert chunks: %w", err)
 		}
 		log.Info().Msg("Chunks saved successfully")
@@ -204,7 +221,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	embedded := 0
 	log.Info().Str("model", c.embeddingModel).Msg("Starting embedding...")
 	for {
-		stale, err := c.store.CodemoggerGetStaleEmbeddings(codebaseID, c.embeddingModel, 1000)
+		stale, err := c.store.CodemoggerGetStaleEmbeddings(metadataID, c.embeddingModel, 1000)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to get stale embeddings")
 			break
@@ -235,15 +252,9 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 			ModelName string
 		}, len(stale))
 		for i, s := range stale {
-			items[i] = struct {
-				ChunkKey  string
-				Embedding []float32
-				ModelName string
-			}{
-				ChunkKey:  s.ChunkKey,
-				Embedding: vectors[i],
-				ModelName: c.embeddingModel,
-			}
+			items[i].ChunkKey = s.ChunkKey
+			items[i].Embedding = vectors[i]
+			items[i].ModelName = c.embeddingModel
 		}
 
 		if err := c.store.CodemoggerBatchUpsertEmbeddings(items); err != nil {
@@ -263,10 +274,10 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	for k := range activeFiles {
 		activeFilesList = append(activeFilesList, k)
 	}
-	removed, _ := c.store.CodemoggerRemoveStaleFiles(codebaseID, activeFilesList)
+	removed, _ := c.store.CodemoggerRemoveStaleFiles(metadataID, activeFilesList)
 
-	_ = c.store.CodemoggerRebuildFTSTable(codebaseID)
-	_ = c.store.CodemoggerTouchCodebase(codebaseID)
+	_ = c.store.CodemoggerRebuildFTSTable(metadataID)
+	_ = c.store.CodemoggerTouchCodebase(metadataID)
 
 	duration := int(time.Since(start).Milliseconds())
 
@@ -291,6 +302,16 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 		Msg("Indexing completed")
 
 	return res, nil
+}
+
+func detectVersion(dir string) string {
+	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func buildEmbedText(filePath, kind, name, signature, snippet string) string {
@@ -419,6 +440,8 @@ func (c *CodeIndex) ListCodebases() ([]Codebase, error) {
 			ID:         cb.ID,
 			RootPath:   cb.RootPath,
 			Name:       cb.Name,
+			Type:       cb.Type,
+			Version:    cb.Version,
 			IndexedAt:  cb.IndexedAt,
 			FileCount:  cb.FileCount,
 			ChunkCount: cb.ChunkCount,

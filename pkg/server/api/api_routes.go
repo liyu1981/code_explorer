@@ -49,7 +49,9 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ws", h.handleWS)
 
 	// Codebases
+	mux.HandleFunc("GET /api/codebases", h.handleListSystemCodebases)
 	mux.HandleFunc("GET /api/codemogger/codebases", h.handleListCodebases)
+	mux.HandleFunc("GET /api/codemogger/status", h.handleGetCodemoggerStatus)
 
 	// Files
 	mux.HandleFunc("GET /api/codemogger/files", h.handleListFiles)

@@ -8,11 +8,21 @@ import (
 	_ "github.com/tursodatabase/go-libsql"
 )
 
+// Codebase represents the system-wide definition of a codebase.
 type Codebase struct {
-	ID        string
-	RootPath  string
-	Name      string
-	IndexedAt int64
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	RootPath  string `json:"rootPath"`
+	Type      string `json:"type"`
+	Version   string `json:"version"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+// CodemoggerMetadata represents the indexing-specific metadata for a codebase.
+type CodemoggerMetadata struct {
+	ID         string `json:"id"`
+	CodebaseID string `json:"codebaseId"`
+	IndexedAt  int64  `json:"indexedAt"`
 }
 
 type Chunk struct {
@@ -74,13 +84,17 @@ type FileInfo struct {
 	IndexedAt  int64
 }
 
+// CodebaseInfo remains for backward compatibility or joined views, 
+// but we prefer using Codebase and CodemoggerMetadata separately.
 type CodebaseInfo struct {
-	ID         string
-	RootPath   string
-	Name       string
-	IndexedAt  int64
-	FileCount  int
-	ChunkCount int
+	ID         string `json:"id"`
+	RootPath   string `json:"rootPath"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Version    string `json:"version"`
+	IndexedAt  int64  `json:"indexedAt"`
+	FileCount  int    `json:"fileCount"`
+	ChunkCount int    `json:"chunkCount"`
 }
 
 type CodeChunk struct {

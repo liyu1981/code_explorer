@@ -54,6 +54,8 @@ type Codebase struct {
 	ID         string `json:"id"`
 	RootPath   string `json:"rootPath"`
 	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Version    string `json:"version"`
 	IndexedAt  int64  `json:"indexedAt"`
 	FileCount  int    `json:"fileCount"`
 	ChunkCount int    `json:"chunkCount"`

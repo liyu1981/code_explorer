@@ -17,6 +17,43 @@ func (h *ApiHandler) handleListCodebases(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, codebases)
 }
 
+func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Request) {
+	codebaseID := r.URL.Query().Get("codebase_id")
+	if codebaseID == "" {
+		writeError(w, http.StatusBadRequest, "codebase_id is required", nil)
+		return
+	}
+
+	metadata, err := h.index.GetStore().CodemoggerGetMetadataByCodebase(codebaseID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get codemogger metadata", err)
+		return
+	}
+
+	if metadata == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "not_indexed"})
+		return
+	}
+
+	files, err := h.index.GetStore().CodemoggerListFiles(metadata.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list files", err)
+		return
+	}
+
+	chunkCount := 0
+	for _, f := range files {
+		chunkCount += f.ChunkCount
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":     "indexed",
+		"indexedAt":  metadata.IndexedAt,
+		"fileCount":  len(files),
+		"chunkCount": chunkCount,
+	})
+}
+
 func (h *ApiHandler) handleListFiles(w http.ResponseWriter, r *http.Request) {
 	files, err := h.index.ListFiles()
 	if err != nil {

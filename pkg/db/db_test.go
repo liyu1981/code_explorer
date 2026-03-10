@@ -40,7 +40,7 @@ func TestOpenAndStore(t *testing.T) {
 		tables = append(tables, name)
 	}
 
-	expected := []string{"codemogger_chunks", "codemogger_codebases", "codemogger_indexed_files", "schema_migrations"}
+	expected := []string{"codebases", "codemogger_chunks", "codemogger_codebases", "codemogger_indexed_files", "schema_migrations"}
 	for _, e := range expected {
 		found := false
 		for _, t := range tables {
@@ -61,12 +61,20 @@ func TestOpenAndStore(t *testing.T) {
 	}
 
 	// Test a store method
-	id, err := store.CodemoggerGetOrCreateCodebase("/test/path", "test")
+	cb, err := store.GetOrCreateCodebase("/test/path", "test", "local")
 	if err != nil {
-		t.Fatalf("get or create codebase: %v", err)
+		t.Fatalf("get or create system codebase: %v", err)
+	}
+	if cb.ID == "" {
+		t.Errorf("expected valid id, got empty string")
+	}
+
+	id, err := store.CodemoggerEnsureMetadata(cb.ID)
+	if err != nil {
+		t.Fatalf("ensure codemogger metadata: %v", err)
 	}
 	if id == "" {
-		t.Errorf("expected valid id, got empty string")
+		t.Errorf("expected valid metadata id, got empty string")
 	}
 
 	codebases, err := store.CodemoggerListCodebases()

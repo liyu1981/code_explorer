@@ -11,6 +11,8 @@ import {
   Plus,
   X,
   RefreshCw,
+  Tag,
+  GitBranch,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -27,15 +29,136 @@ interface Codebase {
   id: string;
   name: string;
   rootPath: string;
-  indexedAt: number;
-  fileCount: number;
-  chunkCount: number;
+  type: string;
+  version: string;
+  createdAt: number;
+}
+
+interface IndexingStatus {
+  status: "not_indexed" | "indexed";
+  indexedAt?: number;
+  fileCount?: number;
+  chunkCount?: number;
 }
 
 interface IndexProgress {
   current: number;
   total: number;
   stage: string;
+}
+
+function CodebaseItem({
+  cb,
+  existingSession,
+  indexingPath,
+  handleCreateIndex,
+  handleNewResearch,
+  handleContinueResearch,
+}: {
+  cb: Codebase;
+  existingSession?: any;
+  indexingPath: string | null;
+  handleCreateIndex: (path: string) => void;
+  handleNewResearch: (cb: Codebase) => void;
+  handleContinueResearch: (sessionId: string) => void;
+}) {
+  const { data: status, isLoading } = useSWR<IndexingStatus>(
+    `${API_URL}/api/codemogger/status?codebase_id=${cb.id}`,
+    fetcher,
+  );
+
+  return (
+    <div className="group flex items-center justify-between p-6 rounded-2xl hover:bg-muted/30 transition-all cursor-default">
+      <div className="space-y-1.5 flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-primary" />
+          <h3 className="text-xl font-bold tracking-tight truncate">
+            {cb.name || "Unnamed Codebase"}
+          </h3>
+          {cb.type === "local" && (
+            <span className="px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Local
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Folder className="h-3.5 w-3.5" />
+            <code className="truncate font-mono bg-muted/50 px-1.5 rounded text-xs">
+              {cb.rootPath}
+            </code>
+          </div>
+          {cb.version && (
+            <div className="flex items-center gap-1.5 border-l border-border pl-4">
+              <GitBranch className="h-3.5 w-3.5" />
+              <span className="font-mono text-xs">{cb.version}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-4 text-xs text-muted-foreground/70">
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : status?.status === "indexed" ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                <span>
+                  Last indexed:{" "}
+                  {status.indexedAt
+                    ? new Date(status.indexedAt * 1000).toLocaleString()
+                    : "Never"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 border-l border-border pl-4">
+                <span>{status.fileCount} files</span>
+                <span>•</span>
+                <span>{status.chunkCount} chunks</span>
+              </div>
+            </>
+          ) : (
+            <span className="text-warning font-medium">Not indexed yet</span>
+          )}
+        </div>
+      </div>
+
+      <div className="ml-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          onClick={() => handleCreateIndex(cb.rootPath)}
+          className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all"
+          title="Refresh Index"
+          disabled={!!indexingPath}
+        >
+          <RefreshCw
+            className={cn(
+              "h-5 w-5",
+              indexingPath === cb.rootPath && "animate-spin",
+            )}
+          />
+        </button>
+
+        {existingSession && (
+          <button
+            type="button"
+            onClick={() => handleContinueResearch(existingSession.id)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-secondary text-secondary-foreground rounded-full text-sm font-bold shadow-lg shadow-secondary/20 hover:scale-105 active:scale-95 transition-all"
+          >
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => handleNewResearch(cb)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+        >
+          New Research
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function CodebaseList() {
@@ -59,7 +182,7 @@ export function CodebaseList() {
     error,
     isLoading,
     mutate,
-  } = useSWR<Codebase[]>(`${API_URL}/api/codemogger/codebases`, fetcher);
+  } = useSWR<Codebase[]>(`${API_URL}/api/codebases`, fetcher);
 
   useEffect(() => {
     const loadSessions = async () => {
@@ -285,79 +408,15 @@ export function CodebaseList() {
             </div>
           ) : filteredCodebases.length > 0 ? (
             filteredCodebases.map((cb) => (
-              <div
+              <CodebaseItem
                 key={cb.id}
-                className="group flex items-center justify-between p-6 rounded-2xl hover:bg-muted/30 transition-all cursor-default"
-              >
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Database className="h-4 w-4 text-primary" />
-                    <h3 className="text-xl font-bold tracking-tight truncate">
-                      {cb.name || "Unnamed Codebase"}
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Folder className="h-3.5 w-3.5" />
-                    <code className="truncate font-mono bg-muted/50 px-1.5 rounded text-xs">
-                      {cb.rootPath}
-                    </code>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground/70">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>
-                        Last indexed:{" "}
-                        {cb.indexedAt
-                          ? new Date(cb.indexedAt * 1000).toLocaleString()
-                          : "Never"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 border-l border-border pl-4">
-                      <span>{cb.fileCount} files</span>
-                      <span>•</span>
-                      <span>{cb.chunkCount} chunks</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="ml-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    type="button"
-                    onClick={() => handleCreateIndex(cb.rootPath)}
-                    className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all"
-                    title="Refresh Index"
-                    disabled={!!indexingPath}
-                  >
-                    <RefreshCw
-                      className={cn(
-                        "h-5 w-5",
-                        indexingPath === cb.rootPath && "animate-spin",
-                      )}
-                    />
-                  </button>
-
-                  {existingSessions[cb.id] && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleContinueResearch(existingSessions[cb.id].id)
-                      }
-                      className="flex items-center gap-2 px-5 py-2.5 bg-secondary text-secondary-foreground rounded-full text-sm font-bold shadow-lg shadow-secondary/20 hover:scale-105 active:scale-95 transition-all"
-                    >
-                      Continue
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleNewResearch(cb)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
-                  >
-                    New Research
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+                cb={cb}
+                existingSession={existingSessions[cb.id]}
+                indexingPath={indexingPath}
+                handleCreateIndex={handleCreateIndex}
+                handleNewResearch={handleNewResearch}
+                handleContinueResearch={handleContinueResearch}
+              />
             ))
           ) : (
             <div className="py-20 text-center space-y-3">

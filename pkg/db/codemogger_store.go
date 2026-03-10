@@ -9,40 +9,28 @@ import (
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-func (s *Store) CodemoggerGetOrCreateCodebase(rootPath string, name string) (string, error) {
+func (s *Store) CodemoggerEnsureMetadata(codebaseID string) (string, error) {
 	if err := s.reconnect(); err != nil {
 		return "", err
 	}
 
-	var existing Codebase
+	var metadataID string
 	err := s.db.QueryRow(
-		"SELECT id, root_path, name, indexed_at FROM codemogger_codebases WHERE root_path = ?",
-		rootPath,
-	).Scan(&existing.ID, &existing.RootPath, &existing.Name, &existing.IndexedAt)
+		"SELECT id FROM codemogger_codebases WHERE codebase_id = ?",
+		codebaseID,
+	).Scan(&metadataID)
 
 	if err == nil {
-		return existing.ID, nil
+		return metadataID, nil
 	}
 	if err != sql.ErrNoRows {
 		return "", err
 	}
 
-	if name == "" {
-		name = rootPath
-		if idx := len(name) - 1; idx >= 0 && name[idx] == '/' {
-			for i := len(name) - 2; i >= 0; i-- {
-				if name[i] == '/' {
-					name = name[i+1:]
-					break
-				}
-			}
-		}
-	}
-
 	newID, _ := gonanoid.New()
 	_, err = s.db.Exec(
-		"INSERT INTO codemogger_codebases (id, root_path, name, indexed_at) VALUES (?, ?, ?, unixepoch())",
-		newID, rootPath, name,
+		"INSERT INTO codemogger_codebases (id, codebase_id, indexed_at) VALUES (?, ?, unixepoch())",
+		newID, codebaseID,
 	)
 	if err != nil {
 		return "", err
@@ -61,11 +49,14 @@ func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
 			c.id,
 			c.root_path,
 			c.name,
-			c.indexed_at,
+			c.type,
+			c.version,
+			COALESCE(mc.indexed_at, 0) as indexed_at,
 			COUNT(DISTINCT f.file_path) as file_count,
 			COALESCE(SUM(f.chunk_count), 0) as chunk_count
-		FROM codemogger_codebases c
-		LEFT JOIN codemogger_indexed_files f ON f.codebase_id = c.id
+		FROM codebases c
+		LEFT JOIN codemogger_codebases mc ON mc.codebase_id = c.id
+		LEFT JOIN codemogger_indexed_files f ON f.codebase_id = mc.id
 		GROUP BY c.id
 		ORDER BY c.root_path
 	`
@@ -79,7 +70,7 @@ func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
 	var results []CodebaseInfo
 	for rows.Next() {
 		var r CodebaseInfo
-		if err := rows.Scan(&r.ID, &r.RootPath, &r.Name, &r.IndexedAt, &r.FileCount, &r.ChunkCount); err != nil {
+		if err := rows.Scan(&r.ID, &r.RootPath, &r.Name, &r.Type, &r.Version, &r.IndexedAt, &r.FileCount, &r.ChunkCount); err != nil {
 			return nil, err
 		}
 		results = append(results, r)
@@ -88,16 +79,16 @@ func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerTouchCodebase(codebaseID string) error {
+func (s *Store) CodemoggerTouchCodebase(metadataID string) error {
 	if err := s.reconnect(); err != nil {
 		return err
 	}
 
-	_, err := s.db.Exec("UPDATE codemogger_codebases SET indexed_at = unixepoch() WHERE id = ?", codebaseID)
+	_, err := s.db.Exec("UPDATE codemogger_codebases SET indexed_at = unixepoch() WHERE id = ?", metadataID)
 	return err
 }
 
-func (s *Store) CodemoggerGetFileHash(codebaseID string, filePath string) (string, error) {
+func (s *Store) CodemoggerGetFileHash(metadataID string, filePath string) (string, error) {
 	if err := s.reconnect(); err != nil {
 		return "", err
 	}
@@ -105,7 +96,7 @@ func (s *Store) CodemoggerGetFileHash(codebaseID string, filePath string) (strin
 	var fileHash string
 	err := s.db.QueryRow(
 		"SELECT file_hash FROM codemogger_indexed_files WHERE codebase_id = ? AND file_path = ?",
-		codebaseID, filePath,
+		metadataID, filePath,
 	).Scan(&fileHash)
 
 	if err == sql.ErrNoRows {
@@ -114,7 +105,7 @@ func (s *Store) CodemoggerGetFileHash(codebaseID string, filePath string) (strin
 	return fileHash, err
 }
 
-func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID string, fileChunks []struct {
+func (s *Store) CodemoggerBatchUpsertAllFileChunks(metadataID string, fileChunks []struct {
 	FilePath string
 	FileHash string
 	Chunks   []CodeChunk
@@ -132,7 +123,7 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID string, fileChunks
 	for _, fc := range fileChunks {
 		_, err = tx.Exec(
 			"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
-			codebaseID, fc.FilePath,
+			metadataID, fc.FilePath,
 		)
 		if err != nil {
 			return err
@@ -145,7 +136,7 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID string, fileChunks
 				(id, codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), NULL, '')
 			`,
-				newChunkID, codebaseID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
+				newChunkID, metadataID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
 				chunk.Name, chunk.Signature, chunk.Snippet, chunk.StartLine, chunk.EndLine, chunk.FileHash,
 			)
 			if err != nil {
@@ -162,7 +153,7 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID string, fileChunks
 				chunk_count = excluded.chunk_count,
 				indexed_at = excluded.indexed_at
 		`,
-			newFileID, codebaseID, fc.FilePath, fc.FileHash, len(fc.Chunks),
+			newFileID, metadataID, fc.FilePath, fc.FileHash, len(fc.Chunks),
 		)
 		if err != nil {
 			return err
@@ -172,14 +163,14 @@ func (s *Store) CodemoggerBatchUpsertAllFileChunks(codebaseID string, fileChunks
 	return tx.Commit()
 }
 
-func (s *Store) CodemoggerRemoveStaleFiles(codebaseID string, activeFiles []string) (int, error) {
+func (s *Store) CodemoggerRemoveStaleFiles(metadataID string, activeFiles []string) (int, error) {
 	if err := s.reconnect(); err != nil {
 		return 0, err
 	}
 
 	rows, err := s.db.Query(
 		"SELECT file_path FROM codemogger_indexed_files WHERE codebase_id = ?",
-		codebaseID,
+		metadataID,
 	)
 	if err != nil {
 		return 0, err
@@ -220,14 +211,14 @@ func (s *Store) CodemoggerRemoveStaleFiles(codebaseID string, activeFiles []stri
 	for _, filePath := range staleFiles {
 		_, err = tx.Exec(
 			"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
-			codebaseID, filePath,
+			metadataID, filePath,
 		)
 		if err != nil {
 			return 0, err
 		}
 		_, err = tx.Exec(
 			"DELETE FROM codemogger_indexed_files WHERE codebase_id = ? AND file_path = ?",
-			codebaseID, filePath,
+			metadataID, filePath,
 		)
 		if err != nil {
 			return 0, err
@@ -273,7 +264,7 @@ func (s *Store) CodemoggerBatchUpsertEmbeddings(items []struct {
 	return tx.Commit()
 }
 
-func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID string, modelName string, limit int) ([]struct {
+func (s *Store) CodemoggerGetStaleEmbeddings(metadataID string, modelName string, limit int) ([]struct {
 	ChunkKey  string
 	Name      string
 	Signature string
@@ -292,7 +283,7 @@ func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID string, modelName string
 		LIMIT ?
 	`
 
-	rows, err := s.db.Query(query, codebaseID, modelName, limit)
+	rows, err := s.db.Query(query, metadataID, modelName, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +316,7 @@ func (s *Store) CodemoggerGetStaleEmbeddings(codebaseID string, modelName string
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerRebuildFTSTable(codebaseID string) error {
+func (s *Store) CodemoggerRebuildFTSTable(metadataID string) error {
 	return nil
 }
 
@@ -419,7 +410,7 @@ func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerListFiles(codebaseID string) ([]FileInfo, error) {
+func (s *Store) CodemoggerListFiles(metadataID string) ([]FileInfo, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
@@ -427,10 +418,10 @@ func (s *Store) CodemoggerListFiles(codebaseID string) ([]FileInfo, error) {
 	var rows *sql.Rows
 	var err error
 
-	if codebaseID != "" {
+	if metadataID != "" {
 		rows, err = s.db.Query(
 			"SELECT file_path, file_hash, chunk_count, indexed_at FROM codemogger_indexed_files WHERE codebase_id = ? ORDER BY file_path",
-			codebaseID,
+			metadataID,
 		)
 	} else {
 		rows, err = s.db.Query(
@@ -453,4 +444,24 @@ func (s *Store) CodemoggerListFiles(codebaseID string) ([]FileInfo, error) {
 	}
 
 	return files, rows.Err()
+}
+
+func (s *Store) CodemoggerGetMetadataByCodebase(codebaseID string) (*CodemoggerMetadata, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	var m CodemoggerMetadata
+	err := s.db.QueryRow(
+		"SELECT id, codebase_id, indexed_at FROM codemogger_codebases WHERE codebase_id = ?",
+		codebaseID,
+	).Scan(&m.ID, &m.CodebaseID, &m.IndexedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
