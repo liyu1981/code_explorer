@@ -1,5 +1,8 @@
 -- 006_system_codebases.up.sql
 
+-- Disable foreign keys to allow table replacement
+PRAGMA foreign_keys=OFF;
+
 -- 1. Create temporary table to handle migration safely
 CREATE TABLE IF NOT EXISTS codemogger_codebases_temp (
     id TEXT PRIMARY KEY,
@@ -9,7 +12,6 @@ CREATE TABLE IF NOT EXISTS codemogger_codebases_temp (
 );
 
 -- 2. Try to copy data from original table if it exists
--- In SQLite, we can't easily do 'IF TABLE EXISTS', but we can use this trick:
 INSERT INTO codemogger_codebases_temp (id, root_path, name, indexed_at)
 SELECT id, root_path, name, indexed_at FROM codemogger_codebases WHERE 1=1;
 
@@ -47,3 +49,6 @@ WHERE root_path IS NOT NULL;
 
 -- 7. Drop temp table
 DROP TABLE IF EXISTS codemogger_codebases_temp;
+
+-- Re-enable foreign keys
+PRAGMA foreign_keys=ON;
