@@ -35,7 +35,7 @@ func (s *Store) GetResearchSessionByCodebase(codebaseID string) (*ResearchSessio
 	query := `
 		SELECT rs.id, rs.codebase_id, c.root_path, rs.title, rs.state, rs.created_at, rs.archived_at
 		FROM research_sessions rs
-		JOIN codemogger_codebases c ON rs.codebase_id = c.id
+		JOIN codebases c ON rs.codebase_id = c.id
 		WHERE rs.codebase_id = ? AND rs.archived_at IS NULL
 		ORDER BY rs.created_at DESC
 		LIMIT 1
@@ -62,7 +62,7 @@ func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, e
 	query := `
 		SELECT rs.id, rs.codebase_id, c.root_path, rs.title, rs.state, rs.created_at, rs.archived_at
 		FROM research_sessions rs
-		JOIN codemogger_codebases c ON rs.codebase_id = c.id
+		JOIN codebases c ON rs.codebase_id = c.id
 	`
 	if !includeArchived {
 		query += " WHERE rs.archived_at IS NULL"
