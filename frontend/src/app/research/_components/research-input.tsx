@@ -38,8 +38,8 @@ export function ResearchInput({ onSearch, isCompact }: ResearchInputProps) {
       <form
         onSubmit={handleSubmit}
         className={cn(
-          "relative flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-sm transition-all focus-within:ring-2 focus-within:ring-primary/20",
-          !isCompact && "shadow-xl",
+          "relative flex flex-col rounded-3xl border bg-card p-2 shadow-sm transition-all focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40",
+          !isCompact && "shadow-2xl p-4",
         )}
       >
         <textarea
@@ -47,33 +47,33 @@ export function ResearchInput({ onSearch, isCompact }: ResearchInputProps) {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="What would you like to research in the codebase?"
-          className="w-full min-h-[60px] max-h-[300px] resize-none bg-transparent p-2 text-lg outline-none placeholder:text-muted-foreground"
+          className="w-full min-h-[80px] max-h-[400px] resize-none bg-transparent p-4 text-lg outline-none placeholder:text-muted-foreground/60 leading-relaxed"
           rows={1}
         />
 
-        <div className="flex items-center justify-between border-t pt-3">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setIsDeepSearch(!isDeepSearch)}
-              className={cn(
-                "flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                isDeepSearch
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80",
-              )}
-            >
-              <Sparkles className="h-3 w-3" />
-              Deep Research
-            </button>
-          </div>
+        <div className="flex items-center justify-between px-2 pb-2">
+          <button
+            type="button"
+            onClick={() => setIsDeepSearch(!isDeepSearch)}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition-all hover:scale-105 active:scale-95",
+              isDeepSearch
+                ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted border border-transparent",
+            )}
+          >
+            <Sparkles
+              className={cn("h-4 w-4", isDeepSearch && "animate-pulse")}
+            />
+            Deep Research
+          </button>
 
           <button
             type="submit"
             disabled={!query.trim()}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50"
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:scale-110 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100"
           >
-            <Search className="h-5 w-5" />
+            <Search className="h-6 w-6" />
           </button>
         </div>
       </form>
