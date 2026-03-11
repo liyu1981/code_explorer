@@ -99,6 +99,13 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/saved_reports/{id}", h.handleGetSavedReport)
 	mux.HandleFunc("POST /api/saved_reports", h.handleSaveSavedReport)
 	mux.HandleFunc("DELETE /api/saved_reports/{id}", h.handleDeleteSavedReport)
+
+	// Knowledge Base
+	mux.HandleFunc("GET /api/knowledge", h.handleListKnowledgePages)
+	mux.HandleFunc("GET /api/knowledge/get", h.handleGetKnowledgePage)
+	mux.HandleFunc("POST /api/knowledge", h.handleCreateKnowledgePage)
+	mux.HandleFunc("PUT /api/knowledge", h.handleUpdateKnowledgePage)
+	mux.HandleFunc("DELETE /api/knowledge", h.handleDeleteKnowledgePage)
 }
 
 // handleHealth returns the health status of the API
