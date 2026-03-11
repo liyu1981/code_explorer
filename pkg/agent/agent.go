@@ -10,17 +10,23 @@ import (
 )
 
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
 }
 
 type ToolCall struct {
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	Input    json.RawMessage `json:"input"`
-	Output   string          `json:"output,omitempty"`
-	Error    string          `json:"error,omitempty"`
-	Finished bool            `json:"finished"`
+	ID       string           `json:"id"`
+	Type     string           `json:"type,omitempty"`
+	Function ToolCallFunction `json:"function"`
+	Name     string           `json:"-"` // For internal use
+	Input    json.RawMessage  `json:"-"` // For internal use
+}
+
+type ToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 type ToolResult struct {
@@ -124,6 +130,17 @@ func NewAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
 	return a
 }
 
+func (a *Agent) SetSystemPrompt(prompt string) {
+	// If the first message is a system prompt, update it
+	if len(a.messages) > 0 && a.messages[0].Role == "system" {
+		a.messages[0].Content = prompt
+	} else {
+		// Otherwise, prepend it
+		newMsgs := append([]Message{{Role: "system", Content: prompt}}, a.messages...)
+		a.messages = newMsgs
+	}
+}
+
 func (a *Agent) Run(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter) (string, error) {
 	log.Info().Str("input", input).Str("turn", turnID).Msg("Agent starting run")
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
@@ -158,7 +175,11 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 		}
 
 		log.Debug().Int("tool_calls", len(toolCalls)).Msg("LLM response received")
-		a.messages = append(a.messages, Message{Role: "assistant", Content: response})
+		a.messages = append(a.messages, Message{
+			Role:      "assistant",
+			Content:   response,
+			ToolCalls: toolCalls,
+		})
 
 		if len(toolCalls) == 0 {
 			log.Info().Msg("Agent finished without tool calls")
@@ -179,8 +200,9 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 			if !ok {
 				msg := fmt.Sprintf("Error: tool %s not found", tc.Name)
 				a.messages = append(a.messages, Message{
-					Role:    "tool",
-					Content: msg,
+					Role:       "tool",
+					Content:    msg,
+					ToolCallID: tc.ID,
 				})
 				if stream != nil {
 					stream.SendToolResponse(tc.Name, msg)
@@ -192,8 +214,9 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 			if len(tc.Input) == 0 {
 				msg := "Error: tool was called without any arguments."
 				a.messages = append(a.messages, Message{
-					Role:    "tool",
-					Content: msg,
+					Role:       "tool",
+					Content:    msg,
+					ToolCallID: tc.ID,
 				})
 				if stream != nil {
 					stream.SendToolResponse(tc.Name, msg)
@@ -206,8 +229,9 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 			if err != nil {
 				log.Error().Err(err).Str("tool", tc.Name).Msg("Tool execution failed")
 				a.messages = append(a.messages, Message{
-					Role:    "tool",
-					Content: err.Error(),
+					Role:       "tool",
+					Content:    err.Error(),
+					ToolCallID: tc.ID,
 				})
 				if stream != nil {
 					stream.SendToolResponse(tc.Name, err.Error())
@@ -215,8 +239,9 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 			} else {
 				log.Debug().Str("tool", tc.Name).Str("output", output).Msg("Tool execution successful")
 				a.messages = append(a.messages, Message{
-					Role:    "tool",
-					Content: output,
+					Role:       "tool",
+					Content:    output,
+					ToolCallID: tc.ID,
 				})
 				if stream != nil {
 					// Try to parse output as JSON to send structured response

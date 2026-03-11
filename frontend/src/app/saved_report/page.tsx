@@ -1,5 +1,5 @@
 "use client";
-import { Bookmark, Folder, Loader2, Trash2, X } from "lucide-react";
+import { Bookmark, Loader2, Trash2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import { useAtom } from "jotai";
@@ -9,6 +9,8 @@ import { API_URL, api, fetcher } from "@/lib/api";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import { Markdown } from "../_components/markdown";
+import { LoadingState } from "../_components/loading-state";
+import { ErrorState } from "../_components/error-state";
 import { activeSavedReportsAtom } from "../_jotai/ui-store";
 
 interface SavedReport {
@@ -74,9 +76,7 @@ function SavedReportContent() {
   if (isLoading) {
     return (
       <AppContainer>
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-        </div>
+        <LoadingState className="flex-1" />
       </AppContainer>
     );
   }
@@ -84,14 +84,19 @@ function SavedReportContent() {
   if (error || !report) {
     return (
       <AppContainer>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-destructive font-bold">Failed to load snapshot.</p>
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
-          >
-            Go Back
-          </button>
+        <div className="flex-1 p-6">
+          <ErrorState
+            title="Failed to load snapshot"
+            message="The snapshot may have been deleted or moved."
+          />
+          <div className="flex justify-center mt-6">
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 bg-muted rounded-lg hover:bg-muted/80 transition-colors font-bold"
+            >
+              Go Back
+            </button>
+          </div>
         </div>
       </AppContainer>
     );
@@ -158,7 +163,13 @@ function SavedReportContent() {
 
 export default function SavedReportPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense
+      fallback={
+        <AppContainer>
+          <LoadingState className="flex-1" />
+        </AppContainer>
+      }
+    >
       <SavedReportContent />
     </Suspense>
   );

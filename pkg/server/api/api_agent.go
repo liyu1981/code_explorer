@@ -129,21 +129,9 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
 
-	// Load agent config from system config, env or default
-	llmCfg := getSystemLLMConfig()
-
-	log.Info().
-		Str("type", fmt.Sprintf("%v", llmCfg["type"])).
-		Str("model", fmt.Sprintf("%v", llmCfg["model"])).
-		Str("endpoint", fmt.Sprintf("%v", llmCfg["endpoint"])).
-		Msg("Agent LLM config")
-
-	agentConfig := &agent.Config{
-		LLM:           llmCfg,
+	ag, err := h.agentFactory.BuildFromConfig(&agent.Config{
 		MaxIterations: 10,
-	}
-
-	ag, err := h.agentFactory.BuildFromConfig(agentConfig)
+	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to build agent")
 		writeError(w, http.StatusInternalServerError, "Failed to build agent", err)
@@ -204,14 +192,14 @@ func getSystemLLMConfig() map[string]any {
 	} else {
 		llmCfg["type"] = "openai"
 		llmCfg["model"] = os.Getenv("LLM_MODEL")
-		llmCfg["endpoint"] = os.Getenv("LLM_ENDPOINT")
+		llmCfg["base_url"] = os.Getenv("LLM_BASE_URL")
 	}
 
 	if llmCfg["model"] == nil || llmCfg["model"] == "" {
 		llmCfg["model"] = "gpt-4o"
 	}
-	if llmCfg["endpoint"] == nil || llmCfg["endpoint"] == "" {
-		llmCfg["endpoint"] = "https://api.openai.com/v1/chat/completions"
+	if llmCfg["base_url"] == nil || llmCfg["base_url"] == "" {
+		llmCfg["base_url"] = "https://api.openai.com/v1"
 	}
 	if llmCfg["type"] == nil || llmCfg["type"] == "" {
 		llmCfg["type"] = "openai"
@@ -350,13 +338,13 @@ func (h *ApiHandler) handleSummarizeSession(w http.ResponseWriter, r *http.Reque
 	// Use LLM to summarize
 	llmCfg := getSystemLLMConfig()
 	model := llmCfg["model"].(string)
-	endpoint := llmCfg["endpoint"].(string)
+	baseURL := llmCfg["base_url"].(string)
 	apiKey := ""
 	if v, ok := llmCfg["api_key"].(string); ok {
 		apiKey = v
 	}
 
-	llm := agent.NewHTTPClientLLM(model, endpoint, apiKey)
+	llm := agent.NewHTTPClientLLM(model, baseURL, apiKey)
 	prompt := fmt.Sprintf("Based on the following research query and partial report, generate a concise title (strictly maximum 5 words).\n\nQuery: %s\n\nReport: %s", firstQuery, firstReport)
 	title, _, err := llm.Generate(r.Context(), []agent.Message{{Role: "user", Content: prompt}}, nil)
 	if err != nil {

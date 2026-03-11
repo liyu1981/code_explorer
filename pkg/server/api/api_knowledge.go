@@ -10,92 +10,121 @@ import (
 func (h *ApiHandler) handleListKnowledgePages(w http.ResponseWriter, r *http.Request) {
 	codebaseID := r.URL.Query().Get("codebase_id")
 	if codebaseID == "" {
-		http.Error(w, "codebase_id is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "codebase_id is required", nil)
 		return
 	}
 
 	pages, err := h.index.GetStore().ListKnowledgePages(r.Context(), codebaseID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "failed to list knowledge pages", err)
 		return
 	}
 
-	json.NewEncoder(w).Encode(pages)
+	writeJSON(w, http.StatusOK, pages)
 }
 
 func (h *ApiHandler) handleGetKnowledgePage(w http.ResponseWriter, r *http.Request) {
 	codebaseID := r.URL.Query().Get("codebase_id")
 	slug := r.URL.Query().Get("slug")
 	if codebaseID == "" || slug == "" {
-		http.Error(w, "codebase_id and slug are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "codebase_id and slug are required", nil)
 		return
 	}
 
 	page, err := h.index.GetStore().GetKnowledgePageBySlug(r.Context(), codebaseID, slug)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "failed to get knowledge page", err)
 		return
 	}
 	if page == nil {
-		http.Error(w, "page not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "page not found", nil)
 		return
 	}
 
-	json.NewEncoder(w).Encode(page)
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (h *ApiHandler) handleCreateKnowledgePage(w http.ResponseWriter, r *http.Request) {
 	var page db.KnowledgePage
 	if err := json.NewDecoder(r.Body).Decode(&page); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	if page.CodebaseID == "" || page.Slug == "" || page.Title == "" || page.Content == "" {
-		http.Error(w, "codebase_id, slug, title, and content are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "codebase_id, slug, title, and content are required", nil)
 		return
 	}
 
 	if err := h.index.GetStore().CreateKnowledgePage(r.Context(), &page); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "failed to create knowledge page", err)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(page)
+	writeJSON(w, http.StatusCreated, page)
 }
 
 func (h *ApiHandler) handleUpdateKnowledgePage(w http.ResponseWriter, r *http.Request) {
 	var page db.KnowledgePage
 	if err := json.NewDecoder(r.Body).Decode(&page); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	if page.ID == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "id is required", nil)
 		return
 	}
 
 	if err := h.index.GetStore().UpdateKnowledgePage(r.Context(), &page); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "failed to update knowledge page", err)
 		return
 	}
 
-	json.NewEncoder(w).Encode(page)
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (h *ApiHandler) handleDeleteKnowledgePage(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "id is required", nil)
 		return
 	}
 
 	if err := h.index.GetStore().DeleteKnowledgePage(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "failed to delete knowledge page", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ApiHandler) handleBuildKnowledge(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		CodebaseID string `json:"codebaseId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	if payload.CodebaseID == "" {
+		writeError(w, http.StatusBadRequest, "codebaseId is required", nil)
+		return
+	}
+
+	// Submit task
+	payloadMap := map[string]any{
+		"codebaseId": payload.CodebaseID,
+	}
+
+	taskID, err := h.taskManager.Submit(r.Context(), "knowledge-build", payloadMap, 3)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to submit knowledge build task", err)
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"taskId": taskID,
+	})
 }

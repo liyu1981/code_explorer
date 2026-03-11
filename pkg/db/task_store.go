@@ -95,13 +95,13 @@ func (s *Store) UpdateTaskProgress(ctx context.Context, id string, progress int,
 	return err
 }
 
-func (s *Store) MarkTaskCompleted(ctx context.Context, id string) error {
+func (s *Store) MarkTaskCompleted(ctx context.Context, id string, message string) error {
 	if err := s.reconnect(); err != nil {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE tasks SET status = ?, progress = 100, updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP WHERE id = ?
-	`, TaskStatusCompleted, id)
+		UPDATE tasks SET status = ?, progress = 100, message = ?, updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP WHERE id = ?
+	`, TaskStatusCompleted, message, id)
 	return err
 }
 
@@ -172,4 +172,26 @@ func (s *Store) GetTasks(ctx context.Context, limit, offset int) ([]Task, int, e
 	var total int
 	err = s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tasks").Scan(&total)
 	return tasks, total, err
+}
+
+func (s *Store) GetTask(ctx context.Context, id string) (*Task, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	var t Task
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at
+		FROM tasks
+		WHERE id = ?
+	`, id).Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &t, nil
 }

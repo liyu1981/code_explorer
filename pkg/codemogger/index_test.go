@@ -1,6 +1,3 @@
-//go:build libsql
-// +build libsql
-
 package codemogger
 
 import (

@@ -5,3 +5,4 @@
 - do not use `interface{}` in golang, just use `any`
 - no autoincrement integer as id primary key.
 - Use Go version 1.25 and Node version 24.
+- Do not use `fetch`, use `api.ts`

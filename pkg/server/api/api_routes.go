@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"flag"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/agent/tools"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/prompt"
 	"github.com/liyu1981/code_explorer/pkg/task"
-	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
 // ApiHandler represents the API handler
@@ -30,10 +32,24 @@ type ApiConfig struct {
 
 // NewHandler creates a new API handler instance
 func NewHandler(config *ApiConfig) *ApiHandler {
-	factory := agent.NewAgentFactory()
+	var store *db.Store
 	if config.Index != nil {
-		factory.RegisterTool(tools.NewListFilesTool(config.Index))
-		factory.RegisterTool(tools.NewSearchTool(config.Index))
+		store = config.Index.GetStore()
+	}
+
+	factory := agent.NewAgentFactory(store, getSystemLLMConfig())
+	if config.Index != nil {
+		// Root-based discovery tools
+		// We can't easily get the root path here without a specific codebase,
+		// but the tool can be registered if it's dynamic or we register them per-task.
+		// For now, let's register the ones that don't need rootPath in constructor
+		// or will get it from the task context.
+		factory.RegisterTool(agent.NewListFilesTool(config.Index))
+		factory.RegisterTool(agent.NewSearchTool(config.Index))
+		factory.RegisterTool(tools.NewQueueTaskTool(store))
+		factory.RegisterTool(tools.NewPollTasksTool(store))
+		factory.RegisterTool(tools.NewReadTaskOutputTool(store))
+		factory.RegisterTool(tools.NewSaveKnowledgeTool(store))
 	}
 
 	h := &ApiHandler{
@@ -43,13 +59,22 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 	}
 
 	if config.Index != nil {
-		h.taskManager = task.NewManager(config.Index.GetStore(), runtime.NumCPU()-1, h.Publish)
-		h.registerQueueHandlers()
-		isDev := util.IsDev()
-		// In tests, use only 1 worker to reduce contention
+		prompt.SyncBuiltinSkills(context.Background(), store)
+
+		numWorkers := runtime.NumCPU() - 1
+		isDev := false
+		// In tests or dev mode, use fewer workers
 		if flag.Lookup("test.v") != nil {
 			isDev = true
+			numWorkers = 1
+		} else if os.Getenv("APP_ENV") == "development" {
+			isDev = true
+			numWorkers = 2
 		}
+
+		h.taskManager = task.NewManager(store, numWorkers, h.Publish)
+		h.registerQueueHandlers()
+
 		h.taskManager.StartWorkers(context.Background(), isDev)
 	}
 
@@ -65,7 +90,21 @@ func (h *ApiHandler) Stop() {
 }
 
 func (h *ApiHandler) registerQueueHandlers() {
-	h.taskManager.RegisterHandler("codemogger-index", h.index.HandleIndexTask)
+	h.taskManager.RegisterHandler("codemogger-index", h.handleIndexTask)
+	h.taskManager.RegisterHandler("knowledge-build", h.handleKnowledgeBuildTask)
+	h.taskManager.RegisterHandler("wiki-analyze", h.handleWikiAnalyzeTask)
+}
+
+func (h *ApiHandler) handleIndexTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
+	return h.index.HandleIndexTask(ctx, task, updateProgress)
+}
+
+func (h *ApiHandler) handleKnowledgeBuildTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
+	return agent.HandleKnowledgeBuildTask(ctx, h.index, task, h.taskManager, h.agentFactory, updateProgress)
+}
+
+func (h *ApiHandler) handleWikiAnalyzeTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
+	return agent.HandleKnowledgeWikiAnalyzeTask(ctx, h.index, task, h.agentFactory, updateProgress)
 }
 
 // RegisterRoutes configures all API routes on the provided mux
@@ -119,6 +158,13 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/knowledge", h.handleCreateKnowledgePage)
 	mux.HandleFunc("PUT /api/knowledge", h.handleUpdateKnowledgePage)
 	mux.HandleFunc("DELETE /api/knowledge", h.handleDeleteKnowledgePage)
+	mux.HandleFunc("POST /api/knowledge/build", h.handleBuildKnowledge)
+
+	// Skills
+	mux.HandleFunc("GET /api/skills", h.handleListSkills)
+	mux.HandleFunc("GET /api/skills/get", h.handleGetSkill)
+	mux.HandleFunc("PUT /api/skills", h.handleUpdateSkill)
+	mux.HandleFunc("POST /api/skills/reset", h.handleResetSkill)
 }
 
 // handleHealth returns the health status of the API

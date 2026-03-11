@@ -36,14 +36,8 @@ func NewCodeIndex(dbPath string) (*CodeIndex, error) {
 		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
 			embCfg.Type = t
 		}
-		if ep, ok := cfg.System.LLM["endpoint"].(string); ok && ep != "" {
-			apiBase := ep
-			if i := 38; len(ep) > i && ep[len(ep)-i:] == "/v1/chat/completions" {
-				apiBase = ep[:len(ep)-i+3]
-			} else if i := 17; len(ep) > i && ep[len(ep)-i:] == "/chat/completions" {
-				apiBase = ep[:len(ep)-i]
-			}
-			embCfg.OpenAI.APIBase = apiBase
+		if ep, ok := cfg.System.LLM["base_url"].(string); ok && ep != "" {
+			embCfg.OpenAI.APIBase = ep
 		}
 		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
 			embCfg.OpenAI.APIKey = key
@@ -469,14 +463,8 @@ func (c *CodeIndex) ReloadConfig() error {
 		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
 			embCfg.Type = t
 		}
-		if ep, ok := cfg.System.LLM["endpoint"].(string); ok && ep != "" {
-			apiBase := ep
-			if i := 38; len(ep) > i && ep[len(ep)-i:] == "/v1/chat/completions" {
-				apiBase = ep[:len(ep)-i+3]
-			} else if i := 17; len(ep) > i && ep[len(ep)-i:] == "/chat/completions" {
-				apiBase = ep[:len(ep)-i]
-			}
-			embCfg.OpenAI.APIBase = apiBase
+		if ep, ok := cfg.System.LLM["base_url"].(string); ok && ep != "" {
+			embCfg.OpenAI.APIBase = ep
 		}
 		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
 			embCfg.OpenAI.APIKey = key

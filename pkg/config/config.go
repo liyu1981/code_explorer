@@ -180,7 +180,7 @@ func DefaultConfig() *Config {
 			LLM: map[string]any{
 				"type":     "openai",
 				"model":    "gpt-4o",
-				"endpoint": "https://api.openai.com/v1/chat/completions",
+				"base_url": "https://api.openai.com/v1",
 			},
 			MaxTaskRetentionDays: 180,
 		},

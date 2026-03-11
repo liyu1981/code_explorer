@@ -1,6 +1,3 @@
-//go:build libsql
-// +build libsql
-
 package db
 
 import (
@@ -55,7 +52,7 @@ func TestTaskStore(t *testing.T) {
 	}
 
 	// Test Mark Completed
-	if err := store.MarkTaskCompleted(ctx, taskID); err != nil {
+	if err := store.MarkTaskCompleted(ctx, taskID, "Done"); err != nil {
 		t.Fatalf("mark completed: %v", err)
 	}
 	tasks, _, _ = store.GetTasks(ctx, 1, 0)

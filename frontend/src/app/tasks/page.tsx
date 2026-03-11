@@ -1,20 +1,17 @@
 "use client";
 
-import { useAtom } from "jotai";
-import {
-  Activity,
-  CheckCircle2,
-  Clock,
-  Loader2,
-  AlertCircle,
-  PlayCircle,
-} from "lucide-react";
+import { Activity, CheckCircle2, Clock, Loader2, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import { API_URL, fetcher } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
+import { LoadingState } from "../_components/loading-state";
+import { ErrorState } from "../_components/error-state";
+import { EmptyState } from "../_components/empty-state";
+import { Pagination } from "../_components/pagination";
+import { TaskTable } from "./_components/task-table";
+import { TaskDetailDialog } from "./_components/task-detail-dialog";
 
 interface Task {
   id: string;
@@ -32,12 +29,13 @@ interface Task {
 
 export default function TasksPage() {
   const [page, setPage] = useState(1);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const pageSize = 10;
 
-  const { data, error, isLoading, mutate } = useSWR(
+  const { data, error, isLoading } = useSWR(
     `${API_URL}/api/tasks?page=${page}&pageSize=${pageSize}`,
     fetcher,
-    { refreshInterval: 2000 }, // Poll every 2 seconds
+    { refreshInterval: 2000 },
   );
 
   const tasks = data?.tasks as Task[];
@@ -90,146 +88,42 @@ export default function TasksPage() {
           </div>
 
           {isLoading && !tasks ? (
-            <div className="flex items-center justify-center py-24">
-              <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-            </div>
+            <LoadingState />
           ) : error ? (
-            <div className="text-center py-24 text-destructive bg-destructive/5 rounded-2xl border border-destructive/20">
-              <AlertCircle className="h-8 w-8 mx-auto mb-4 opacity-50" />
-              <p className="font-semibold">Failed to load tasks</p>
-              <p className="text-sm opacity-70">
-                Please check your connection and try again.
-              </p>
-            </div>
+            <ErrorState title="Failed to load tasks" />
           ) : !tasks || tasks.length === 0 ? (
-            <div className="text-center py-24 bg-muted/20 rounded-3xl border border-dashed border-border">
-              <Activity className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
-              <p className="text-muted-foreground font-medium">
-                No tasks found.
-              </p>
-              <p className="text-sm text-muted-foreground/60">
-                New tasks will appear here when started.
-              </p>
-            </div>
+            <EmptyState
+              icon={<Activity className="h-12 w-12" />}
+              title="No tasks found."
+              description="New tasks will appear here when started."
+            />
           ) : (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-muted/30 border-b border-border">
-                      <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                        Task
-                      </th>
-                      <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                        Progress
-                      </th>
-                      <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                        Message
-                      </th>
-                      <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                        Created
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {tasks.map((task) => (
-                      <tr
-                        key={task.id}
-                        className="hover:bg-muted/10 transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-bold text-foreground capitalize">
-                              {task.name.replace(/-/g, " ")}
-                            </span>
-                            <span className="text-[10px] font-mono text-muted-foreground">
-                              {task.id}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div
-                            className={cn(
-                              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border",
-                              getStatusClass(task.status),
-                            )}
-                          >
-                            {getStatusIcon(task.status)}
-                            {task.status}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="w-32 flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between text-[10px] font-mono">
-                              <span>{task.progress}%</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                              <div
-                                className={cn(
-                                  "h-full transition-all duration-500",
-                                  task.status === "failed"
-                                    ? "bg-destructive"
-                                    : "bg-primary",
-                                )}
-                                style={{ width: `${task.progress}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="max-w-xs">
-                            <p className="text-xs text-foreground line-clamp-2">
-                              {(task.message?.Valid && task.message.String) ||
-                                "No message"}
-                            </p>
-                            {task.status === "failed" && task.error?.Valid && (
-                              <p className="text-[10px] text-destructive mt-1 font-mono line-clamp-1">
-                                {task.error.String}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-muted-foreground font-mono">
-                          {new Date(task.created_at).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {totalPages > 1 && (
-                <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground font-medium">
-                    Page {page} of {totalPages} ({total} tasks)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={page === 1}
-                      onClick={() => setPage((p) => p - 1)}
-                      className="px-4 py-1.5 rounded-lg border border-border bg-background text-sm font-bold disabled:opacity-50 hover:bg-muted transition-all active:scale-95"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      disabled={page === totalPages}
-                      onClick={() => setPage((p) => p + 1)}
-                      className="px-4 py-1.5 rounded-lg border border-border bg-background text-sm font-bold disabled:opacity-50 hover:bg-muted transition-all active:scale-95"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <>
+              <TaskTable
+                tasks={tasks}
+                onTaskClick={setSelectedTask}
+                getStatusIcon={getStatusIcon}
+                getStatusClass={getStatusClass}
+              />
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                totalItems={total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                itemName="tasks"
+              />
+            </>
           )}
         </div>
       </div>
+
+      <TaskDetailDialog
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        getStatusIcon={getStatusIcon}
+        getStatusClass={getStatusClass}
+      />
     </AppContainer>
   );
 }

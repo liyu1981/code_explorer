@@ -162,9 +162,11 @@ func (m *Manager) runTask(task *db.Task) {
 
 	lastNotifyTime := time.Now()
 	lastProgress := task.Progress
+	lastMessage := ""
 
 	updateProgress := func(progress int, message string) {
 		now := time.Now()
+		lastMessage = message
 		// Throttling: only update DB and Notify if progress changed or enough time passed
 		if progress != lastProgress || now.Sub(lastNotifyTime) > 500*time.Millisecond {
 			m.store.UpdateTaskProgress(context.Background(), task.ID, progress, message)
@@ -189,7 +191,7 @@ func (m *Manager) runTask(task *db.Task) {
 	}
 
 	log.Printf("Task %s (%s) completed", task.Name, task.ID)
-	m.store.MarkTaskCompleted(context.Background(), task.ID)
+	m.store.MarkTaskCompleted(context.Background(), task.ID, lastMessage)
 	m.notifyTaskUpdate(task.ID, task.Name, db.TaskStatusCompleted, 100, "Task completed", time.Now())
 }
 
@@ -207,4 +209,8 @@ func (m *Manager) notifyTaskUpdate(id, name string, status db.TaskStatus, progre
 		"timestamp": timestamp.UnixMilli(),
 	}
 	m.publishFn("tasks", payload)
+}
+
+func (m *Manager) GetTask(ctx context.Context, id string) (*db.Task, error) {
+	return m.store.GetTask(ctx, id)
 }

@@ -4,6 +4,7 @@ import {
   History,
   Bookmark,
   Activity,
+  Bot,
 } from "lucide-react";
 
 export const navTitle = "Code Explorer";
@@ -22,6 +23,13 @@ export const navItems: NavItem[] = [
     label: "New Research",
     path: "/new",
     icon: PlusCircle,
+  },
+  {
+    id: "skills",
+    label: "Agent Skills",
+    path: "/skills",
+    icon: Bot,
+    position: "bottom",
   },
   {
     id: "tasks",

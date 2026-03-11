@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/rs/zerolog/log"
 )
 
 type PipelineStepFunc func(ctx context.Context, input string) (string, error)
@@ -82,15 +84,15 @@ func (s *RouterStep) Execute(ctx context.Context, input string) (string, error) 
 
 type HTTPClientLLM struct {
 	model      string
-	endpoint   string
+	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
-func NewHTTPClientLLM(model, endpoint, apiKey string) *HTTPClientLLM {
+func NewHTTPClientLLM(model, baseURL, apiKey string) *HTTPClientLLM {
 	return &HTTPClientLLM{
 		model:      model,
-		endpoint:   endpoint,
+		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: &http.Client{},
 	}
@@ -114,13 +116,22 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 		return "", nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", l.endpoint, strings.NewReader(string(body)))
+	fullURL := strings.TrimSuffix(l.baseURL, "/") + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, bytes.NewReader(body))
 	if err != nil {
 		return "", nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if l.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+l.apiKey)
+	}
+
+	{
+		var v any
+		if err := json.Unmarshal(body, &v); err != nil {
+			log.Debug().Err(err).Msg("body object decode failed:")
+		}
+		log.Debug().Interface("body", v).Msg("body decoded:")
 	}
 
 	resp, err := l.httpClient.Do(req)
@@ -159,11 +170,17 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 							continue
 						}
 						id, _ := tcMap["id"].(string)
-						funcName, _ := tcMap["function"].(map[string]any)
-						name, _ := funcName["name"].(string)
-						args, _ := funcName["arguments"].(string)
+						tType, _ := tcMap["type"].(string)
+						funcMap, _ := tcMap["function"].(map[string]any)
+						name, _ := funcMap["name"].(string)
+						args, _ := funcMap["arguments"].(string)
 						toolCalls = append(toolCalls, ToolCall{
-							ID:    id,
+							ID:   id,
+							Type: tType,
+							Function: ToolCallFunction{
+								Name:      name,
+								Arguments: args,
+							},
 							Name:  name,
 							Input: json.RawMessage(args),
 						})
@@ -191,7 +208,8 @@ func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, 
 		return "", nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", l.endpoint, strings.NewReader(string(body)))
+	fullURL := strings.TrimSuffix(l.baseURL, "/") + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, bytes.NewReader(body))
 	if err != nil {
 		return "", nil, err
 	}
@@ -236,6 +254,7 @@ func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, 
 					ToolCalls []struct {
 						Index    int    `json:"index"`
 						ID       string `json:"id"`
+						Type     string `json:"type"`
 						Function struct {
 							Name      string `json:"name"`
 							Arguments string `json:"arguments"`
@@ -262,10 +281,15 @@ func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, 
 				if _, ok := toolCallsMap[tc.Index]; !ok {
 					toolCallsMap[tc.Index] = &ToolCall{
 						ID:   tc.ID,
-						Name: tc.Function.Name,
+						Type: tc.Type,
 					}
 				}
+				if tc.Function.Name != "" {
+					toolCallsMap[tc.Index].Function.Name = tc.Function.Name
+					toolCallsMap[tc.Index].Name = tc.Function.Name
+				}
 				if tc.Function.Arguments != "" {
+					toolCallsMap[tc.Index].Function.Arguments += tc.Function.Arguments
 					toolCallsMap[tc.Index].Input = append(toolCallsMap[tc.Index].Input, []byte(tc.Function.Arguments)...)
 				}
 			}
@@ -362,15 +386,15 @@ func NewBaseTool(name, description string, fn func(ctx context.Context, input js
 }
 
 type EnvConfig struct {
-	apiKey   string
-	endpoint string
-	model    string
+	apiKey  string
+	baseURL string
+	model   string
 }
 
 func LoadEnvConfig() EnvConfig {
 	return EnvConfig{
-		apiKey:   os.Getenv("LLM_API_KEY"),
-		endpoint: os.Getenv("LLM_ENDPOINT"),
-		model:    os.Getenv("LLM_MODEL"),
+		apiKey:  os.Getenv("LLM_API_KEY"),
+		baseURL: os.Getenv("LLM_BASE_URL"),
+		model:   os.Getenv("LLM_MODEL"),
 	}
 }

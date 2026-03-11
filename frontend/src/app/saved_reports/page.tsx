@@ -1,21 +1,18 @@
 "use client";
 
-import {
-  Bookmark,
-  ExternalLink,
-  Folder,
-  Loader2,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { Bookmark, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
 import { API_URL, api, fetcher } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
+import { LoadingState } from "../_components/loading-state";
+import { ErrorState } from "../_components/error-state";
+import { EmptyState } from "../_components/empty-state";
+import { Pagination } from "../_components/pagination";
+import { ReportsTable } from "./_components/reports-table";
 
 interface SavedReport {
   id: string;
@@ -93,114 +90,30 @@ export default function SavedReportsPage() {
           </div>
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-24">
-              <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-            </div>
+            <LoadingState />
           ) : error ? (
-            <div className="text-center py-24 text-destructive">
-              Failed to load saved reports.
-            </div>
-          ) : reports?.length === 0 ? (
-            <div className="text-center py-24 bg-muted/20 rounded-3xl border border-dashed border-border">
-              <Bookmark className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
-              <p className="text-muted-foreground">No saved reports found.</p>
-            </div>
+            <ErrorState title="Failed to load saved reports" />
+          ) : !reports || reports.length === 0 ? (
+            <EmptyState
+              icon={<Bookmark className="h-12 w-12" />}
+              title="No saved reports found."
+            />
           ) : (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-muted/30 border-b border-border">
-                    <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Report Snapshot
-                    </th>
-                    <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Codebase
-                    </th>
-                    <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Saved At
-                    </th>
-                    <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {reports.map((report) => (
-                    <tr
-                      key={report.id}
-                      className="hover:bg-muted/10 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1 max-w-md">
-                          <span className="font-bold text-foreground truncate">
-                            {report.query}
-                          </span>
-                          <span className="text-xs text-muted-foreground truncate italic">
-                            Part of: {report.title}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <Folder className="h-3.5 w-3.5" />
-                          <span>{report.codebaseName}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground font-mono">
-                        {new Date(report.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpen(report.id)}
-                            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                            title="Open Snapshot"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(report.id)}
-                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {totalPages > 1 && (
-                <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Showing {(page - 1) * pageSize + 1} to{" "}
-                    {Math.min(page * pageSize, total)} of {total} snapshots
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={page === 1}
-                      onClick={() => setPage((p) => p - 1)}
-                      className="px-4 py-1.5 rounded-lg border border-border bg-background text-sm font-medium disabled:opacity-50 hover:bg-muted transition-colors"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      disabled={page === totalPages}
-                      onClick={() => setPage((p) => p + 1)}
-                      className="px-4 py-1.5 rounded-lg border border-border bg-background text-sm font-medium disabled:opacity-50 hover:bg-muted transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <>
+              <ReportsTable
+                reports={reports}
+                onOpen={handleOpen}
+                onDelete={handleDelete}
+              />
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                totalItems={total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                itemName="snapshots"
+              />
+            </>
           )}
         </div>
       </div>

@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"sync"
 
@@ -126,6 +127,13 @@ func (s *Store) reconnect() error {
 	if err != nil {
 		return err
 	}
+
+	// Enable WAL mode for better concurrency
+	if _, err := db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
+		db.Close()
+		return fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
 	s.db = db
 	return db.Ping()
 }

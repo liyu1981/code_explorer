@@ -14,6 +14,7 @@ import {
   Tag,
   GitBranch,
   History,
+  Brain,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -122,6 +123,7 @@ function CodebaseItem({
   sessions,
   indexingPath,
   handleCreateIndex,
+  handleBuildKnowledge,
   handleNewResearch,
   handleContinueResearch,
 }: {
@@ -129,6 +131,7 @@ function CodebaseItem({
   sessions: any[];
   indexingPath: string | null;
   handleCreateIndex: (path: string) => void;
+  handleBuildKnowledge: (cb: Codebase) => void;
   handleNewResearch: (cb: Codebase) => void;
   handleContinueResearch: (cb: Codebase, sessions: any[]) => void;
 }) {
@@ -206,6 +209,15 @@ function CodebaseItem({
               indexingPath === cb.rootPath && "animate-spin",
             )}
           />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleBuildKnowledge(cb)}
+          className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all"
+          title="Initialize Knowledge"
+        >
+          <Brain className="h-5 w-5" />
         </button>
 
         {sessions.length > 0 && (
@@ -339,6 +351,18 @@ export function CodebaseList() {
       router.push(`/research?id=${newSession.id}`);
     } catch (e) {
       console.error("Failed to save new session", e);
+    }
+  };
+
+  const handleBuildKnowledge = async (cb: Codebase) => {
+    try {
+      await api.post("/api/knowledge/build", { codebaseId: cb.id });
+      // You might want to show a toast here
+      alert(
+        `Knowledge build started for ${cb.name}. You can track it in the Tasks page.`,
+      );
+    } catch (e) {
+      console.error("Failed to start knowledge build", e);
     }
   };
 
@@ -514,6 +538,7 @@ export function CodebaseList() {
             sessions={existingSessions[cb.id] || []}
             indexingPath={indexingPath}
             handleCreateIndex={handleCreateIndex}
+            handleBuildKnowledge={handleBuildKnowledge}
             handleNewResearch={handleNewResearch}
             handleContinueResearch={handleContinueResearch}
           />

@@ -1,20 +1,15 @@
 "use client";
 
-import { useAtom } from "jotai";
-import {
-  Save,
-  Loader2,
-  Settings,
-  Monitor,
-  Search,
-  Database,
-  ChevronRight,
-} from "lucide-react";
+import { Save, Loader2, Settings, Monitor, Search, Database } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
-import { cn } from "@/lib/utils";
+import { LoadingState } from "../_components/loading-state";
+import { SettingsTabs } from "./_components/settings-tabs";
+import { SystemSettings } from "./_components/system-settings";
+import { ResearchSettings } from "./_components/research-settings";
+import { CodeMoggerSettings } from "./_components/codemogger-settings";
 
 interface Config {
   system: {
@@ -42,18 +37,6 @@ interface Config {
     chunk_lines?: number;
   };
 }
-
-const DEFAULTS = {
-  llm_type: "openai",
-  llm_model: "gpt-4o",
-  llm_endpoint: "https://api.openai.com/v1/chat/completions",
-  max_task_retention_days: 180,
-  max_reports: 10,
-  max_reports_per_session: 50,
-  chunk_lines: 150,
-  embedder_type: "local",
-  embedder_model: "all-minilm:l6-v2",
-};
 
 type TabType = "system" | "research" | "codemogger";
 
@@ -104,13 +87,14 @@ export default function SettingsPage() {
     return (
       <AppContainer>
         <AppHeader>
-          <h1 className="text-xl font-bold tracking-tight text-primary">
-            Settings
-          </h1>
+          <div className="flex items-center gap-4">
+            <Settings className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-bold tracking-tight text-primary">
+              Settings
+            </h1>
+          </div>
         </AppHeader>
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <LoadingState className="h-full" />
       </AppContainer>
     );
   }
@@ -136,15 +120,6 @@ export default function SettingsPage() {
         description: "Embeddings, chunking, and semantic search configuration.",
       },
     ];
-
-  const DefaultBadge = ({ isDefault }: { isDefault: boolean }) => {
-    if (!isDefault) return null;
-    return (
-      <span className="ml-2 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold uppercase tracking-tighter">
-        Default
-      </span>
-    );
-  };
 
   return (
     <AppContainer>
@@ -173,46 +148,12 @@ export default function SettingsPage() {
       </AppHeader>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Tabs */}
-        <div className="w-80 border-r border-border/40 bg-muted/10 p-4 space-y-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "w-full text-left p-4 rounded-2xl transition-all group relative",
-                  isActive
-                    ? "bg-primary/10 text-primary shadow-sm"
-                    : "hover:bg-muted/50 text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon
-                    className={cn(
-                      "h-5 w-5",
-                      isActive ? "text-primary" : "text-muted-foreground/60",
-                    )}
-                  />
-                  <span className="font-bold tracking-tight">{tab.label}</span>
-                  {isActive && <ChevronRight className="h-4 w-4 ml-auto" />}
-                </div>
-                <p
-                  className={cn(
-                    "text-[11px] mt-1 font-medium leading-relaxed line-clamp-2",
-                    isActive ? "text-primary/60" : "text-muted-foreground/40",
-                  )}
-                >
-                  {tab.description}
-                </p>
-              </button>
-            );
-          })}
-        </div>
+        <SettingsTabs
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
 
-        {/* Content Area */}
         <div className="flex-1 overflow-auto bg-background/50">
           <form
             id="settings-form"
@@ -221,494 +162,28 @@ export default function SettingsPage() {
           >
             {message && (
               <div
-                className={cn(
-                  "p-4 rounded-2xl text-sm font-bold border animate-in fade-in slide-in-from-top-2",
+                className={`p-4 rounded-2xl text-sm font-bold border animate-in fade-in slide-in-from-top-2 ${
                   message.type === "success"
                     ? "bg-green-500/10 text-green-500 border-green-500/20"
-                    : "bg-destructive/10 text-destructive border-destructive/20",
-                )}
+                    : "bg-destructive/10 text-destructive border border-destructive/20"
+                }`}
               >
                 {message.text}
               </div>
             )}
 
-            {activeTab === "system" && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-bold tracking-tight">
-                    System & General LLM
-                  </h2>
-                  <p className="text-sm text-muted-foreground font-medium">
-                    Configure global paths and your primary reasoning provider.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-8">
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      Global Database Path
-                      <DefaultBadge
-                        isDefault={!!config?.system?.is_default_db}
-                      />
-                    </label>
-                    <input
-                      type="text"
-                      value={config?.system?.db_path || ""}
-                      readOnly
-                      className="w-full bg-muted/50 border border-border/60 rounded-2xl px-4 py-4 outline-none text-muted-foreground cursor-not-allowed font-mono text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      Task Retention (Days)
-                      <DefaultBadge
-                        isDefault={
-                          (config?.system?.max_task_retention_days ||
-                            DEFAULTS.max_task_retention_days) ===
-                          DEFAULTS.max_task_retention_days
-                        }
-                      />
-                    </label>
-                    <input
-                      type="number"
-                      value={
-                        config?.system?.max_task_retention_days ??
-                        DEFAULTS.max_task_retention_days
-                      }
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev!,
-                          system: {
-                            ...prev!.system,
-                            max_task_retention_days: Number.parseInt(
-                              e.target.value,
-                            ),
-                          },
-                        }))
-                      }
-                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                    />
-                    <p className="text-[11px] text-muted-foreground font-medium px-1">
-                      Number of days to keep background task history. Older
-                      tasks will be automatically purged.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                        Provider Type
-                        <DefaultBadge
-                          isDefault={
-                            (config?.system?.llm?.type || DEFAULTS.llm_type) ===
-                            DEFAULTS.llm_type
-                          }
-                        />
-                      </label>
-                      <select
-                        value={config?.system?.llm?.type || DEFAULTS.llm_type}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev!,
-                            system: {
-                              ...prev!.system,
-                              llm: {
-                                ...prev!.system.llm,
-                                type: e.target.value,
-                              },
-                            },
-                          }))
-                        }
-                        className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                      >
-                        <option value="openai">OpenAI (or Compatible)</option>
-                        <option value="ollama">Ollama</option>
-                      </select>
-                    </div>
-                    <div className="space-y-3">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                        Model Name
-                        <DefaultBadge
-                          isDefault={
-                            (config?.system?.llm?.model ||
-                              DEFAULTS.llm_model) === DEFAULTS.llm_model
-                          }
-                        />
-                      </label>
-                      <input
-                        type="text"
-                        value={config?.system?.llm?.model || ""}
-                        placeholder={DEFAULTS.llm_model}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev!,
-                            system: {
-                              ...prev!.system,
-                              llm: {
-                                ...prev!.system.llm,
-                                model: e.target.value,
-                              },
-                            },
-                          }))
-                        }
-                        className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      API Endpoint / Base URL
-                      <DefaultBadge
-                        isDefault={
-                          (config?.system?.llm?.endpoint ||
-                            DEFAULTS.llm_endpoint) === DEFAULTS.llm_endpoint
-                        }
-                      />
-                    </label>
-                    <input
-                      type="text"
-                      value={config?.system?.llm?.endpoint || ""}
-                      placeholder={DEFAULTS.llm_endpoint}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev!,
-                          system: {
-                            ...prev!.system,
-                            llm: {
-                              ...prev!.system.llm,
-                              endpoint: e.target.value,
-                            },
-                          },
-                        }))
-                      }
-                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      value={(config?.system?.llm?.api_key as string) || ""}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev!,
-                          system: {
-                            ...prev!.system,
-                            llm: {
-                              ...prev!.system.llm,
-                              api_key: e.target.value,
-                            },
-                          },
-                        }))
-                      }
-                      placeholder="Enter API key"
-                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "research" && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-bold tracking-tight">
-                    Research Settings
-                  </h2>
-                  <p className="text-sm text-muted-foreground font-medium">
-                    Control persistence and session retention policies.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-8">
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      Max Sessions per Codebase
-                      <DefaultBadge
-                        isDefault={
-                          (config?.research?.max_reports_per_codebase ||
-                            DEFAULTS.max_reports) === DEFAULTS.max_reports
-                        }
-                      />
-                    </label>
-                    <input
-                      type="number"
-                      value={
-                        config?.research?.max_reports_per_codebase ??
-                        DEFAULTS.max_reports
-                      }
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev!,
-                          research: {
-                            ...prev!.research,
-                            max_reports_per_codebase: Number.parseInt(
-                              e.target.value,
-                            ),
-                          },
-                        }))
-                      }
-                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                    />
-                    <p className="text-[11px] text-muted-foreground font-medium px-1">
-                      The total number of research sessions (active and
-                      archived) kept per codebase. Oldest sessions (prioritizing
-                      archived) will be automatically pruned when this limit is
-                      reached.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      Max Reports per Session
-                      <DefaultBadge
-                        isDefault={
-                          (config?.research?.max_reports_per_session ||
-                            DEFAULTS.max_reports_per_session) ===
-                          DEFAULTS.max_reports_per_session
-                        }
-                      />
-                    </label>
-                    <input
-                      type="number"
-                      value={
-                        config?.research?.max_reports_per_session ??
-                        DEFAULTS.max_reports_per_session
-                      }
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev!,
-                          research: {
-                            ...prev!.research,
-                            max_reports_per_session: Number.parseInt(
-                              e.target.value,
-                            ),
-                          },
-                        }))
-                      }
-                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                    />
-                    <p className="text-[11px] text-muted-foreground font-medium px-1">
-                      The maximum number of reports (turns) kept within a single
-                      research session. Oldest reports will be automatically
-                      pruned when this limit is reached.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "codemogger" && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-bold tracking-tight">
-                    Code Mogger & Embedder
-                  </h2>
-                  <p className="text-sm text-muted-foreground font-medium">
-                    Manage how code is indexed and semantically searched.
-                  </p>
-                </div>
-
-                <div className="space-y-8">
-                  <div className="flex items-center gap-4 bg-primary/5 p-6 rounded-3xl border border-primary/10">
-                    <div className="flex-1 space-y-1">
-                      <label
-                        htmlFor="inheritLLM"
-                        className="text-sm font-bold select-none cursor-pointer flex items-center"
-                      >
-                        Inherit System Provider
-                        <DefaultBadge
-                          isDefault={
-                            config?.codemogger?.inherit_system_llm !== false
-                          }
-                        />
-                      </label>
-                      <p className="text-xs text-muted-foreground font-medium">
-                        Use the global LLM settings for embedding generation.
-                      </p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      id="inheritLLM"
-                      checked={config?.codemogger?.inherit_system_llm || false}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev!,
-                          codemogger: {
-                            ...prev!.codemogger,
-                            inherit_system_llm: e.target.checked,
-                          },
-                        }))
-                      }
-                      className="h-6 w-6 rounded-lg border-border text-primary focus:ring-primary/20 transition-all cursor-pointer"
-                    />
-                  </div>
-
-                  {!config?.codemogger?.inherit_system_llm && (
-                    <div className="space-y-8 animate-in fade-in duration-300">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                            Embedder Type
-                            <DefaultBadge
-                              isDefault={
-                                (config?.codemogger?.embedder?.type ||
-                                  DEFAULTS.embedder_type) ===
-                                DEFAULTS.embedder_type
-                              }
-                            />
-                          </label>
-                          <select
-                            value={
-                              config?.codemogger?.embedder?.type ||
-                              DEFAULTS.embedder_type
-                            }
-                            onChange={(e) =>
-                              setConfig((prev) => ({
-                                ...prev!,
-                                codemogger: {
-                                  ...prev!.codemogger,
-                                  embedder: {
-                                    ...prev!.codemogger.embedder,
-                                    type: e.target.value,
-                                  },
-                                },
-                              }))
-                            }
-                            className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                          >
-                            <option value="local">
-                              Local (Ollama compatible)
-                            </option>
-                            <option value="openai">OpenAI</option>
-                          </select>
-                        </div>
-                        <div className="space-y-3">
-                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                            Embedding Model
-                            <DefaultBadge
-                              isDefault={
-                                (config?.codemogger?.embedder?.model ||
-                                  DEFAULTS.embedder_model) ===
-                                DEFAULTS.embedder_model
-                              }
-                            />
-                          </label>
-                          <input
-                            type="text"
-                            value={config?.codemogger?.embedder?.model || ""}
-                            placeholder={DEFAULTS.embedder_model}
-                            onChange={(e) =>
-                              setConfig((prev) => ({
-                                ...prev!,
-                                codemogger: {
-                                  ...prev!.codemogger,
-                                  embedder: {
-                                    ...prev!.codemogger.embedder,
-                                    model: e.target.value,
-                                  },
-                                },
-                              }))
-                            }
-                            className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                          API Base URL (Embedder Only)
-                        </label>
-                        <input
-                          type="text"
-                          value={
-                            config?.codemogger?.embedder?.openai?.api_base || ""
-                          }
-                          onChange={(e) =>
-                            setConfig((prev) => ({
-                              ...prev!,
-                              codemogger: {
-                                ...prev!.codemogger,
-                                embedder: {
-                                  ...prev!.codemogger.embedder,
-                                  openai: {
-                                    ...prev!.codemogger.embedder.openai,
-                                    api_base: e.target.value,
-                                  },
-                                },
-                              },
-                            }))
-                          }
-                          placeholder="https://api.openai.com/v1"
-                          className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono text-sm"
-                        />
-                      </div>
-
-                      <div className="space-y-3">
-                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                          API Key (Embedder Only)
-                        </label>
-                        <input
-                          type="password"
-                          value={
-                            config?.codemogger?.embedder?.openai?.api_key || ""
-                          }
-                          onChange={(e) =>
-                            setConfig((prev) => ({
-                              ...prev!,
-                              codemogger: {
-                                ...prev!.codemogger,
-                                embedder: {
-                                  ...prev!.codemogger.embedder,
-                                  openai: {
-                                    ...prev!.codemogger.embedder.openai,
-                                    api_key: e.target.value,
-                                  },
-                                },
-                              },
-                            }))
-                          }
-                          placeholder="Enter API key"
-                          className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono text-sm"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center">
-                      Max Lines per Chunk
-                      <DefaultBadge
-                        isDefault={
-                          (config?.codemogger?.chunk_lines ||
-                            DEFAULTS.chunk_lines) === DEFAULTS.chunk_lines
-                        }
-                      />
-                    </label>
-                    <input
-                      type="number"
-                      value={
-                        config?.codemogger?.chunk_lines ?? DEFAULTS.chunk_lines
-                      }
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev!,
-                          codemogger: {
-                            ...prev!.codemogger,
-                            chunk_lines: Number.parseInt(e.target.value),
-                          },
-                        }))
-                      }
-                      className="w-full bg-card border border-border/60 rounded-2xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-semibold"
-                    />
-                  </div>
-                </div>
-              </div>
+            {config && (
+              <>
+                {activeTab === "system" && (
+                  <SystemSettings config={config} setConfig={setConfig} />
+                )}
+                {activeTab === "research" && (
+                  <ResearchSettings config={config} setConfig={setConfig} />
+                )}
+                {activeTab === "codemogger" && (
+                  <CodeMoggerSettings config={config} setConfig={setConfig} />
+                )}
+              </>
             )}
           </form>
         </div>

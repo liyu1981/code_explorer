@@ -8,7 +8,7 @@ send_interrupt = true
 kill_delay = "500ms"
 
 [run]
-cmd = "./tmp/ce"
+cmd = "APP_ENV=development ./tmp/ce"
 
 [misc]
 clean_on_exit = true

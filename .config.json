@@ -4,7 +4,7 @@
     "llm": {
       "type": "openai",
       "model": "qwen3.5:4b",
-      "endpoint": "http://localhost:20003/v1/chat/completions",
+      "base_url": "http://localhost:20003/v1",
       "api_key": ""
     }
   },
