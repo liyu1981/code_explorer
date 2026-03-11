@@ -43,6 +43,7 @@ func TestApiListCodebases(t *testing.T) {
 	defer cleanup()
 
 	h := NewHandler(&ApiConfig{Index: idx})
+	defer h.Stop()
 	req := httptest.NewRequest("GET", "/api/codemogger/codebases", nil)
 	rr := httptest.NewRecorder()
 
@@ -74,6 +75,7 @@ func TestApiIndex(t *testing.T) {
 	os.WriteFile(testFile, []byte("package main\nfunc main() {}"), 0644)
 
 	h := NewHandler(&ApiConfig{Index: idx})
+	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{
 		"dir":   tmpDir,
@@ -90,8 +92,8 @@ func TestApiIndex(t *testing.T) {
 
 	var resp map[string]string
 	json.NewDecoder(rr.Body).Decode(&resp)
-	if resp["status"] != "indexing started" {
-		t.Errorf("Expected indexing started, got %v", resp["status"])
+	if resp["status"] != "indexing_queued" {
+		t.Errorf("Expected indexing_queued, got %v", resp["status"])
 	}
 }
 
@@ -100,6 +102,7 @@ func TestApiSearch(t *testing.T) {
 	defer cleanup()
 
 	h := NewHandler(&ApiConfig{Index: idx})
+	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{
 		"query": "test query",

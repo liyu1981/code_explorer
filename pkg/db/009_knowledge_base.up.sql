@@ -7,7 +7,7 @@ CREATE TABLE knowledge_pages (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(codebase_id, slug),
-    FOREIGN KEY (codebase_id) REFERENCES system_codebases(id) ON DELETE CASCADE
+    FOREIGN KEY (codebase_id) REFERENCES codebases(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_knowledge_pages_codebase ON knowledge_pages(codebase_id);

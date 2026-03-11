@@ -71,8 +71,13 @@ func (m *Manager) cleanupLoop() {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
-	// Run cleanup once at start
-	m.runCleanup()
+	// Initial delay to avoid startup contention
+	select {
+	case <-m.stopChan:
+		return
+	case <-time.After(1 * time.Second):
+		m.runCleanup()
+	}
 
 	for {
 		select {

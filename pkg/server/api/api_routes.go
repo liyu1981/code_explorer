@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"net/http"
 	"runtime"
 	"strconv"
@@ -44,11 +45,23 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 	if config.Index != nil {
 		h.taskManager = task.NewManager(config.Index.GetStore(), runtime.NumCPU()-1, h.Publish)
 		h.registerQueueHandlers()
-		h.taskManager.StartWorkers(context.Background(), util.IsDev())
+		isDev := util.IsDev()
+		// In tests, use only 1 worker to reduce contention
+		if flag.Lookup("test.v") != nil {
+			isDev = true
+		}
+		h.taskManager.StartWorkers(context.Background(), isDev)
 	}
 
 	go h.hub.run()
 	return h
+}
+
+// Stop stops the API handler and its background workers
+func (h *ApiHandler) Stop() {
+	if h.taskManager != nil {
+		h.taskManager.Stop()
+	}
 }
 
 func (h *ApiHandler) registerQueueHandlers() {
