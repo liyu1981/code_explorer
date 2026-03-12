@@ -6,7 +6,7 @@ import (
 )
 
 func TestSkillStore(t *testing.T) {
-	store, cleanup := setupTestDB(t)
+	store, cleanup := SetupTestDB(t)
 	defer cleanup()
 
 	ctx := context.Background()
@@ -16,6 +16,7 @@ func TestSkillStore(t *testing.T) {
 		Name:         "go-expert",
 		Description:  "Expert in Go",
 		SystemPrompt: "You are an expert in Go.",
+		Tags:         "go backend",
 		IsBuiltin:    true,
 	}
 	if err := store.CreateSkill(ctx, skill); err != nil {
@@ -30,19 +31,19 @@ func TestSkillStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get skill: %v", err)
 	}
-	if got == nil || got.Description != "Expert in Go" {
-		t.Errorf("expected description 'Expert in Go', got %v", got)
+	if got == nil || got.Description != "Expert in Go" || got.Tags != "go backend" {
+		t.Errorf("expected tags 'go backend', got %v", got.Tags)
 	}
 
 	// Test Update
-	skill.Description = "Deep expert in Go"
+	skill.Tags = "go devops"
 	if err := store.UpdateSkill(ctx, skill); err != nil {
 		t.Fatalf("update skill: %v", err)
 	}
 
 	got, _ = store.GetSkillByName(ctx, "go-expert")
-	if got.Description != "Deep expert in Go" {
-		t.Errorf("expected updated description, got %s", got.Description)
+	if got.Tags != "go devops" {
+		t.Errorf("expected updated tags, got %s", got.Tags)
 	}
 
 	// Test List

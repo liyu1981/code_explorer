@@ -1,6 +1,13 @@
 "use client";
 
-import { Save, Loader2, Settings, Monitor, Search, Database } from "lucide-react";
+import {
+  Save,
+  Loader2,
+  Settings,
+  Monitor,
+  Search,
+  Database,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { AppContainer } from "../_components/app-container";

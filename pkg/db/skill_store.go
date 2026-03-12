@@ -14,7 +14,7 @@ type Skill struct {
 	Name         string    `json:"name"`
 	Description  string    `json:"description"`
 	SystemPrompt string    `json:"system_prompt"`
-	UserPrompt   string    `json:"user_prompt"`
+	Tags         string    `json:"tags"`
 	IsBuiltin    bool      `json:"is_builtin"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -35,9 +35,9 @@ func (s *Store) CreateSkill(ctx context.Context, skill *Skill) error {
 
 	now := time.Now()
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO skills (id, name, description, system_prompt, user_prompt, is_builtin, created_at, updated_at)
+		INSERT INTO skills (id, name, description, system_prompt, tags, is_builtin, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, skill.ID, skill.Name, skill.Description, skill.SystemPrompt, skill.UserPrompt, skill.IsBuiltin, now, now)
+	`, skill.ID, skill.Name, skill.Description, skill.SystemPrompt, skill.Tags, skill.IsBuiltin, now, now)
 
 	if err != nil {
 		return fmt.Errorf("failed to create skill: %w", err)
@@ -55,10 +55,10 @@ func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error)
 
 	var sk Skill
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, name, description, system_prompt, user_prompt, is_builtin, created_at, updated_at
+		SELECT id, name, description, system_prompt, tags, is_builtin, created_at, updated_at
 		FROM skills
 		WHERE name = ?
-	`, name).Scan(&sk.ID, &sk.Name, &sk.Description, &sk.SystemPrompt, &sk.UserPrompt, &sk.IsBuiltin, &sk.CreatedAt, &sk.UpdatedAt)
+	`, name).Scan(&sk.ID, &sk.Name, &sk.Description, &sk.SystemPrompt, &sk.Tags, &sk.IsBuiltin, &sk.CreatedAt, &sk.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -76,7 +76,7 @@ func (s *Store) ListSkills(ctx context.Context) ([]Skill, error) {
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, description, system_prompt, user_prompt, is_builtin, created_at, updated_at
+		SELECT id, name, description, system_prompt, tags, is_builtin, created_at, updated_at
 		FROM skills
 		ORDER BY name ASC
 	`)
@@ -88,7 +88,7 @@ func (s *Store) ListSkills(ctx context.Context) ([]Skill, error) {
 	var skills []Skill
 	for rows.Next() {
 		var sk Skill
-		if err := rows.Scan(&sk.ID, &sk.Name, &sk.Description, &sk.SystemPrompt, &sk.UserPrompt, &sk.IsBuiltin, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
+		if err := rows.Scan(&sk.ID, &sk.Name, &sk.Description, &sk.SystemPrompt, &sk.Tags, &sk.IsBuiltin, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan skill: %w", err)
 		}
 		skills = append(skills, sk)
@@ -105,9 +105,9 @@ func (s *Store) UpdateSkill(ctx context.Context, skill *Skill) error {
 	now := time.Now()
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE skills
-		SET description = ?, system_prompt = ?, user_prompt = ?, updated_at = ?
+		SET description = ?, system_prompt = ?, tags = ?, updated_at = ?
 		WHERE id = ?
-	`, skill.Description, skill.SystemPrompt, skill.UserPrompt, now, skill.ID)
+	`, skill.Description, skill.SystemPrompt, skill.Tags, now, skill.ID)
 
 	if err != nil {
 		return fmt.Errorf("failed to update skill: %w", err)

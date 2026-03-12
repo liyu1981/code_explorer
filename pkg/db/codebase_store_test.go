@@ -5,7 +5,7 @@ import (
 )
 
 func TestCodebaseStore(t *testing.T) {
-	store, cleanup := setupTestDB(t)
+	store, cleanup := SetupTestDB(t)
 	defer cleanup()
 
 	// Test GetOrCreate

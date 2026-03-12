@@ -8,7 +8,7 @@ import (
 )
 
 func TestResearchStore(t *testing.T) {
-	store, cleanup := setupTestDB(t)
+	store, cleanup := SetupTestDB(t)
 	defer cleanup()
 
 	// Need a codebase

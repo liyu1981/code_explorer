@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func setupTestDB(t *testing.T) (*Store, func()) {
+func SetupTestDB(t *testing.T) (*Store, func()) {
 	dir, err := os.MkdirTemp("", "db-test-*")
 	if err != nil {
 		t.Fatalf("create temp dir: %v", err)

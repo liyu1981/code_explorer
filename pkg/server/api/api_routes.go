@@ -50,6 +50,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		factory.RegisterTool(tools.NewPollTasksTool(store))
 		factory.RegisterTool(tools.NewReadTaskOutputTool(store))
 		factory.RegisterTool(tools.NewSaveKnowledgeTool(store))
+		factory.RegisterTool(tools.NewListSkillsTool(store))
 	}
 
 	h := &ApiHandler{

@@ -1,0 +1,1 @@
+ALTER TABLE skills ADD COLUMN user_prompt TEXT NOT NULL DEFAULT '';

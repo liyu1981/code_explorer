@@ -6,7 +6,7 @@ import (
 )
 
 func TestKnowledgeStore(t *testing.T) {
-	store, cleanup := setupTestDB(t)
+	store, cleanup := SetupTestDB(t)
 	defer cleanup()
 
 	ctx := context.Background()

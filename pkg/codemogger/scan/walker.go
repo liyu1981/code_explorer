@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/boyter/gocodewalker"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/chunk"
+	"github.com/liyu1981/code_explorer/pkg/util"
 	"github.com/rs/zerolog/log"
 )
 
@@ -51,20 +51,24 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 		allowExts = append(allowExts, strings.TrimPrefix(ext, "."))
 	}
 
-	fileListQueue := make(chan *gocodewalker.File, 1000)
-	fileWalker := gocodewalker.NewFileWalker(rootDir, fileListQueue)
-	fileWalker.AllowListExtensions = allowExts
-	fileWalker.IgnoreBinaryFiles = false
-	fileWalker.SetErrorHandler(func(err error) bool {
-		log.Error().Err(err).Msg("FileWalker error")
-		errors = append(errors, err.Error())
-		return true
-	})
-
-	log.Debug().Msg("Starting gocodewalker...")
-	go fileWalker.Start()
+	fileListQueue := util.StartFileWalker(rootDir, false)
 
 	for f := range fileListQueue {
+		// Filter by extension if allowExts is not empty
+		if len(allowExts) > 0 {
+			ext := strings.TrimPrefix(filepath.Ext(f.Location), ".")
+			found := false
+			for _, allowed := range allowExts {
+				if ext == allowed {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
 		// Use absolute path
 		absPath, err := filepath.Abs(f.Location)
 		if err != nil {

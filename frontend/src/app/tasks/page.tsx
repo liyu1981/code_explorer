@@ -1,6 +1,12 @@
 "use client";
 
-import { Activity, CheckCircle2, Clock, Loader2, AlertCircle } from "lucide-react";
+import {
+  Activity,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import { API_URL, fetcher } from "@/lib/api";

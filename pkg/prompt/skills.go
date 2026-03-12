@@ -49,24 +49,28 @@ func SyncBuiltinSkills(ctx context.Context, store *db.Store) error {
 
 		fullContent := string(content)
 		systemPrompt := fullContent
-		userPrompt := ""
+		tags := ""
 
 		if parts := strings.Split(fullContent, "\n---\n"); len(parts) > 1 {
 			systemPrompt = strings.TrimSpace(parts[0])
-			userPrompt = strings.TrimSpace(parts[1])
+			// The part after --- was userPrompt, but we no longer need it.
 		}
 
 		description := "Built-in agent skill"
 		lines := strings.Split(systemPrompt, "\n")
-		if len(lines) > 0 && strings.HasPrefix(lines[0], "# ") {
-			description = strings.TrimPrefix(lines[0], "# ")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "# ") {
+				description = strings.TrimPrefix(line, "# ")
+			} else if strings.HasPrefix(line, "Tags: ") {
+				tags = strings.TrimSpace(strings.TrimPrefix(line, "Tags: "))
+			}
 		}
 
 		skill := &db.Skill{
 			Name:         name,
 			Description:  description,
 			SystemPrompt: systemPrompt,
-			UserPrompt:   userPrompt,
+			Tags:         tags,
 			IsBuiltin:    true,
 		}
 
@@ -98,22 +102,25 @@ func ResetSkillToDefault(ctx context.Context, name string, store *db.Store) erro
 
 	fullContent := string(content)
 	systemPrompt := fullContent
-	userPrompt := ""
+	tags := ""
 
 	if parts := strings.Split(fullContent, "\n---\n"); len(parts) > 1 {
 		systemPrompt = strings.TrimSpace(parts[0])
-		userPrompt = strings.TrimSpace(parts[1])
 	}
 
 	existing.SystemPrompt = systemPrompt
-	existing.UserPrompt = userPrompt
 
 	description := "Built-in agent skill"
 	lines := strings.Split(systemPrompt, "\n")
-	if len(lines) > 0 && strings.HasPrefix(lines[0], "# ") {
-		description = strings.TrimPrefix(lines[0], "# ")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "# ") {
+			description = strings.TrimPrefix(line, "# ")
+		} else if strings.HasPrefix(line, "Tags: ") {
+			tags = strings.TrimSpace(strings.TrimPrefix(line, "Tags: "))
+		}
 	}
 	existing.Description = description
+	existing.Tags = tags
 
 	return store.UpdateSkill(ctx, existing)
 }

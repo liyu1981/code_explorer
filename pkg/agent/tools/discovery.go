@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
 // ReadFileTool allows reading content from local files
@@ -114,6 +116,16 @@ func (t *GetTreeTool) Parameters() map[string]any {
 	}
 }
 
+// Execute will return a string with the directory structure as follows
+//   example: depth=1
+//            GEMINI.md  bin/
+//            (all names in one line, with space as separator, and dir is suffixed with trailing slash)
+
+//	example: depth=2
+//	         GEMINI.md  bin/ bin/index.js
+//	         (all names in one line, with space as separator, list in depth-first order of all files within depth)
+//
+// also will respect the .gitignore rules (with help from gocodewalker, see ref in codemogger/scan/walker.go)
 func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	var req struct {
 		Depth int `json:"depth"`
@@ -123,42 +135,35 @@ func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream
 		req.Depth = 3
 	}
 
-	var sb strings.Builder
-	err := filepath.WalkDir(t.baseDir, func(path string, d os.DirEntry, err error) error {
+	fileListQueue := util.StartFileWalker(t.baseDir, true)
+
+	pathMap := make(map[string]bool)
+	for f := range fileListQueue {
+		rel, err := filepath.Rel(t.baseDir, f.Location)
 		if err != nil {
-			return err
+			continue
 		}
-		rel, _ := filepath.Rel(t.baseDir, path)
-		if rel == "." {
-			return nil
-		}
-
-		// Skip hidden dirs
-		if d.IsDir() && strings.HasPrefix(d.Name(), ".") {
-			return filepath.SkipDir
-		}
-
 		parts := strings.Split(rel, string(os.PathSeparator))
-		if len(parts) > req.Depth {
-			if d.IsDir() {
-				return filepath.SkipDir
+
+		for i := 1; i <= len(parts) && i <= req.Depth; i++ {
+			subPath := filepath.Join(parts[:i]...)
+			if i < len(parts) {
+				// It's a directory
+				pathMap[filepath.ToSlash(subPath)+"/"] = true
+			} else {
+				// It's a file
+				pathMap[filepath.ToSlash(subPath)] = true
 			}
-			return nil
 		}
-
-		indent := strings.Repeat("  ", len(parts)-1)
-		if d.IsDir() {
-			sb.WriteString(fmt.Sprintf("%s%s/\n", indent, d.Name()))
-		} else {
-			sb.WriteString(fmt.Sprintf("%s%s\n", indent, d.Name()))
-		}
-		return nil
-	})
-
-	if err != nil {
-		return "", err
 	}
-	return sb.String(), nil
+
+	var allPaths []string
+	for p := range pathMap {
+		allPaths = append(allPaths, p)
+	}
+	sort.Strings(allPaths)
+
+	return strings.Join(allPaths, " "), nil
 }
 
 // GrepSearchTool allows fast pattern search
