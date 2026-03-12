@@ -7,6 +7,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
 // QueueTaskTool allows an agent to queue a new background task
@@ -66,7 +67,9 @@ func (t *QueueTaskTool) Execute(ctx context.Context, input json.RawMessage, stre
 		req.MaxRetries = 3
 	}
 
-	err := t.store.CreateTask(ctx, req.ID, req.Name, req.Payload, req.MaxRetries)
+	initiatorID := util.GetInitiatorID(ctx)
+
+	err := t.store.CreateTask(ctx, req.ID, req.Name, req.Payload, req.MaxRetries, initiatorID)
 	if err != nil {
 		return "", fmt.Errorf("failed to queue task: %w", err)
 	}

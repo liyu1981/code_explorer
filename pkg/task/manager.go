@@ -9,6 +9,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/util"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -39,7 +40,8 @@ func (m *Manager) RegisterHandler(name string, handler TaskHandler) {
 
 func (m *Manager) Submit(ctx context.Context, name string, payload any, maxRetries int) (string, error) {
 	id, _ := gonanoid.New()
-	err := m.store.CreateTask(ctx, id, name, payload, maxRetries)
+	initiatorID := util.GetInitiatorID(ctx)
+	err := m.store.CreateTask(ctx, id, name, payload, maxRetries, initiatorID)
 	if err != nil {
 		return "", err
 	}
@@ -160,6 +162,9 @@ func (m *Manager) runTask(task *db.Task) {
 
 	m.notifyTaskUpdate(task.ID, task.Name, db.TaskStatusRunning, task.Progress, "Task started", time.Now())
 
+	ctx := context.Background()
+	ctx = util.WithInitiatorID(ctx, task.ID)
+
 	lastNotifyTime := time.Now()
 	lastProgress := task.Progress
 	lastMessage := ""
@@ -176,7 +181,7 @@ func (m *Manager) runTask(task *db.Task) {
 		}
 	}
 
-	err := handler(context.Background(), task, updateProgress)
+	err := handler(ctx, task, updateProgress)
 	if err != nil {
 		log.Printf("Task %s (%s) failed: %v", task.Name, task.ID, err)
 		retry := task.Retries < task.MaxRetries

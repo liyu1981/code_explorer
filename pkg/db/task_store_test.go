@@ -14,7 +14,7 @@ func TestTaskStore(t *testing.T) {
 	// Test Create
 	taskID := "task-1"
 	payload := map[string]string{"foo": "bar"}
-	if err := store.CreateTask(ctx, taskID, "test-task", payload, 3); err != nil {
+	if err := store.CreateTask(ctx, taskID, "test-task", payload, 3, ""); err != nil {
 		t.Fatalf("create task: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func TestTaskStore(t *testing.T) {
 
 	// Test Mark Failed with retry
 	taskID2 := "task-2"
-	store.CreateTask(ctx, taskID2, "retry-task", payload, 3)
+	store.CreateTask(ctx, taskID2, "retry-task", payload, 3, "")
 	store.ClaimNextTask(ctx)
 	if err := store.MarkTaskFailed(ctx, taskID2, "error", true); err != nil {
 		t.Fatalf("mark failed retry: %v", err)

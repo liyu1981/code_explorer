@@ -21,6 +21,7 @@ type Task struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	Payload     string         `json:"payload"`
+	InitiatorID sql.NullString `json:"initiator_id"`
 	Status      TaskStatus     `json:"status"`
 	Progress    int            `json:"progress"`
 	Message     sql.NullString `json:"message"`
@@ -32,7 +33,7 @@ type Task struct {
 	CompletedAt sql.NullTime   `json:"completed_at"`
 }
 
-func (s *Store) CreateTask(ctx context.Context, id, name string, payload any, maxRetries int) error {
+func (s *Store) CreateTask(ctx context.Context, id, name string, payload any, maxRetries int, initiatorID string) error {
 	if err := s.reconnect(); err != nil {
 		return err
 	}
@@ -41,10 +42,15 @@ func (s *Store) CreateTask(ctx context.Context, id, name string, payload any, ma
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
+	var initiator sql.NullString
+	if initiatorID != "" {
+		initiator = sql.NullString{String: initiatorID, Valid: true}
+	}
+
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO tasks (id, name, payload, status, max_retries)
-		VALUES (?, ?, ?, ?, ?)
-	`, id, name, string(payloadJSON), TaskStatusPending, maxRetries)
+		INSERT INTO tasks (id, name, payload, status, max_retries, initiator_id)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, id, name, string(payloadJSON), TaskStatusPending, maxRetries, initiator)
 	return err
 }
 
@@ -60,12 +66,12 @@ func (s *Store) ClaimNextTask(ctx context.Context) (*Task, error) {
 
 	var t Task
 	err = tx.QueryRowContext(ctx, `
-		SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at
+		SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at, initiator_id
 		FROM tasks
 		WHERE status = 'pending'
 		ORDER BY created_at ASC
 		LIMIT 1
-	`).Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt)
+	`).Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt, &t.InitiatorID)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -150,7 +156,7 @@ func (s *Store) GetTasks(ctx context.Context, limit, offset int) ([]Task, int, e
 		return nil, 0, err
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at
+		SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at, initiator_id
 		FROM tasks
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
@@ -163,7 +169,7 @@ func (s *Store) GetTasks(ctx context.Context, limit, offset int) ([]Task, int, e
 	var tasks []Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt, &t.InitiatorID); err != nil {
 			return nil, 0, err
 		}
 		tasks = append(tasks, t)
@@ -181,10 +187,10 @@ func (s *Store) GetTask(ctx context.Context, id string) (*Task, error) {
 
 	var t Task
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at
+		SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at, initiator_id
 		FROM tasks
 		WHERE id = ?
-	`, id).Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt)
+	`, id).Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt, &t.InitiatorID)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -194,4 +200,44 @@ func (s *Store) GetTask(ctx context.Context, id string) (*Task, error) {
 	}
 
 	return &t, nil
+}
+
+// GetTaskTree returns a task and all its descendants (recursive).
+func (s *Store) GetTaskTree(ctx context.Context, rootID string) ([]Task, error) {
+	if err := s.reconnect(); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		WITH RECURSIVE task_tree AS (
+			-- Anchor: start with the root task
+			SELECT id, name, payload, status, progress, message, retries, max_retries, error, created_at, updated_at, completed_at, initiator_id
+			FROM tasks
+			WHERE id = ?
+			
+			UNION ALL
+			
+			-- Recursive member: find tasks initiated by tasks already in task_tree
+			SELECT t.id, t.name, t.payload, t.status, t.progress, t.message, t.retries, t.max_retries, t.error, t.created_at, t.updated_at, t.completed_at, t.initiator_id
+			FROM tasks t
+			INNER JOIN task_tree tt ON t.initiator_id = tt.id
+		)
+		SELECT * FROM task_tree
+		ORDER BY created_at ASC
+	`, rootID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch task tree: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []Task
+	for rows.Next() {
+		var t Task
+		if err := rows.Scan(&t.ID, &t.Name, &t.Payload, &t.Status, &t.Progress, &t.Message, &t.Retries, &t.MaxRetries, &t.Error, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt, &t.InitiatorID); err != nil {
+			return nil, fmt.Errorf("failed to scan task tree row: %w", err)
+		}
+		tasks = append(tasks, t)
+	}
+
+	return tasks, nil
 }

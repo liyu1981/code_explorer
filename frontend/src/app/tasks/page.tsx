@@ -6,6 +6,8 @@ import {
   Clock,
   Loader2,
   AlertCircle,
+  X,
+  ArrowLeft,
 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
@@ -23,6 +25,7 @@ interface Task {
   id: string;
   name: string;
   payload: string;
+  initiator_id: { String: string; Valid: boolean };
   status: "pending" | "running" | "completed" | "failed";
   progress: number;
   message: { String: string; Valid: boolean };
@@ -37,17 +40,20 @@ interface Task {
 export default function TasksPage() {
   const [page, setPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [rootTaskId, setRootTaskId] = useState<string | null>(null);
   const pageSize = 10;
 
-  const { data, error, isLoading } = useSWR(
-    `${API_URL}/api/tasks?page=${page}&pageSize=${pageSize}`,
-    fetcher,
-    { refreshInterval: 2000 },
-  );
+  const endpoint = rootTaskId
+    ? `${API_URL}/api/tasks/tree?id=${rootTaskId}`
+    : `${API_URL}/api/tasks?page=${page}&pageSize=${pageSize}`;
 
-  const tasks = data?.tasks as Task[];
-  const total = data?.total || 0;
-  const totalPages = Math.ceil(total / pageSize);
+  const { data, error, isLoading } = useSWR(endpoint, fetcher, {
+    refreshInterval: 2000,
+  });
+
+  const tasks = rootTaskId ? (data as Task[]) : (data?.tasks as Task[]);
+  const total = rootTaskId ? (data as Task[])?.length || 0 : data?.total || 0;
+  const totalPages = rootTaskId ? 1 : Math.ceil(total / pageSize);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -78,11 +84,22 @@ export default function TasksPage() {
   return (
     <AppContainer>
       <AppHeader>
-        <div className="flex items-center gap-4">
-          <Activity className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-bold tracking-tight text-primary">
-            Tasks
-          </h1>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-4">
+            <Activity className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-bold tracking-tight text-primary">
+              {rootTaskId ? "Task Lineage" : "Tasks"}
+            </h1>
+          </div>
+          {rootTaskId && (
+            <button
+              onClick={() => setRootTaskId(null)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-xs font-bold transition-colors border border-border"
+            >
+              <X className="h-3 w-3" />
+              Clear Filter
+            </button>
+          )}
         </div>
       </AppHeader>
 
@@ -90,7 +107,9 @@ export default function TasksPage() {
         <div className="max-w-6xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6">
             <p className="text-muted-foreground text-sm">
-              Monitor long-running background operations like codebase indexing.
+              {rootTaskId
+                ? `Showing task ${rootTaskId} and all its sub-tasks.`
+                : "Monitor long-running background operations like codebase indexing."}
             </p>
           </div>
 
@@ -109,17 +128,20 @@ export default function TasksPage() {
               <TaskTable
                 tasks={tasks}
                 onTaskClick={setSelectedTask}
+                onViewLineage={setRootTaskId}
                 getStatusIcon={getStatusIcon}
                 getStatusClass={getStatusClass}
               />
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                totalItems={total}
-                pageSize={pageSize}
-                onPageChange={setPage}
-                itemName="tasks"
-              />
+              {!rootTaskId && (
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  totalItems={total}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  itemName="tasks"
+                />
+              )}
             </>
           )}
         </div>
@@ -128,6 +150,10 @@ export default function TasksPage() {
       <TaskDetailDialog
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
+        onViewLineage={(id) => {
+          setRootTaskId(id);
+          setSelectedTask(null);
+        }}
         getStatusIcon={getStatusIcon}
         getStatusClass={getStatusClass}
       />

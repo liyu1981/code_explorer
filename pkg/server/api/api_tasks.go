@@ -25,3 +25,19 @@ func (h *ApiHandler) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		"pageSize": pageSize,
 	})
 }
+
+func (h *ApiHandler) handleGetTaskTree(w http.ResponseWriter, r *http.Request) {
+	rootID := r.URL.Query().Get("id")
+	if rootID == "" {
+		writeError(w, http.StatusBadRequest, "Missing task id", nil)
+		return
+	}
+
+	tasks, err := h.index.GetStore().GetTaskTree(r.Context(), rootID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to fetch task tree", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, tasks)
+}

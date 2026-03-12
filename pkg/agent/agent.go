@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/util"
 	"github.com/rs/zerolog/log"
 )
 
@@ -144,6 +145,10 @@ func (a *Agent) SetSystemPrompt(prompt string) {
 func (a *Agent) Run(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter) (string, error) {
 	log.Info().Str("input", input).Str("turn", turnID).Msg("Agent starting run")
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
+
+	if turnID != "" {
+		ctx = util.WithInitiatorID(ctx, turnID)
+	}
 
 	tools := a.tools.MarshalToolsForLLM()
 

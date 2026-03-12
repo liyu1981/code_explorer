@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { X, GitGraph } from "lucide-react";
 import { Badge } from "../../_components/badge";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
@@ -8,6 +8,7 @@ interface Task {
   id: string;
   name: string;
   payload: string;
+  initiator_id: { String: string; Valid: boolean };
   status: "pending" | "running" | "completed" | "failed";
   progress: number;
   message: { String: string; Valid: boolean };
@@ -22,6 +23,7 @@ interface Task {
 interface TaskDetailDialogProps {
   task: Task | null;
   onClose: () => void;
+  onViewLineage: (taskId: string) => void;
   getStatusIcon: (status: string) => ReactNode;
   getStatusClass: (status: string) => string;
 }
@@ -29,6 +31,7 @@ interface TaskDetailDialogProps {
 export function TaskDetailDialog({
   task,
   onClose,
+  onViewLineage,
   getStatusIcon,
   getStatusClass,
 }: TaskDetailDialogProps) {
@@ -81,6 +84,40 @@ export function TaskDetailDialog({
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Initiator
+                    </p>
+                    {task.initiator_id?.Valid ? (
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-primary font-bold">
+                          {task.initiator_id.String}
+                        </span>
+                        <button
+                          onClick={() =>
+                            onViewLineage(task.initiator_id.String)
+                          }
+                          className="p-1 rounded-lg hover:bg-primary/10 text-primary transition-colors"
+                          title="View Lineage of Initiator"
+                        >
+                          <GitGraph className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-muted-foreground/60">
+                        User
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Progress
+                    </p>
+                    <span className="font-mono text-xs">{task.progress}%</span>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                     Message
@@ -92,9 +129,18 @@ export function TaskDetailDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Payload
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Payload
+                    </p>
+                    <button
+                      onClick={() => onViewLineage(task.id)}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-primary/10 text-primary transition-colors text-[10px] font-bold"
+                    >
+                      <GitGraph className="h-3 w-3" />
+                      View Lineage
+                    </button>
+                  </div>
                   <div className="bg-muted/30 rounded-xl p-4 border border-border/50 text-xs font-mono overflow-auto max-h-[300px] whitespace-pre">
                     {formatPayload(task.payload)}
                   </div>

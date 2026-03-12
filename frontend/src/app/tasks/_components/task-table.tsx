@@ -1,10 +1,12 @@
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { GitGraph, Info } from "lucide-react";
 
 interface Task {
   id: string;
   name: string;
   payload: string;
+  initiator_id: { String: string; Valid: boolean };
   status: "pending" | "running" | "completed" | "failed";
   progress: number;
   message: { String: string; Valid: boolean };
@@ -19,6 +21,7 @@ interface Task {
 interface TaskTableProps {
   tasks: Task[];
   onTaskClick: (task: Task) => void;
+  onViewLineage: (taskId: string) => void;
   getStatusIcon: (status: string) => ReactNode;
   getStatusClass: (status: string) => string;
 }
@@ -26,6 +29,7 @@ interface TaskTableProps {
 export function TaskTable({
   tasks,
   onTaskClick,
+  onViewLineage,
   getStatusIcon,
   getStatusClass,
 }: TaskTableProps) {
@@ -39,16 +43,16 @@ export function TaskTable({
                 Task
               </th>
               <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                Initiator
+              </th>
+              <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
                 Status
               </th>
               <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
                 Progress
               </th>
-              <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                Message
-              </th>
-              <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                Created
+              <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">
+                Actions
               </th>
             </tr>
           </thead>
@@ -64,6 +68,19 @@ export function TaskTable({
                       {task.id}
                     </span>
                   </div>
+                </td>
+                <td className="px-6 py-4">
+                  {task.initiator_id?.Valid ? (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-mono text-primary font-bold">
+                        {task.initiator_id.String}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-muted-foreground/60">
+                      User
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <div
@@ -94,24 +111,23 @@ export function TaskTable({
                     </div>
                   </div>
                 </td>
-                <td
-                  className="px-6 py-4 cursor-pointer hover:bg-primary/5 transition-colors group"
-                  onClick={() => onTaskClick(task)}
-                >
-                  <div className="max-w-xs">
-                    <p className="text-xs text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-                      {(task.message?.Valid && task.message.String) ||
-                        "No message"}
-                    </p>
-                    {task.status === "failed" && task.error?.Valid && (
-                      <p className="text-[10px] text-destructive mt-1 font-mono line-clamp-1">
-                        {task.error.String}
-                      </p>
-                    )}
+                <td className="px-6 py-4 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => onTaskClick(task)}
+                      className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors"
+                      title="View Details"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => onViewLineage(task.id)}
+                      className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors"
+                      title="View Lineage"
+                    >
+                      <GitGraph className="h-4 w-4" />
+                    </button>
                   </div>
-                </td>
-                <td className="px-6 py-4 text-xs text-muted-foreground font-mono">
-                  {new Date(task.created_at).toLocaleString()}
                 </td>
               </tr>
             ))}

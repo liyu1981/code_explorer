@@ -119,6 +119,7 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Tasks
 	mux.HandleFunc("GET /api/tasks", h.handleListTasks)
+	mux.HandleFunc("GET /api/tasks/tree", h.handleGetTaskTree)
 
 	// Codebases
 	mux.HandleFunc("GET /api/codebases", h.handleListSystemCodebases)
