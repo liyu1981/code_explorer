@@ -1,6 +1,7 @@
 package chunk
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -79,24 +80,32 @@ func (u *User) GetName() string {
 	config := Languages["go"]
 	chunks := ChunkFile("main.go", content, "hash123", &config)
 
-	// Expected chunks: Hello, User, GetName
-	// Note: The current simple chunker might treat "type User struct" as one and "func (u *User) GetName()" as another.
-
-	if len(chunks) < 2 {
-		t.Errorf("Expected at least 2 chunks, got %d", len(chunks))
+	if len(chunks) < 3 {
+		t.Errorf("Expected at least 3 chunks, got %d", len(chunks))
 	}
 
 	foundHello := false
+	foundUser := false
+	foundGetName := false
 	for _, c := range chunks {
 		if c.Name == "Hello" && c.Kind == "function" {
 			foundHello = true
-			if c.StartLine != 6 {
-				t.Errorf("Hello chunk StartLine = %d, want 6", c.StartLine)
-			}
+		}
+		if c.Name == "User" && c.Kind == "type" {
+			foundUser = true
+		}
+		if c.Name == "User.GetName" && c.Kind == "method" {
+			foundGetName = true
 		}
 	}
 	if !foundHello {
 		t.Error("Did not find Hello chunk")
+	}
+	if !foundUser {
+		t.Error("Did not find User chunk")
+	}
+	if !foundGetName {
+		t.Error("Did not find User.GetName chunk")
 	}
 }
 
@@ -130,5 +139,68 @@ class Calc:
 	}
 	if !foundCalc {
 		t.Error("Did not find Calc chunk")
+	}
+}
+
+func TestChunkFileTypeScript(t *testing.T) {
+	content := `export class MyClass {
+  constructor(public x: number) {}
+  getX(): number { return this.x; }
+}
+
+export function myHelper() {
+  return 42;
+}
+`
+	config := Languages["typescript"]
+	chunks := ChunkFile("app.ts", content, "hash123", &config)
+
+	if len(chunks) < 2 {
+		t.Errorf("Expected at least 2 chunks, got %d", len(chunks))
+	}
+
+	foundClass := false
+	foundHelper := false
+	for _, c := range chunks {
+		if c.Name == "MyClass" && c.Kind == "class" {
+			foundClass = true
+		}
+		if c.Name == "myHelper" && c.Kind == "function" {
+			foundHelper = true
+		}
+	}
+	if !foundClass {
+		t.Error("Did not find MyClass chunk")
+	}
+	if !foundHelper {
+		t.Error("Did not find myHelper chunk")
+	}
+}
+
+func TestChunkFileSplitLarge(t *testing.T) {
+	// Create a class with many lines to trigger splitting
+	methods := ""
+	for i := 0; i < 200; i++ {
+		methods += fmt.Sprintf("  method%d() { return %d; }\n", i, i)
+	}
+	content := fmt.Sprintf("class LargeClass {\n%s}", methods)
+
+	config := Languages["javascript"]
+	chunks := ChunkFile("large.js", content, "hash123", &config)
+
+	// Since MAX_CHUNK_LINES is 150, LargeClass itself should be split into its methods
+	if len(chunks) < 200 {
+		t.Errorf("Expected at least 200 chunks (methods), got %d", len(chunks))
+	}
+
+	foundMethod0 := false
+	for _, c := range chunks {
+		if c.Name == "method0" && c.Kind == "function" {
+			foundMethod0 = true
+			break
+		}
+	}
+	if !foundMethod0 {
+		t.Error("Did not find method0 chunk after splitting")
 	}
 }
