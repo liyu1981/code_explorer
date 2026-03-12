@@ -22,6 +22,7 @@ import { TaskDetailDialog } from "./_components/task-detail-dialog";
 interface Task {
   id: string;
   name: string;
+  payload: string;
   status: "pending" | "running" | "completed" | "failed";
   progress: number;
   message: { String: string; Valid: boolean };

@@ -9,7 +9,7 @@ import (
 )
 
 func (h *ApiHandler) handleListSkills(w http.ResponseWriter, r *http.Request) {
-	skills, err := h.index.GetStore().ListSkills(r.Context())
+	skills, err := h.index.GetStore().ListAgentSkills(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list skills", err)
 		return

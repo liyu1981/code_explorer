@@ -18,9 +18,9 @@ func TestApiHandler_Skills(t *testing.T) {
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
-	// 1. List Skills (should have built-ins seeded by NewHandler)
-	t.Run("ListSkills", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/skills", nil)
+	// 1. List Agent Skills (should have built-ins seeded by NewHandler)
+	t.Run("ListAgentSkills", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/agent_skills", nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -41,14 +41,14 @@ func TestApiHandler_Skills(t *testing.T) {
 	// 2. Get Skill
 	t.Run("GetSkill", func(t *testing.T) {
 		// Get first skill name
-		reqList := httptest.NewRequest("GET", "/api/skills", nil)
+		reqList := httptest.NewRequest("GET", "/api/agent_skills", nil)
 		wList := httptest.NewRecorder()
 		mux.ServeHTTP(wList, reqList)
 		var skills []db.Skill
 		json.NewDecoder(wList.Body).Decode(&skills)
 		skillName := skills[0].Name
 
-		req := httptest.NewRequest("GET", "/api/skills/get?name="+skillName, nil)
+		req := httptest.NewRequest("GET", "/api/agent_skills/get?name="+skillName, nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -67,7 +67,7 @@ func TestApiHandler_Skills(t *testing.T) {
 
 	// 3. Update Skill
 	t.Run("UpdateSkill", func(t *testing.T) {
-		reqList := httptest.NewRequest("GET", "/api/skills", nil)
+		reqList := httptest.NewRequest("GET", "/api/agent_skills", nil)
 		wList := httptest.NewRecorder()
 		mux.ServeHTTP(wList, reqList)
 		var skills []db.Skill
@@ -76,7 +76,7 @@ func TestApiHandler_Skills(t *testing.T) {
 
 		skill.SystemPrompt = "Updated prompt"
 		body, _ := json.Marshal(skill)
-		req := httptest.NewRequest("PUT", "/api/skills", strings.NewReader(string(body)))
+		req := httptest.NewRequest("PUT", "/api/agent_skills", strings.NewReader(string(body)))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -93,14 +93,14 @@ func TestApiHandler_Skills(t *testing.T) {
 
 	// 4. Reset Skill
 	t.Run("ResetSkill", func(t *testing.T) {
-		reqList := httptest.NewRequest("GET", "/api/skills", nil)
+		reqList := httptest.NewRequest("GET", "/api/agent_skills", nil)
 		wList := httptest.NewRecorder()
 		mux.ServeHTTP(wList, reqList)
 		var skills []db.Skill
 		json.NewDecoder(wList.Body).Decode(&skills)
 		skillName := skills[0].Name
 
-		req := httptest.NewRequest("POST", "/api/skills/reset?name="+skillName, nil)
+		req := httptest.NewRequest("POST", "/api/agent_skills/reset?name="+skillName, nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 

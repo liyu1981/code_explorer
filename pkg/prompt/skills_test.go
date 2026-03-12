@@ -40,7 +40,7 @@ func TestSyncBuiltinSkills(t *testing.T) {
 		t.Fatalf("sync skills: %v", err)
 	}
 
-	skills, err := store.ListSkills(ctx)
+	skills, err := store.ListAgentSkills(ctx)
 	if err != nil {
 		t.Fatalf("list skills: %v", err)
 	}

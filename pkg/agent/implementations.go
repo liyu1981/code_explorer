@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
-	"github.com/rs/zerolog/log"
 )
 
 type PipelineStepFunc func(ctx context.Context, input string) (string, error)
@@ -124,14 +123,6 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 	req.Header.Set("Content-Type", "application/json")
 	if l.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+l.apiKey)
-	}
-
-	{
-		var v any
-		if err := json.Unmarshal(body, &v); err != nil {
-			log.Debug().Err(err).Msg("body object decode failed:")
-		}
-		log.Debug().Interface("body", v).Msg("body decoded:")
 	}
 
 	resp, err := l.httpClient.Do(req)

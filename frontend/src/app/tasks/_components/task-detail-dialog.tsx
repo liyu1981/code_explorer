@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 interface Task {
   id: string;
   name: string;
+  payload: string;
   status: "pending" | "running" | "completed" | "failed";
   progress: number;
   message: { String: string; Valid: boolean };
@@ -31,11 +32,19 @@ export function TaskDetailDialog({
   getStatusIcon,
   getStatusClass,
 }: TaskDetailDialogProps) {
+  const formatPayload = (payload: string) => {
+    try {
+      return JSON.stringify(JSON.parse(payload), null, 2);
+    } catch {
+      return payload;
+    }
+  };
+
   return (
     <Dialog.Root open={!!task} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-2xl bg-card border border-border rounded-2xl shadow-2xl p-0 overflow-hidden z-[101] outline-none">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-2xl bg-card border border-border rounded-2xl shadow-2xl p-0 overflow-hidden z-[101] outline-none flex flex-col max-h-[90vh]">
           <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
             <Dialog.Title className="text-sm font-bold text-foreground flex items-center gap-2">
               {task && getStatusIcon(task.status)}
@@ -45,7 +54,7 @@ export function TaskDetailDialog({
               <X className="h-4 w-4 text-muted-foreground" />
             </Dialog.Close>
           </div>
-          <div className="p-6 overflow-auto max-h-[70vh]">
+          <div className="p-6 overflow-auto">
             {task && (
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -53,7 +62,7 @@ export function TaskDetailDialog({
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                       Task Name
                     </p>
-                    <p className="font-bold capitalize">
+                    <p className="font-bold capitalize text-primary">
                       {task.name.replace(/-/g, " ")}
                     </p>
                   </div>
@@ -79,6 +88,15 @@ export function TaskDetailDialog({
                   <div className="bg-muted/50 rounded-xl p-4 border border-border/50 text-sm whitespace-pre-wrap font-medium leading-relaxed">
                     {(task.message?.Valid && task.message.String) ||
                       "No message provided."}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Payload
+                  </p>
+                  <div className="bg-muted/30 rounded-xl p-4 border border-border/50 text-xs font-mono overflow-auto max-h-[300px] whitespace-pre">
+                    {formatPayload(task.payload)}
                   </div>
                 </div>
 

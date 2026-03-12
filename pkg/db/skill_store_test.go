@@ -47,7 +47,7 @@ func TestSkillStore(t *testing.T) {
 	}
 
 	// Test List
-	skills, err := store.ListSkills(ctx)
+	skills, err := store.ListAgentSkills(ctx)
 	if err != nil {
 		t.Fatalf("list skills: %v", err)
 	}

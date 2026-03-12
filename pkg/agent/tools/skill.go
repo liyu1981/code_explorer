@@ -9,24 +9,24 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
-// ListSkillsTool allows an agent to list available skills
-type ListSkillsTool struct {
+// ListAgentSkillsTool allows an agent to list available skills
+type ListAgentSkillsTool struct {
 	store *db.Store
 }
 
-func NewListSkillsTool(store *db.Store) *ListSkillsTool {
-	return &ListSkillsTool{store: store}
+func NewListAgentSkillsTool(store *db.Store) *ListAgentSkillsTool {
+	return &ListAgentSkillsTool{store: store}
 }
 
-func (t *ListSkillsTool) Name() string {
-	return "list_skills"
+func (t *ListAgentSkillsTool) Name() string {
+	return "list_agent_skills"
 }
 
-func (t *ListSkillsTool) Description() string {
+func (t *ListAgentSkillsTool) Description() string {
 	return "Lists all available agent skills and their descriptions, including tags."
 }
 
-func (t *ListSkillsTool) Parameters() map[string]any {
+func (t *ListAgentSkillsTool) Parameters() map[string]any {
 	return map[string]any{
 		"type":       "object",
 		"properties": map[string]any{},
@@ -34,10 +34,10 @@ func (t *ListSkillsTool) Parameters() map[string]any {
 	}
 }
 
-func (t *ListSkillsTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
-	skills, err := t.store.ListSkills(ctx)
+func (t *ListAgentSkillsTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	skills, err := t.store.ListAgentSkills(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to list skills: %w", err)
+		return "", fmt.Errorf("failed to list agent skills: %w", err)
 	}
 
 	type SkillInfo struct {
@@ -57,7 +57,7 @@ func (t *ListSkillsTool) Execute(ctx context.Context, input json.RawMessage, str
 
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal skills: %w", err)
+		return "", fmt.Errorf("failed to marshal agent skills: %w", err)
 	}
 
 	return string(data), nil

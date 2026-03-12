@@ -36,7 +36,7 @@ export default function SkillsSettingsPage() {
 
   const fetchSkills = async () => {
     try {
-      const resp = await api.get("/api/skills");
+      const resp = await api.get("/api/agent_skills");
       const data = resp.data;
       setSkills(data || []);
       if (data.length > 0 && !selectedSkill) {
@@ -54,7 +54,7 @@ export default function SkillsSettingsPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const resp = await api.put("/api/skills", selectedSkill);
+      const resp = await api.put("/api/agent_skills", selectedSkill);
       if (resp.status === 200) {
         setMessage({ type: "success", text: "Skill updated successfully" });
         setSkills((current) =>
@@ -92,7 +92,7 @@ export default function SkillsSettingsPage() {
     setMessage(null);
     try {
       const resp = await api.post(
-        `/api/skills/reset?name=${selectedSkill.name}`,
+        `/api/agent_skills/reset?name=${selectedSkill.name}`,
       );
       if (resp.status === 200) {
         const data = resp.data;

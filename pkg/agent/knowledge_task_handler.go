@@ -57,7 +57,7 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	agentFactory.RegisterTool(tools.NewGetTreeTool(cb.RootPath))
 	agentFactory.RegisterTool(tools.NewReadFileTool(cb.RootPath))
 	agentFactory.RegisterTool(tools.NewGrepSearchTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewListSkillsTool(idx.GetStore()))
+	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
 
 	// 3. Build Agent
 	ag, err := agentFactory.BuildFromConfig(&Config{
@@ -117,7 +117,7 @@ func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeInd
 	agentFactory.RegisterTool(tools.NewGetTreeTool(cb.RootPath))
 	agentFactory.RegisterTool(tools.NewReadFileTool(cb.RootPath))
 	agentFactory.RegisterTool(tools.NewGrepSearchTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewListSkillsTool(idx.GetStore()))
+	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
 
 	// 3. Build Agent
 	ag, err := agentFactory.BuildFromConfig(&Config{

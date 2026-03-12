@@ -50,7 +50,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		factory.RegisterTool(tools.NewPollTasksTool(store))
 		factory.RegisterTool(tools.NewReadTaskOutputTool(store))
 		factory.RegisterTool(tools.NewSaveKnowledgeTool(store))
-		factory.RegisterTool(tools.NewListSkillsTool(store))
+		factory.RegisterTool(tools.NewListAgentSkillsTool(store))
 	}
 
 	h := &ApiHandler{
@@ -161,11 +161,11 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/knowledge", h.handleDeleteKnowledgePage)
 	mux.HandleFunc("POST /api/knowledge/build", h.handleBuildKnowledge)
 
-	// Skills
-	mux.HandleFunc("GET /api/skills", h.handleListSkills)
-	mux.HandleFunc("GET /api/skills/get", h.handleGetSkill)
-	mux.HandleFunc("PUT /api/skills", h.handleUpdateSkill)
-	mux.HandleFunc("POST /api/skills/reset", h.handleResetSkill)
+	// Agent Skills
+	mux.HandleFunc("GET /api/agent_skills", h.handleListSkills)
+	mux.HandleFunc("GET /api/agent_skills/get", h.handleGetSkill)
+	mux.HandleFunc("PUT /api/agent_skills", h.handleUpdateSkill)
+	mux.HandleFunc("POST /api/agent_skills/reset", h.handleResetSkill)
 }
 
 // handleHealth returns the health status of the API

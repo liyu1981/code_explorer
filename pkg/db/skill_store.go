@@ -35,7 +35,7 @@ func (s *Store) CreateSkill(ctx context.Context, skill *Skill) error {
 
 	now := time.Now()
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO skills (id, name, description, system_prompt, tags, is_builtin, created_at, updated_at)
+		INSERT INTO agent_skills (id, name, description, system_prompt, tags, is_builtin, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, skill.ID, skill.Name, skill.Description, skill.SystemPrompt, skill.Tags, skill.IsBuiltin, now, now)
 
@@ -56,7 +56,7 @@ func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error)
 	var sk Skill
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, name, description, system_prompt, tags, is_builtin, created_at, updated_at
-		FROM skills
+		FROM agent_skills
 		WHERE name = ?
 	`, name).Scan(&sk.ID, &sk.Name, &sk.Description, &sk.SystemPrompt, &sk.Tags, &sk.IsBuiltin, &sk.CreatedAt, &sk.UpdatedAt)
 
@@ -70,14 +70,14 @@ func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error)
 	return &sk, nil
 }
 
-func (s *Store) ListSkills(ctx context.Context) ([]Skill, error) {
+func (s *Store) ListAgentSkills(ctx context.Context) ([]Skill, error) {
 	if err := s.reconnect(); err != nil {
 		return nil, err
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, name, description, system_prompt, tags, is_builtin, created_at, updated_at
-		FROM skills
+		FROM agent_skills
 		ORDER BY name ASC
 	`)
 	if err != nil {
@@ -104,7 +104,7 @@ func (s *Store) UpdateSkill(ctx context.Context, skill *Skill) error {
 
 	now := time.Now()
 	res, err := s.db.ExecContext(ctx, `
-		UPDATE skills
+		UPDATE agent_skills
 		SET description = ?, system_prompt = ?, tags = ?, updated_at = ?
 		WHERE id = ?
 	`, skill.Description, skill.SystemPrompt, skill.Tags, now, skill.ID)
@@ -127,6 +127,6 @@ func (s *Store) DeleteSkill(ctx context.Context, id string) error {
 		return err
 	}
 
-	_, err := s.db.ExecContext(ctx, "DELETE FROM skills WHERE id = ?", id)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM agent_skills WHERE id = ?", id)
 	return err
 }
