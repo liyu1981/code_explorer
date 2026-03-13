@@ -34,13 +34,16 @@ func (l *HTTPClientLLM) Name() string {
 	return l.model
 }
 
-func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error) {
+func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat) (string, []ToolCall, error) {
 	payload := map[string]any{
 		"model":    l.model,
 		"messages": messages,
 	}
 	if len(tools) > 0 {
 		payload["tools"] = tools
+	}
+	if responseFormat != nil {
+		payload["response_format"] = responseFormat
 	}
 
 	body, err := json.Marshal(payload)
@@ -117,7 +120,7 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 	return content, toolCalls, nil
 }
 
-func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, streamWriter protocol.IStreamWriter) (string, []ToolCall, error) {
+func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat, streamWriter protocol.IStreamWriter) (string, []ToolCall, error) {
 	payload := map[string]any{
 		"model":    l.model,
 		"messages": messages,
@@ -125,6 +128,9 @@ func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, 
 	}
 	if len(tools) > 0 {
 		payload["tools"] = tools
+	}
+	if responseFormat != nil {
+		payload["response_format"] = responseFormat
 	}
 
 	body, err := json.Marshal(payload)
@@ -249,7 +255,7 @@ func (l *MockLLM) Name() string {
 	return l.model
 }
 
-func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error) {
+func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat) (string, []ToolCall, error) {
 	if l.callIndex >= len(l.responses) {
 		return "", nil, nil
 	}
@@ -264,8 +270,8 @@ func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[
 	return response, tcs, nil
 }
 
-func (l *MockLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream protocol.IStreamWriter) (string, []ToolCall, error) {
-	content, toolCalls, err := l.Generate(ctx, messages, tools)
+func (l *MockLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat, stream protocol.IStreamWriter) (string, []ToolCall, error) {
+	content, toolCalls, err := l.Generate(ctx, messages, tools, responseFormat)
 	if err != nil {
 		return "", nil, err
 	}

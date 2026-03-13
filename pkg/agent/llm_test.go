@@ -16,7 +16,7 @@ func TestMockLLM(t *testing.T) {
 	ctx := context.Background()
 
 	// Call 1
-	resp, tcs, err := llm.Generate(ctx, nil, nil)
+	resp, tcs, err := llm.Generate(ctx, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Generate 1 failed: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestMockLLM(t *testing.T) {
 	}
 
 	// Call 2
-	resp, tcs, err = llm.Generate(ctx, nil, nil)
+	resp, tcs, err = llm.Generate(ctx, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Generate 2 failed: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestMockLLM(t *testing.T) {
 	}
 
 	// Call 3 (exhausted)
-	resp, tcs, err = llm.Generate(ctx, nil, nil)
+	resp, tcs, err = llm.Generate(ctx, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Generate 3 failed: %v", err)
 	}

@@ -15,6 +15,12 @@ import (
 //go:embed skills/*.md
 var embeddedSkills embed.FS
 
+var buildinSkillTags = map[string]string{
+	"general-researcher":     "researcher",
+	"knowledge-base-builder": "knowledge-builder",
+	"knowledge-base-planner": "knowledge-builder",
+}
+
 // SyncBuiltinSkills seeds the database with embedded skill prompts
 func SyncBuiltinSkills(ctx context.Context, store *db.Store) error {
 	entries, err := fs.ReadDir(embeddedSkills, "skills")
@@ -64,6 +70,11 @@ func SyncBuiltinSkills(ctx context.Context, store *db.Store) error {
 			} else if strings.HasPrefix(line, "Tags: ") {
 				tags = strings.TrimSpace(strings.TrimPrefix(line, "Tags: "))
 			}
+		}
+
+		// Override tags from map if exists
+		if t, ok := buildinSkillTags[name]; ok {
+			tags = t
 		}
 
 		skill := &db.Skill{
@@ -121,6 +132,11 @@ func ResetSkillToDefault(ctx context.Context, name string, store *db.Store) erro
 	}
 	existing.Description = description
 	existing.Tags = tags
+
+	// Override tags from map if exists
+	if t, ok := buildinSkillTags[name]; ok {
+		existing.Tags = t
+	}
 
 	return store.UpdateSkill(ctx, existing)
 }

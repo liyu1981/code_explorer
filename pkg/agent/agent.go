@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/liyu1981/code_explorer/pkg/util"
 	"github.com/rs/zerolog/log"
@@ -34,6 +35,46 @@ type ToolResult struct {
 	ToolCallID string
 	Output     string
 	Error      error
+}
+
+type ResponseFormat struct {
+	Type       string      `json:"type"`
+	JSONSchema *JSONSchema `json:"json_schema,omitempty"`
+}
+
+type JSONSchema struct {
+	Name   string         `json:"name"`
+	Schema map[string]any `json:"schema"`
+}
+
+// ResponseFormatFromStruct creates a ResponseFormat from a Go struct type
+func ResponseFormatFromStruct[T any](name string) (*ResponseFormat, error) {
+	schema, err := jsonschema.For[T](nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate schema: %w", err)
+	}
+	return ResponseFormatFromSchema(name, schema)
+}
+
+// ResponseFormatFromSchema creates a ResponseFormat from a jsonschema.Schema
+func ResponseFormatFromSchema(name string, schema *jsonschema.Schema) (*ResponseFormat, error) {
+	b, err := json.Marshal(schema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal schema: %w", err)
+	}
+
+	var schemaMap map[string]any
+	if err := json.Unmarshal(b, &schemaMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal schema to map: %w", err)
+	}
+
+	return &ResponseFormat{
+		Type: "json_schema",
+		JSONSchema: &JSONSchema{
+			Name:   name,
+			Schema: schemaMap,
+		},
+	}, nil
 }
 
 type Tool interface {
@@ -92,16 +133,17 @@ func (r *ToolRegistry) MarshalToolsForLLM() []map[string]any {
 }
 
 type LLM interface {
-	Generate(ctx context.Context, messages []Message, tools []map[string]any) (string, []ToolCall, error)
-	GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, stream protocol.IStreamWriter) (string, []ToolCall, error)
+	Generate(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat) (string, []ToolCall, error)
+	GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat, stream protocol.IStreamWriter) (string, []ToolCall, error)
 	Name() string
 }
 
 type Agent struct {
-	llm           LLM
-	tools         *ToolRegistry
-	messages      []Message
-	maxIterations int
+	llm            LLM
+	tools          *ToolRegistry
+	messages       []Message
+	maxIterations  int
+	responseFormat *ResponseFormat
 }
 
 type AgentOption func(*Agent)
@@ -115,6 +157,12 @@ func WithMaxIterations(n int) AgentOption {
 func WithMessages(msgs []Message) AgentOption {
 	return func(a *Agent) {
 		a.messages = msgs
+	}
+}
+
+func WithResponseFormat(rf *ResponseFormat) AgentOption {
+	return func(a *Agent) {
+		a.responseFormat = rf
 	}
 }
 
@@ -143,8 +191,9 @@ func (a *Agent) SetSystemPrompt(prompt string) {
 }
 
 type AgentPipelineStep struct {
-	SystemPrompt string
-	UserInput    string
+	SystemPrompt   string
+	UserInput      string
+	ResponseFormat *ResponseFormat
 }
 
 func (a *Agent) RunPipeline(ctx context.Context, steps []AgentPipelineStep, turnID string, stream protocol.IStreamWriter) (string, error) {
@@ -153,7 +202,11 @@ func (a *Agent) RunPipeline(ctx context.Context, steps []AgentPipelineStep, turn
 
 	for _, step := range steps {
 		a.SetSystemPrompt(step.SystemPrompt)
+		// Temporarily override response format for this step
+		oldRf := a.responseFormat
+		a.responseFormat = step.ResponseFormat
 		lastOutput, err = a.run(ctx, step.UserInput, turnID, stream, 1)
+		a.responseFormat = oldRf
 		if err != nil {
 			return "", err
 		}
@@ -192,9 +245,9 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 		}
 
 		if stream != nil {
-			response, toolCalls, err = a.llm.GenerateStream(ctx, a.messages, tools, stream)
+			response, toolCalls, err = a.llm.GenerateStream(ctx, a.messages, tools, a.responseFormat, stream)
 		} else {
-			response, toolCalls, err = a.llm.Generate(ctx, a.messages, tools)
+			response, toolCalls, err = a.llm.Generate(ctx, a.messages, tools, a.responseFormat)
 		}
 
 		if stream != nil {
