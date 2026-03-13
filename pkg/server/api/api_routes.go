@@ -15,7 +15,6 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
 	"github.com/liyu1981/code_explorer/pkg/task"
-	"github.com/liyu1981/code_explorer/pkg/tasks"
 )
 
 // ApiHandler represents the API handler
@@ -95,18 +94,29 @@ func (h *ApiHandler) registerQueueHandlers() {
 	h.taskManager.RegisterHandler("codemogger-index", h.handleIndexTask)
 	h.taskManager.RegisterHandler("knowledge-build", h.handleKnowledgeBuildTask)
 	h.taskManager.RegisterHandler("wiki-analyze", h.handleWikiAnalyzeTask)
+	h.taskManager.RegisterHandler("summarize-topic", h.handleSummarizeTopicTask)
 }
 
 func (h *ApiHandler) handleIndexTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
 	return h.index.HandleIndexTask(ctx, task, updateProgress)
 }
 
-func (h *ApiHandler) handleKnowledgeBuildTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
-	return tasks.HandleKnowledgeBuildTask(ctx, h.index, task, h.taskManager, h.agentFactory, updateProgress)
+func (h *ApiHandler) handleKnowledgeBuildTask(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
+	return task.HandleKnowledgeBuildTask(ctx, h.index, taskItem, h.taskManager, h.agentFactory, updateProgress)
 }
 
-func (h *ApiHandler) handleWikiAnalyzeTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
-	return tasks.HandleKnowledgeWikiAnalyzeTask(ctx, h.index, task, h.agentFactory, updateProgress)
+func (h *ApiHandler) handleWikiAnalyzeTask(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
+	return task.HandleKnowledgeWikiAnalyzeTask(ctx, h.index, taskItem, h.agentFactory, updateProgress)
+}
+
+func (h *ApiHandler) handleSummarizeTopicTask(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
+	return task.HandleSummarizeTopicTask(ctx, h.index, taskItem, h.agentFactory, updateProgress, func(sessionId string, title string) {
+		h.Publish("research", map[string]any{
+			"type":      "research.session.updated",
+			"sessionId": sessionId,
+			"title":     title,
+		})
+	})
 }
 
 // RegisterRoutes configures all API routes on the provided mux

@@ -7,6 +7,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { API_URL, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWebSocketContext } from "../_components/websocket-provider";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import {
@@ -45,10 +46,26 @@ function ResearchContent() {
   const [activeSessionId, setActiveSessionId] = useAtom(activeSessionIdAtom);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const rehydratingRef = useRef<string | null>(null);
+  const { subscribe, unsubscribe } = useWebSocketContext();
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlId = searchParams.get("id");
+
+  // Research Session Updates
+  useEffect(() => {
+    const handleResearchUpdate = (payload: any) => {
+      if (payload.type === "research.session.updated") {
+        const { sessionId, title } = payload;
+        setSessions((prev) =>
+          prev.map((s) => (s.id === sessionId ? { ...s, title } : s)),
+        );
+      }
+    };
+
+    subscribe("research", handleResearchUpdate);
+    return () => unsubscribe("research", handleResearchUpdate);
+  }, [subscribe, unsubscribe, setSessions]);
 
   // Rehydration Effect
   useEffect(() => {
@@ -631,7 +648,7 @@ function ResearchContent() {
         {/* Floating Thought Process Indicator */}
         {isResearching && (
           <div className="absolute top-[1rem] left-0 right-0 z-50 px-6 animate-in fade-in slide-in-from-top-4 duration-500 pointer-events-none">
-            <div className="max-w-6xl mx-auto pointer-events-auto">
+            <div className="max-w-4xl mx-auto pointer-events-auto">
               <div className="bg-background/80 backdrop-blur-xl border border-primary/20 shadow-2xl rounded-2xl overflow-hidden shadow-primary/5">
                 <div className="p-4 border-b border-border/50 bg-muted/30">
                   <ReasoningTrace steps={activeSession.steps} />

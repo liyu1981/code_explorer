@@ -1,4 +1,4 @@
-package tasks
+package task
 
 import (
 	"context"
@@ -73,7 +73,7 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	// 4. Run Agent
 	updateProgress(10, "Orchestrator starting analysis...")
 	input := fmt.Sprintf("Analyze the codebase at %s and identify key modules and architecture.", cb.RootPath)
-	_, err = ag.Run(ctx, input, task.ID, nil)
+	_, err = ag.RunLoop(ctx, input, task.ID, nil)
 	if err != nil {
 		return fmt.Errorf("orchestrator execution failed: %w", err)
 	}
@@ -138,7 +138,7 @@ func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeInd
 
 	input := fmt.Sprintf("Module Path: %s\nGoal: %s\n\nPlease explore the files in this path and provide a concise Markdown summary of its purpose, main components, and key logic.", payload.Path, goal)
 
-	output, err := ag.Run(ctx, input, task.ID, nil)
+	output, err := ag.RunLoop(ctx, input, task.ID, nil)
 	if err != nil {
 		return fmt.Errorf("analyze agent execution failed: %w", err)
 	}

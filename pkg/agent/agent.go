@@ -142,8 +142,35 @@ func (a *Agent) SetSystemPrompt(prompt string) {
 	}
 }
 
-func (a *Agent) Run(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter) (string, error) {
-	log.Info().Str("input", input).Str("turn", turnID).Msg("Agent starting run")
+type AgentPipelineStep struct {
+	SystemPrompt string
+	UserInput    string
+}
+
+func (a *Agent) RunPipeline(ctx context.Context, steps []AgentPipelineStep, turnID string, stream protocol.IStreamWriter) (string, error) {
+	var lastOutput string
+	var err error
+
+	for _, step := range steps {
+		a.SetSystemPrompt(step.SystemPrompt)
+		lastOutput, err = a.run(ctx, step.UserInput, turnID, stream, 1)
+		if err != nil {
+			return "", err
+		}
+	}
+	return lastOutput, nil
+}
+
+func (a *Agent) RunLoop(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter, maxIterations ...int) (string, error) {
+	iterations := a.maxIterations
+	if len(maxIterations) > 0 {
+		iterations = maxIterations[0]
+	}
+	return a.run(ctx, input, turnID, stream, iterations)
+}
+
+func (a *Agent) run(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter, maxIterations int) (string, error) {
+	log.Info().Str("input", input).Str("turn", turnID).Int("max_iterations", maxIterations).Msg("Agent starting run")
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
 
 	if turnID != "" {
@@ -152,7 +179,7 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 
 	tools := a.tools.MarshalToolsForLLM()
 
-	for i := 0; i < a.maxIterations; i++ {
+	for i := 0; i < maxIterations; i++ {
 		log.Debug().Int("iteration", i).Msg("Agent iteration start")
 		var response string
 		var toolCalls []ToolCall
@@ -265,7 +292,7 @@ func (a *Agent) Run(ctx context.Context, input string, turnID string, stream pro
 		}
 	}
 
-	return "", fmt.Errorf("max iterations (%d) reached", a.maxIterations)
+	return "", fmt.Errorf("max iterations (%d) reached", maxIterations)
 }
 
 func (a *Agent) Messages() []Message {

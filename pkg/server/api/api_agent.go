@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
@@ -166,7 +165,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Run agent in a goroutine or directly
 	// For streaming, we should run it and let it write to sw
-	_, err = ag.Run(r.Context(), req.Query, turnID, finalSw)
+	_, err = ag.RunLoop(r.Context(), req.Query, turnID, finalSw)
 	if err != nil {
 		// In a stream, we might have already started sending data.
 		// Errors should ideally be sent as events.
@@ -302,74 +301,21 @@ func (h *ApiHandler) handleSummarizeSession(w http.ResponseWriter, r *http.Reque
 	}
 	id := r.PathValue("id")
 
-	// Get reports to find the first question and part of the report
-	reports, err := h.index.GetStore().GetResearchReportsBySession(r.Context(), id)
-	if err != nil || len(reports) == 0 {
-		writeError(w, http.StatusNotFound, "Reports not found for session", err)
-		return
+	// Submit background task
+	payload := map[string]string{
+		"sessionId": id,
 	}
 
-	// Reconstruct the first turn context
-	var firstQuery string
-	var firstReport string
-	lines := strings.Split(reports[0].StreamData, "\n\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "ce: ") {
-			var event protocol.CEEvent
-			if err := json.Unmarshal([]byte(line[4:]), &event); err == nil && event.Object == "research.turn.started" {
-				firstQuery = event.Query
-			}
-		} else if strings.HasPrefix(line, "data: ") {
-			var chunk struct {
-				Choices []struct {
-					Delta struct {
-						Content string `json:"content"`
-					} `json:"delta"`
-				} `json:"choices"`
-			}
-			if err := json.Unmarshal([]byte(line[6:]), &chunk); err == nil && len(chunk.Choices) > 0 {
-				firstReport += chunk.Choices[0].Delta.Content
-			}
-		}
-		if len(firstReport) > 500 {
-			break
-		}
-	}
-
-	// Use LLM to summarize
-	llmCfg := getSystemLLMConfig()
-	model := llmCfg["model"].(string)
-	baseURL := llmCfg["base_url"].(string)
-	apiKey := ""
-	if v, ok := llmCfg["api_key"].(string); ok {
-		apiKey = v
-	}
-
-	llm := agent.NewHTTPClientLLM(model, baseURL, apiKey)
-	prompt := fmt.Sprintf("Based on the following research query and partial report, generate a concise title (strictly maximum 5 words).\n\nQuery: %s\n\nReport: %s", firstQuery, firstReport)
-	title, _, err := llm.Generate(r.Context(), []agent.Message{{Role: "user", Content: prompt}}, nil)
+	taskID, err := h.taskManager.Submit(r.Context(), "summarize-topic", payload, 3)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to generate title with LLM")
-		writeError(w, http.StatusInternalServerError, "Failed to generate title", err)
+		writeError(w, http.StatusInternalServerError, "Failed to submit summarization task", err)
 		return
 	}
 
-	title = strings.Trim(title, "\" \n\r")
-
-	// Update session title
-	sess, err := h.index.GetStore().GetResearchSession(r.Context(), id)
-	if err != nil || sess == nil {
-		writeError(w, http.StatusNotFound, "Session not found", err)
-		return
-	}
-
-	sess.Title = title
-	if err := h.index.GetStore().SaveResearchSession(r.Context(), sess); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to update session title", err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, sess)
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"taskId": taskID,
+		"status": "queued",
+	})
 }
 
 func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request) {
