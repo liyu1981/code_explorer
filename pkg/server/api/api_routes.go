@@ -44,8 +44,8 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		// but the tool can be registered if it's dynamic or we register them per-task.
 		// For now, let's register the ones that don't need rootPath in constructor
 		// or will get it from the task context.
-		factory.RegisterTool(agent.NewListFilesTool(config.Index))
-		factory.RegisterTool(agent.NewSearchTool(config.Index))
+		factory.RegisterTool(tools.NewListFilesTool(config.Index))
+		factory.RegisterTool(tools.NewSearchTool(config.Index))
 		factory.RegisterTool(tools.NewQueueTaskTool(store))
 		factory.RegisterTool(tools.NewPollTasksTool(store))
 		factory.RegisterTool(tools.NewReadTaskOutputTool(store))
