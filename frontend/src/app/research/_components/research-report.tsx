@@ -1,6 +1,14 @@
 "use client";
 
-import { Sparkles, Clock, Trash2, Copy, Check, Bookmark } from "lucide-react";
+import {
+  Sparkles,
+  Clock,
+  Trash2,
+  Copy,
+  Check,
+  Bookmark,
+  RotateCcw,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
 import type { ResearchTurn } from "../../_jotai/research-store";
@@ -9,6 +17,7 @@ import { SourceCard } from "./source-card";
 interface ResearchReportProps {
   turns: ResearchTurn[];
   onDeleteTurn?: (turnId: string) => void;
+  onRegenerateTurn?: (turn: ResearchTurn) => void;
   onSaveTurn?: (turn: ResearchTurn) => void;
   isStreaming?: boolean;
 }
@@ -16,6 +25,7 @@ interface ResearchReportProps {
 export function ResearchReport({
   turns,
   onDeleteTurn,
+  onRegenerateTurn,
   onSaveTurn,
   isStreaming,
 }: ResearchReportProps) {
@@ -130,6 +140,16 @@ export function ResearchReport({
                         <Copy className="h-4 w-4" />
                       )}
                     </button>
+                    {onRegenerateTurn && !isStreaming && (
+                      <button
+                        type="button"
+                        onClick={() => onRegenerateTurn(turn)}
+                        className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        title="Regenerate Turn"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </button>
+                    )}
                     {onDeleteTurn && !isStreaming && (
                       <button
                         type="button"

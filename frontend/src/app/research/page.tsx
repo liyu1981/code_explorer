@@ -16,9 +16,12 @@ import {
   type ResearchSession,
   type ResearchTurn,
 } from "../_jotai/research-store";
+import { FloatingThoughtProcess } from "./_components/floating-thought-process";
+import { IdleResearchView } from "./_components/idle-research-view";
 import { ReasoningTrace } from "./_components/reasoning-trace";
 import { ResearchInput } from "./_components/research-input";
 import { ResearchReport } from "./_components/research-report";
+import { StickyResearchInput } from "./_components/sticky-research-input";
 import type { Source } from "./_components/source-card";
 
 interface OpenAIChunk {
@@ -534,6 +537,12 @@ function ResearchContent() {
     }
   };
 
+  const handleRegenerate = async (turn: ResearchTurn) => {
+    if (!activeSessionId) return;
+    await handleDeleteTurn(turn.id);
+    handleSearch(activeSessionId, turn.query, false);
+  };
+
   const handleSaveTurn = async (turn: ResearchTurn) => {
     if (!activeSession) return;
     try {
@@ -612,30 +621,16 @@ function ResearchContent() {
           )}
         >
           {isIdle ? (
-            <div className="w-full max-w-4xl space-y-12 animate-in fade-in zoom-in-95 duration-700">
-              <div className="text-center space-y-4">
-                <h2 className="text-6xl font-bold tracking-tighter">
-                  What are we building?
-                </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Research your codebase with semantic intelligence and deep
-                  analytical reasoning.
-                </p>
-              </div>
-              <div className="max-w-6xl mx-auto p-8">
-                <ResearchInput
-                  onSearch={(q, deep) =>
-                    handleSearch(activeSession.id, q, deep)
-                  }
-                />
-              </div>
-            </div>
+            <IdleResearchView
+              onSearch={(q, deep) => handleSearch(activeSession.id, q, deep)}
+            />
           ) : (
             (activeSession.turns.length > 0 || isResearching) && (
               <div className="max-w-6xl mx-auto w-full space-y-12 pb-48">
                 <ResearchReport
                   turns={activeSession.turns}
                   onDeleteTurn={handleDeleteTurn}
+                  onRegenerateTurn={handleRegenerate}
                   onSaveTurn={handleSaveTurn}
                   isStreaming={isResearching}
                 />
@@ -646,41 +641,18 @@ function ResearchContent() {
         </div>
 
         {/* Floating Thought Process Indicator */}
-        {isResearching && (
-          <div className="absolute top-[1rem] left-0 right-0 z-50 px-6 animate-in fade-in slide-in-from-top-4 duration-500 pointer-events-none">
-            <div className="max-w-4xl mx-auto pointer-events-auto">
-              <div className="bg-background/80 backdrop-blur-xl border border-primary/20 shadow-2xl rounded-2xl overflow-hidden shadow-primary/5">
-                <div className="p-4 border-b border-border/50 bg-muted/30">
-                  <ReasoningTrace steps={activeSession.steps} />
-                </div>
+        <FloatingThoughtProcess
+          isVisible={isResearching}
+          steps={activeSession.steps}
+          thoughtProcess={activeSession.thoughtProcess}
+        />
 
-                {activeSession.thoughtProcess && (
-                  <div className="max-h-[200px] overflow-auto p-4 bg-muted/10">
-                    <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">
-                      Granular Thought Process
-                    </h4>
-                    <pre className="text-xs font-mono whitespace-pre-wrap text-muted-foreground/70 leading-relaxed">
-                      {activeSession.thoughtProcess}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
         {/* Sticky Input Area */}
-
-        {!isIdle && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-20 pb-8 px-6 z-20 pointer-events-none">
-            <div className="max-w-6xl mx-auto pointer-events-auto">
-              <ResearchInput
-                onSearch={(q, deep) => handleSearch(activeSession.id, q, deep)}
-                isCompact
-                suggestions={!isResearching ? followUpSuggestions : []}
-              />
-            </div>
-          </div>
-        )}
+        <StickyResearchInput
+          isVisible={!isIdle}
+          onSearch={(q, deep) => handleSearch(activeSession.id, q, deep)}
+          suggestions={!isResearching ? followUpSuggestions : []}
+        />
       </div>
     </AppContainer>
   );

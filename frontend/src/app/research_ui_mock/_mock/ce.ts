@@ -64,7 +64,17 @@ export const getMockStream = (query: string) => {
   stream.push(
     `ce: ${JSON.stringify({
       object: "research.reasoning.delta",
-      content: `Initializing deep research for: ${query}\n`,
+      content: `Initializing deep research for: ${query}\n
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions 695.932s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions/C_tovrAmB3/reports 223.367s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions 473.037s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions/C_tovrAmB3/reports 194.403s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions 264.856s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions/C_tovrAmB3/reports 188.806s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions 296.193s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions/C_tovrAmB3/reports 251.606s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions 207.222s
+[ce] 2026/03/13 14:30:28 GET /api/research/sessions/C_tovrAmB3/reports 94.421s\n`,
     })}`,
   );
 

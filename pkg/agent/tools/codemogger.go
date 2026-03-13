@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/constant"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 // ListFilesTool exposes codemogger's ListFiles functionality to the agent
@@ -76,7 +78,7 @@ func (t *SearchTool) Parameters() map[string]any {
 			},
 			"limit": map[string]any{
 				"type":        "integer",
-				"description": "Maximum number of results to return (default 5)",
+				"description": fmt.Sprintf("Maximum number of results to return (default %d)", constant.DefaultSearchLimit),
 			},
 			"mode": map[string]any{
 				"type":        "string",
@@ -100,7 +102,7 @@ func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream 
 	}
 
 	if req.Limit <= 0 {
-		req.Limit = 5
+		req.Limit = constant.DefaultSearchLimit
 	}
 	if req.Mode == "" {
 		req.Mode = codemogger.SearchModeHybrid
@@ -123,8 +125,9 @@ func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream 
 			// Emit a reasoning update so the user sees progress for each file
 			stream.SendReasoning(fmt.Sprintf("Found relevant snippet in %s:%d\n", res.FilePath, res.StartLine))
 
+			id, _ := gonanoid.New()
 			stream.SendResourceMaterial(protocol.SourceMaterial{
-				ID:        fmt.Sprintf("search-%d", i),
+				ID:        fmt.Sprintf("search-%d-%s", i, id),
 				Path:      res.FilePath,
 				Snippet:   res.Snippet,
 				StartLine: res.StartLine,
