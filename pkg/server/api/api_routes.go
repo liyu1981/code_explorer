@@ -15,6 +15,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
 	"github.com/liyu1981/code_explorer/pkg/task"
+	"github.com/liyu1981/code_explorer/pkg/tasks"
 )
 
 // ApiHandler represents the API handler
@@ -101,11 +102,11 @@ func (h *ApiHandler) handleIndexTask(ctx context.Context, task *db.Task, updateP
 }
 
 func (h *ApiHandler) handleKnowledgeBuildTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
-	return agent.HandleKnowledgeBuildTask(ctx, h.index, task, h.taskManager, h.agentFactory, updateProgress)
+	return tasks.HandleKnowledgeBuildTask(ctx, h.index, task, h.taskManager, h.agentFactory, updateProgress)
 }
 
 func (h *ApiHandler) handleWikiAnalyzeTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
-	return agent.HandleKnowledgeWikiAnalyzeTask(ctx, h.index, task, h.agentFactory, updateProgress)
+	return tasks.HandleKnowledgeWikiAnalyzeTask(ctx, h.index, task, h.agentFactory, updateProgress)
 }
 
 // RegisterRoutes configures all API routes on the provided mux

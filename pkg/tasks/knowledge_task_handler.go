@@ -1,10 +1,11 @@
-package agent
+package tasks
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
+	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/agent/tools"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
@@ -17,9 +18,9 @@ type TaskManager interface {
 }
 
 type AgentFactoryInterface interface {
-	BuildFromConfig(cfg *Config) (*Agent, error)
+	BuildFromConfig(cfg *agent.Config) (*agent.Agent, error)
 	GetSkillPrompt(ctx context.Context, name string) (string, error)
-	RegisterTool(tool Tool)
+	RegisterTool(tool agent.Tool)
 }
 
 func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, taskManager TaskManager, agentFactory AgentFactoryInterface, updateProgress func(progress int, message string)) error {
@@ -60,7 +61,7 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
 
 	// 3. Build Agent
-	ag, err := agentFactory.BuildFromConfig(&Config{
+	ag, err := agentFactory.BuildFromConfig(&agent.Config{
 		MaxIterations: 20,
 	})
 	if err != nil {
@@ -120,7 +121,7 @@ func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeInd
 	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
 
 	// 3. Build Agent
-	ag, err := agentFactory.BuildFromConfig(&Config{
+	ag, err := agentFactory.BuildFromConfig(&agent.Config{
 		MaxIterations: 10,
 	})
 	if err != nil {
