@@ -7,6 +7,10 @@ import (
 )
 
 func SetupTestDB(t *testing.T) (*Store, func()) {
+	if instance != nil && instance.db != nil {
+		instance.db.Close()
+	}
+	ResetStoreForTest()
 	dir, err := os.MkdirTemp("", "db-test-*")
 	if err != nil {
 		t.Fatalf("create temp dir: %v", err)

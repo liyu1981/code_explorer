@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,41 +10,41 @@ import (
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-func (s *Store) CodemoggerEnsureMetadata(codebaseID string) (string, error) {
-	if err := s.reconnect(); err != nil {
-		return "", err
-	}
-
+func (s *Store) CodemoggerEnsureMetadata(ctx context.Context, codebaseID string) (string, error) {
 	var metadataID string
-	err := s.db.QueryRow(
-		"SELECT id FROM codemogger_codebases WHERE codebase_id = ?",
-		codebaseID,
-	).Scan(&metadataID)
+	err := s.Transaction(ctx, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx,
+			"SELECT id FROM codemogger_codebases WHERE codebase_id = ?",
+			codebaseID,
+		).Scan(&metadataID)
 
-	if err == nil {
-		return metadataID, nil
-	}
-	if err != sql.ErrNoRows {
-		return "", err
-	}
+		if err == nil {
+			return nil
+		}
+		if err != sql.ErrNoRows {
+			return err
+		}
 
-	newID, _ := gonanoid.New()
-	_, err = s.db.Exec(
-		"INSERT INTO codemogger_codebases (id, codebase_id, indexed_at) VALUES (?, ?, unixepoch())",
-		newID, codebaseID,
-	)
+		newID, _ := gonanoid.New()
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO codemogger_codebases (id, codebase_id, indexed_at) VALUES (?, ?, unixepoch())",
+			newID, codebaseID,
+		)
+		if err != nil {
+			return err
+		}
+		metadataID = newID
+		return nil
+	})
+
 	if err != nil {
 		return "", err
 	}
 
-	return newID, nil
+	return metadataID, nil
 }
 
-func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) CodemoggerListCodebases(ctx context.Context) ([]CodebaseInfo, error) {
 	query := `
 		SELECT 
 			c.id,
@@ -61,7 +62,7 @@ func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
 		ORDER BY c.root_path
 	`
 
-	rows, err := s.db.Query(query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -79,22 +80,14 @@ func (s *Store) CodemoggerListCodebases() ([]CodebaseInfo, error) {
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerTouchCodebase(metadataID string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.Exec("UPDATE codemogger_codebases SET indexed_at = unixepoch() WHERE id = ?", metadataID)
+func (s *Store) CodemoggerTouchCodebase(ctx context.Context, metadataID string) error {
+	_, err := s.ExecWrite(ctx, "UPDATE codemogger_codebases SET indexed_at = unixepoch() WHERE id = ?", metadataID)
 	return err
 }
 
-func (s *Store) CodemoggerGetFileHash(metadataID string, filePath string) (string, error) {
-	if err := s.reconnect(); err != nil {
-		return "", err
-	}
-
+func (s *Store) CodemoggerGetFileHash(ctx context.Context, metadataID string, filePath string) (string, error) {
 	var fileHash string
-	err := s.db.QueryRow(
+	err := s.db.QueryRowContext(ctx,
 		"SELECT file_hash FROM codemogger_indexed_files WHERE codebase_id = ? AND file_path = ?",
 		metadataID, filePath,
 	).Scan(&fileHash)
@@ -105,131 +98,118 @@ func (s *Store) CodemoggerGetFileHash(metadataID string, filePath string) (strin
 	return fileHash, err
 }
 
-func (s *Store) CodemoggerBatchUpsertAllFileChunks(metadataID string, fileChunks []struct {
+func (s *Store) CodemoggerBatchUpsertAllFileChunks(ctx context.Context, metadataID string, fileChunks []struct {
 	FilePath string
 	FileHash string
 	Chunks   []CodeChunk
 }) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
+	return s.Transaction(ctx, func(tx *sql.Tx) error {
+		for _, fc := range fileChunks {
+			_, err := tx.ExecContext(ctx,
+				"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
+				metadataID, fc.FilePath,
+			)
+			if err != nil {
+				return err
+			}
 
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+			for _, chunk := range fc.Chunks {
+				newChunkID, _ := gonanoid.New()
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO codemogger_chunks 
+					(id, codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), NULL, '')
+				`,
+					newChunkID, metadataID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
+					chunk.Name, chunk.Signature, chunk.Snippet, chunk.StartLine, chunk.EndLine, chunk.FileHash,
+				)
+				if err != nil {
+					return err
+				}
+			}
 
-	for _, fc := range fileChunks {
-		_, err = tx.Exec(
-			"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
-			metadataID, fc.FilePath,
+			newFileID, _ := gonanoid.New()
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO codemogger_indexed_files (id, codebase_id, file_path, file_hash, chunk_count, indexed_at)
+				VALUES (?, ?, ?, ?, ?, unixepoch())
+				ON CONFLICT(codebase_id, file_path) DO UPDATE SET
+					file_hash = excluded.file_hash,
+					chunk_count = excluded.chunk_count,
+					indexed_at = excluded.indexed_at
+			`,
+				newFileID, metadataID, fc.FilePath, fc.FileHash, len(fc.Chunks),
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *Store) CodemoggerRemoveStaleFiles(ctx context.Context, metadataID string, activeFiles []string) (int, error) {
+	var removedCount int
+	err := s.Transaction(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx,
+			"SELECT file_path FROM codemogger_indexed_files WHERE codebase_id = ?",
+			metadataID,
 		)
 		if err != nil {
 			return err
 		}
+		defer rows.Close()
 
-		for _, chunk := range fc.Chunks {
-			newChunkID, _ := gonanoid.New()
-			_, err = tx.Exec(`
-				INSERT INTO codemogger_chunks 
-				(id, codebase_id, file_path, chunk_key, language, kind, name, signature, snippet, start_line, end_line, file_hash, indexed_at, embedding, embedding_model)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), NULL, '')
-			`,
-				newChunkID, metadataID, chunk.FilePath, chunk.ChunkKey, chunk.Language, chunk.Kind,
-				chunk.Name, chunk.Signature, chunk.Snippet, chunk.StartLine, chunk.EndLine, chunk.FileHash,
+		var allFiles []string
+		for rows.Next() {
+			var f string
+			if err := rows.Scan(&f); err != nil {
+				return err
+			}
+			allFiles = append(allFiles, f)
+		}
+
+		activeSet := make(map[string]bool)
+		for _, f := range activeFiles {
+			activeSet[f] = true
+		}
+
+		var staleFiles []string
+		for _, f := range allFiles {
+			if !activeSet[f] {
+				staleFiles = append(staleFiles, f)
+			}
+		}
+
+		if len(staleFiles) == 0 {
+			removedCount = 0
+			return nil
+		}
+
+		for _, filePath := range staleFiles {
+			_, err = tx.ExecContext(ctx,
+				"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
+				metadataID, filePath,
+			)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx,
+				"DELETE FROM codemogger_indexed_files WHERE codebase_id = ? AND file_path = ?",
+				metadataID, filePath,
 			)
 			if err != nil {
 				return err
 			}
 		}
 
-		newFileID, _ := gonanoid.New()
-		_, err = tx.Exec(`
-			INSERT INTO codemogger_indexed_files (id, codebase_id, file_path, file_hash, chunk_count, indexed_at)
-			VALUES (?, ?, ?, ?, ?, unixepoch())
-			ON CONFLICT(codebase_id, file_path) DO UPDATE SET
-				file_hash = excluded.file_hash,
-				chunk_count = excluded.chunk_count,
-				indexed_at = excluded.indexed_at
-		`,
-			newFileID, metadataID, fc.FilePath, fc.FileHash, len(fc.Chunks),
-		)
-		if err != nil {
-			return err
-		}
-	}
+		removedCount = len(staleFiles)
+		return nil
+	})
 
-	return tx.Commit()
+	return removedCount, err
 }
 
-func (s *Store) CodemoggerRemoveStaleFiles(metadataID string, activeFiles []string) (int, error) {
-	if err := s.reconnect(); err != nil {
-		return 0, err
-	}
-
-	rows, err := s.db.Query(
-		"SELECT file_path FROM codemogger_indexed_files WHERE codebase_id = ?",
-		metadataID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-
-	var allFiles []string
-	for rows.Next() {
-		var f string
-		if err := rows.Scan(&f); err != nil {
-			return 0, err
-		}
-		allFiles = append(allFiles, f)
-	}
-
-	activeSet := make(map[string]bool)
-	for _, f := range activeFiles {
-		activeSet[f] = true
-	}
-
-	var staleFiles []string
-	for _, f := range allFiles {
-		if !activeSet[f] {
-			staleFiles = append(staleFiles, f)
-		}
-	}
-
-	if len(staleFiles) == 0 {
-		return 0, nil
-	}
-
-	tx, err := s.db.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	for _, filePath := range staleFiles {
-		_, err = tx.Exec(
-			"DELETE FROM codemogger_chunks WHERE codebase_id = ? AND file_path = ?",
-			metadataID, filePath,
-		)
-		if err != nil {
-			return 0, err
-		}
-		_, err = tx.Exec(
-			"DELETE FROM codemogger_indexed_files WHERE codebase_id = ? AND file_path = ?",
-			metadataID, filePath,
-		)
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	err = tx.Commit()
-	return len(staleFiles), err
-}
-
-func (s *Store) CodemoggerBatchUpsertEmbeddings(items []struct {
+func (s *Store) CodemoggerBatchUpsertEmbeddings(ctx context.Context, items []struct {
 	ChunkKey  string
 	Embedding []float32
 	ModelName string
@@ -237,34 +217,26 @@ func (s *Store) CodemoggerBatchUpsertEmbeddings(items []struct {
 	if len(items) == 0 {
 		return nil
 	}
-	if err := s.reconnect(); err != nil {
-		return err
-	}
 
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	for _, item := range items {
-		blob, err := json.Marshal(item.Embedding)
-		if err != nil {
-			return err
+	return s.Transaction(ctx, func(tx *sql.Tx) error {
+		for _, item := range items {
+			blob, err := json.Marshal(item.Embedding)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx,
+				"UPDATE codemogger_chunks SET embedding = vector32(?), embedding_model = ? WHERE chunk_key = ?",
+				string(blob), item.ModelName, item.ChunkKey,
+			)
+			if err != nil {
+				return err
+			}
 		}
-		_, err = tx.Exec(
-			"UPDATE codemogger_chunks SET embedding = vector32(?), embedding_model = ? WHERE chunk_key = ?",
-			string(blob), item.ModelName, item.ChunkKey,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
+		return nil
+	})
 }
 
-func (s *Store) CodemoggerGetStaleEmbeddings(metadataID string, modelName string, limit int) ([]struct {
+func (s *Store) CodemoggerGetStaleEmbeddings(ctx context.Context, metadataID string, modelName string, limit int) ([]struct {
 	ChunkKey  string
 	Name      string
 	Signature string
@@ -272,10 +244,6 @@ func (s *Store) CodemoggerGetStaleEmbeddings(metadataID string, modelName string
 	Kind      string
 	Snippet   string
 }, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
 	query := `
 		SELECT chunk_key, name, signature, file_path, kind, snippet
 		FROM codemogger_chunks
@@ -283,7 +251,7 @@ func (s *Store) CodemoggerGetStaleEmbeddings(metadataID string, modelName string
 		LIMIT ?
 	`
 
-	rows, err := s.db.Query(query, metadataID, modelName, limit)
+	rows, err := s.db.QueryContext(ctx, query, metadataID, modelName, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -316,16 +284,13 @@ func (s *Store) CodemoggerGetStaleEmbeddings(metadataID string, modelName string
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerRebuildFTSTable(metadataID string) error {
+func (s *Store) CodemoggerRebuildFTSTable(ctx context.Context, metadataID string) error {
 	return nil
 }
 
-func (s *Store) CodemoggerVectorSearch(queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
+func (s *Store) CodemoggerVectorSearch(ctx context.Context, queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
 	if len(queryEmbedding) == 0 {
 		return nil, fmt.Errorf("empty query embedding")
-	}
-	if err := s.reconnect(); err != nil {
-		return nil, err
 	}
 
 	queryVec := fmt.Sprintf("[%v]", strings.Join(func() []string {
@@ -345,7 +310,7 @@ func (s *Store) CodemoggerVectorSearch(queryEmbedding []float32, limit int, incl
 		LIMIT ?
 	`
 
-	rows, err := s.db.Query(sqlQuery, queryVec, limit)
+	rows, err := s.db.QueryContext(ctx, sqlQuery, queryVec, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -369,11 +334,7 @@ func (s *Store) CodemoggerVectorSearch(queryEmbedding []float32, limit int, incl
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool) ([]SearchResult, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) CodemoggerFTSSearch(ctx context.Context, query string, limit int, includeSnippet bool) ([]SearchResult, error) {
 	sqlQuery := `
 		SELECT chunk_key, file_path, codemogger_chunks.name, kind, codemogger_chunks.signature, codemogger_chunks.snippet, start_line, end_line
 		FROM codemogger_chunks
@@ -383,7 +344,7 @@ func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool
 		LIMIT ?
 	`
 
-	rows, err := s.db.Query(sqlQuery, query, limit)
+	rows, err := s.db.QueryContext(ctx, sqlQuery, query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -410,21 +371,17 @@ func (s *Store) CodemoggerFTSSearch(query string, limit int, includeSnippet bool
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerListFiles(metadataID string) ([]FileInfo, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) CodemoggerListFiles(ctx context.Context, metadataID string) ([]FileInfo, error) {
 	var rows *sql.Rows
 	var err error
 
 	if metadataID != "" {
-		rows, err = s.db.Query(
+		rows, err = s.db.QueryContext(ctx,
 			"SELECT file_path, file_hash, chunk_count, indexed_at FROM codemogger_indexed_files WHERE codebase_id = ? ORDER BY file_path",
 			metadataID,
 		)
 	} else {
-		rows, err = s.db.Query(
+		rows, err = s.db.QueryContext(ctx,
 			"SELECT file_path, file_hash, chunk_count, indexed_at FROM codemogger_indexed_files ORDER BY file_path",
 		)
 	}
@@ -446,13 +403,9 @@ func (s *Store) CodemoggerListFiles(metadataID string) ([]FileInfo, error) {
 	return files, rows.Err()
 }
 
-func (s *Store) CodemoggerGetMetadataByCodebase(codebaseID string) (*CodemoggerMetadata, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) CodemoggerGetMetadataByCodebase(ctx context.Context, codebaseID string) (*CodemoggerMetadata, error) {
 	var m CodemoggerMetadata
-	err := s.db.QueryRow(
+	err := s.db.QueryRowContext(ctx,
 		"SELECT id, codebase_id, indexed_at FROM codemogger_codebases WHERE codebase_id = ?",
 		codebaseID,
 	).Scan(&m.ID, &m.CodebaseID, &m.IndexedAt)

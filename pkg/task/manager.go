@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"sync"
@@ -133,16 +134,42 @@ func (m *Manager) worker(id int) {
 			log.Printf("Queue worker %d stopping", id)
 			return
 		default:
-			task, err := m.store.ClaimNextTask(context.Background())
+			var task *db.Task
+			err := m.store.Transaction(context.Background(), func(tx *sql.Tx) error {
+				t, err := m.store.GetNextPendingTaskTx(context.Background(), tx)
+				if err != nil {
+					return err
+				}
+				if t == nil {
+					return nil
+				}
+				if err := m.store.UpdateTaskStatusTx(context.Background(), tx, t.ID, db.TaskStatusRunning); err != nil {
+					return err
+				}
+				t.Status = db.TaskStatusRunning
+				task = t
+				return nil
+			})
+
 			if err != nil {
 				log.Printf("Worker %d: failed to claim task: %v", id, err)
-				time.Sleep(1 * time.Second)
-				continue
+				select {
+				case <-m.stopChan:
+					log.Printf("Queue worker %d stopping", id)
+					return
+				case <-time.After(1 * time.Second):
+					continue
+				}
 			}
 
 			if task == nil {
-				time.Sleep(500 * time.Millisecond)
-				continue
+				select {
+				case <-m.stopChan:
+					log.Printf("Queue worker %d stopping", id)
+					return
+				case <-time.After(500 * time.Millisecond):
+					continue
+				}
 			}
 
 			m.runTask(task)

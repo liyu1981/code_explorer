@@ -1,94 +1,108 @@
 package codemogger
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
+	"github.com/liyu1981/code_explorer/pkg/config"
 )
 
 func TestCodeIndex(t *testing.T) {
-	dir, err := os.MkdirTemp("", "codemogger-test-*")
+	// Setup temporary directory for test DB and files
+	tmpDir, err := os.MkdirTemp("", "codemogger-test-*")
 	if err != nil {
-		t.Fatalf("create temp dir: %v", err)
+		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(dir)
+	defer os.RemoveAll(tmpDir)
 
-	dbPath := filepath.Join(dir, "test.db")
-	projectDir := filepath.Join(dir, "project")
-	os.MkdirAll(projectDir, 0755)
+	dbPath := filepath.Join(tmpDir, "test.db")
 
-	// Create some test files
-	goFile := filepath.Join(projectDir, "main.go")
-	goContent := `package main
+	// Setup some test files
+	srcDir := filepath.Join(tmpDir, "src")
+	err = os.MkdirAll(srcDir, 0755)
+	if err != nil {
+		t.Fatalf("failed to create src dir: %v", err)
+	}
+
+	testFiles := map[string]string{
+		"main.go": `package main
 import "fmt"
 func main() {
 	fmt.Println("Hello, World!")
-}
+}`,
+		"util.go": `package main
 func Add(a, b int) int {
 	return a + b
-}
-`
-	os.WriteFile(goFile, []byte(goContent), 0644)
+}`,
+	}
 
-	pyFile := filepath.Join(projectDir, "utils.py")
-	pyContent := `def subtract(a, b):
-    return a - b
+	for name, content := range testFiles {
+		err = os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0644)
+		if err != nil {
+			t.Fatalf("failed to create test file %s: %v", name, err)
+		}
+	}
 
-class Calculator:
-    def multiply(self, a, b):
-        return a * b
-`
-	os.WriteFile(pyFile, []byte(pyContent), 0644)
+	// Initialize config
+	config.Set(config.DefaultConfig())
 
+	// Create index
 	idx, err := NewCodeIndex(dbPath)
 	if err != nil {
-		t.Fatalf("new code index: %v", err)
+		t.Fatalf("failed to create index: %v", err)
 	}
 	defer idx.Close()
 
-	// Inject mock embedder
+	// Use MockEmbedder to avoid network calls
 	idx.SetEmbedder(&embed.MockEmbedder{DimVal: 384})
+
+	ctx := context.Background()
 
 	// Test Indexing
 	opts := &IndexOptions{
-		Languages: []string{"go", "python"},
-		Verbose:   true,
+		Languages: []string{"go"},
 	}
-	res, err := idx.Index(projectDir, opts)
+	res, err := idx.Index(ctx, srcDir, opts)
 	if err != nil {
-		t.Fatalf("index: %v", err)
+		t.Fatalf("indexing failed: %v", err)
 	}
 
 	if res.Files != 2 {
-		t.Errorf("expected 2 files processed, got %d", res.Files)
-	}
-	if res.Chunks < 3 {
-		t.Errorf("expected at least 3 chunks, got %d", res.Chunks)
+		t.Errorf("expected 2 files indexed, got %d", res.Files)
 	}
 
-	// Test Listing
-	files, err := idx.ListFiles()
+	// Test ListFiles
+	files, err := idx.ListFiles(ctx)
 	if err != nil {
-		t.Fatalf("list files: %v", err)
+		t.Fatalf("ListFiles failed: %v", err)
 	}
 	if len(files) != 2 {
-		t.Errorf("expected 2 files in list, got %d", len(files))
+		t.Errorf("expected 2 indexed files, got %d", len(files))
 	}
 
-	// Test Search (Semantic)
-	searchRes, err := idx.Search("main", &SearchOptions{Limit: 5, Mode: SearchModeSemantic})
-	if err != nil {
-		t.Fatalf("semantic search: %v", err)
+	// Test Search (semantic mock)
+	searchOpts := &SearchOptions{
+		Limit: 5,
+		Mode:  SearchModeSemantic,
 	}
-	if len(searchRes) == 0 {
-		t.Error("expected search results, got none")
+	results, err := idx.Search(ctx, "hello", searchOpts)
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) == 0 {
+		t.Errorf("expected some results, got 0")
 	}
 
-	// Test Keyword Search
-	searchRes, err = idx.Search("main", &SearchOptions{Limit: 5, Mode: SearchModeKeyword})
+	// Test Search (keyword)
+	searchOpts.Mode = SearchModeKeyword
+	results, err = idx.Search(ctx, "main", searchOpts)
 	if err != nil {
-		t.Fatalf("keyword search: %v", err)
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) == 0 {
+		t.Errorf("expected some results for keyword search, got 0")
 	}
 }

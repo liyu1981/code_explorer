@@ -1,51 +1,61 @@
 package db
 
 import (
+	"context"
 	"database/sql"
+
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-func (s *Store) GetOrCreateCodebase(rootPath string, name string, codebaseType string) (*Codebase, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) GetOrCreateCodebase(ctx context.Context, rootPath string, name string, codebaseType string) (*Codebase, error) {
 	var cb Codebase
-	err := s.db.QueryRow(
-		"SELECT id, name, root_path, type, version, created_at FROM codebases WHERE root_path = ?",
-		rootPath,
-	).Scan(&cb.ID, &cb.Name, &cb.RootPath, &cb.Type, &cb.Version, &cb.CreatedAt)
+	var exists bool
+	var newID string
 
-	if err == nil {
-		return &cb, nil
-	}
-	if err != sql.ErrNoRows {
-		return nil, err
-	}
+	err := s.Transaction(ctx, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx,
+			"SELECT id, name, root_path, type, version, created_at FROM codebases WHERE root_path = ?",
+			rootPath,
+		).Scan(&cb.ID, &cb.Name, &cb.RootPath, &cb.Type, &cb.Version, &cb.CreatedAt)
 
-	if name == "" {
-		name = rootPath
-		if idx := len(name) - 1; idx >= 0 && name[idx] == '/' {
-			for i := len(name) - 2; i >= 0; i-- {
-				if name[i] == '/' {
-					name = name[i+1:]
-					break
+		if err == nil {
+			exists = true
+			return nil
+		}
+		if err != sql.ErrNoRows {
+			return err
+		}
+
+		if name == "" {
+			name = rootPath
+			if idx := len(name) - 1; idx >= 0 && name[idx] == '/' {
+				for i := len(name) - 2; i >= 0; i-- {
+					if name[i] == '/' {
+						name = name[i+1:]
+						break
+					}
 				}
 			}
 		}
-	}
 
-	if codebaseType == "" {
-		codebaseType = "local"
-	}
+		if codebaseType == "" {
+			codebaseType = "local"
+		}
 
-	newID, _ := gonanoid.New()
-	_, err = s.db.Exec(
-		"INSERT INTO codebases (id, name, root_path, type, version, created_at) VALUES (?, ?, ?, ?, ?, unixepoch())",
-		newID, name, rootPath, codebaseType, "",
-	)
+		newID, _ = gonanoid.New()
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO codebases (id, name, root_path, type, version, created_at) VALUES (?, ?, ?, ?, ?, unixepoch())",
+			newID, name, rootPath, codebaseType, "",
+		)
+		return err
+	})
+
 	if err != nil {
 		return nil, err
+	}
+
+	if exists {
+		return &cb, nil
 	}
 
 	return &Codebase{
@@ -58,12 +68,8 @@ func (s *Store) GetOrCreateCodebase(rootPath string, name string, codebaseType s
 	}, nil
 }
 
-func (s *Store) ListCodebases() ([]Codebase, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
-	rows, err := s.db.Query("SELECT id, name, root_path, type, version, created_at FROM codebases ORDER BY root_path")
+func (s *Store) ListCodebases(ctx context.Context) ([]Codebase, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, name, root_path, type, version, created_at FROM codebases ORDER BY root_path")
 	if err != nil {
 		return nil, err
 	}
@@ -80,13 +86,9 @@ func (s *Store) ListCodebases() ([]Codebase, error) {
 	return result, nil
 }
 
-func (s *Store) GetCodebaseByID(id string) (*Codebase, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) GetCodebaseByID(ctx context.Context, id string) (*Codebase, error) {
 	var cb Codebase
-	err := s.db.QueryRow(
+	err := s.db.QueryRowContext(ctx,
 		"SELECT id, name, root_path, type, version, created_at FROM codebases WHERE id = ?",
 		id,
 	).Scan(&cb.ID, &cb.Name, &cb.RootPath, &cb.Type, &cb.Version, &cb.CreatedAt)
@@ -100,20 +102,12 @@ func (s *Store) GetCodebaseByID(id string) (*Codebase, error) {
 	return &cb, nil
 }
 
-func (s *Store) UpdateCodebaseVersion(id string, version string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.Exec("UPDATE codebases SET version = ? WHERE id = ?", version, id)
+func (s *Store) UpdateCodebaseVersion(ctx context.Context, id string, version string) error {
+	_, err := s.ExecWrite(ctx, "UPDATE codebases SET version = ? WHERE id = ?", version, id)
 	return err
 }
 
-func (s *Store) DeleteCodebase(id string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.Exec("DELETE FROM codebases WHERE id = ?", id)
+func (s *Store) DeleteCodebase(ctx context.Context, id string) error {
+	_, err := s.ExecWrite(ctx, "DELETE FROM codebases WHERE id = ?", id)
 	return err
 }

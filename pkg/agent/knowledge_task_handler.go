@@ -34,7 +34,7 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	updateProgress(0, "Starting knowledge build...")
 
 	// Fetch codebase details
-	cb, err := idx.GetStore().GetCodebaseByID(payload.CodebaseID)
+	cb, err := idx.GetStore().GetCodebaseByID(ctx, payload.CodebaseID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch codebase: %w", err)
 	}
@@ -95,7 +95,7 @@ func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeInd
 	updateProgress(0, fmt.Sprintf("Analyzing module: %s...", payload.Path))
 
 	// Fetch codebase details
-	cb, err := idx.GetStore().GetCodebaseByID(payload.CodebaseID)
+	cb, err := idx.GetStore().GetCodebaseByID(ctx, payload.CodebaseID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch codebase: %w", err)
 	}

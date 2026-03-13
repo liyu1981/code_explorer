@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -27,7 +28,7 @@ func (w *persistenceStreamWriter) saveChunk(prefix, data string) {
 		return
 	}
 	chunk := fmt.Sprintf("%s%s\n\n", prefix, data)
-	_ = w.store.SaveResearchReportChunk(w.sessionID, w.turnID, chunk)
+	_ = w.store.SaveResearchReportChunk(context.Background(), w.sessionID, w.turnID, chunk)
 }
 
 func (w *persistenceStreamWriter) WriteOpenAIChunk(id, model, content string, finishReason *string) error {
@@ -180,7 +181,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	if maxReports <= 0 {
 		maxReports = 50
 	}
-	_ = h.index.GetStore().PruneReportsBySession(req.SessionID, maxReports)
+	_ = h.index.GetStore().PruneReportsBySession(r.Context(), req.SessionID, maxReports)
 }
 
 func getSystemLLMConfig() map[string]any {
@@ -218,9 +219,9 @@ func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) 
 	var sessions []db.ResearchSession
 	var err error
 	if codebaseId != "" {
-		sessions, err = h.index.GetStore().GetResearchSessionsByCodebase(codebaseId, includeArchived)
+		sessions, err = h.index.GetStore().GetResearchSessionsByCodebase(r.Context(), codebaseId, includeArchived)
 	} else {
-		sessions, err = h.index.GetStore().ListResearchSessions(includeArchived)
+		sessions, err = h.index.GetStore().ListResearchSessions(r.Context(), includeArchived)
 	}
 
 	if err != nil {
@@ -240,7 +241,7 @@ func (h *ApiHandler) handleGetSessionsPaginated(w http.ResponseWriter, r *http.R
 	page := getIntParam(r, "page", 1)
 	pageSize := getIntParam(r, "pageSize", 10)
 
-	sessions, total, err := h.index.GetStore().GetResearchSessionsPaginated(codebaseId, page, pageSize)
+	sessions, total, err := h.index.GetStore().GetResearchSessionsPaginated(r.Context(), codebaseId, page, pageSize)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to get sessions", err)
 		return
@@ -260,7 +261,7 @@ func (h *ApiHandler) handleGetSessionReports(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	id := r.PathValue("id")
-	reports, err := h.index.GetStore().GetResearchReportsBySession(id)
+	reports, err := h.index.GetStore().GetResearchReportsBySession(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to get reports", err)
 		return
@@ -279,7 +280,7 @@ func (h *ApiHandler) handleSaveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.index.GetStore().SaveResearchSession(&sess); err != nil {
+	if err := h.index.GetStore().SaveResearchSession(r.Context(), &sess); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to save session", err)
 		return
 	}
@@ -289,7 +290,7 @@ func (h *ApiHandler) handleSaveSession(w http.ResponseWriter, r *http.Request) {
 	if maxSessions <= 0 {
 		maxSessions = 10
 	}
-	_ = h.index.GetStore().PruneSessionsByCodebase(sess.CodebaseID, maxSessions)
+	_ = h.index.GetStore().PruneSessionsByCodebase(r.Context(), sess.CodebaseID, maxSessions)
 
 	writeJSON(w, http.StatusOK, sess)
 }
@@ -302,7 +303,7 @@ func (h *ApiHandler) handleSummarizeSession(w http.ResponseWriter, r *http.Reque
 	id := r.PathValue("id")
 
 	// Get reports to find the first question and part of the report
-	reports, err := h.index.GetStore().GetResearchReportsBySession(id)
+	reports, err := h.index.GetStore().GetResearchReportsBySession(r.Context(), id)
 	if err != nil || len(reports) == 0 {
 		writeError(w, http.StatusNotFound, "Reports not found for session", err)
 		return
@@ -356,14 +357,14 @@ func (h *ApiHandler) handleSummarizeSession(w http.ResponseWriter, r *http.Reque
 	title = strings.Trim(title, "\" \n\r")
 
 	// Update session title
-	sess, err := h.index.GetStore().GetResearchSession(id)
+	sess, err := h.index.GetStore().GetResearchSession(r.Context(), id)
 	if err != nil || sess == nil {
 		writeError(w, http.StatusNotFound, "Session not found", err)
 		return
 	}
 
 	sess.Title = title
-	if err := h.index.GetStore().SaveResearchSession(sess); err != nil {
+	if err := h.index.GetStore().SaveResearchSession(r.Context(), sess); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to update session title", err)
 		return
 	}
@@ -377,7 +378,7 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 		return
 	}
 	id := r.PathValue("id")
-	sess, err := h.index.GetStore().GetResearchSession(id)
+	sess, err := h.index.GetStore().GetResearchSession(r.Context(), id)
 	if err != nil || sess == nil {
 		writeError(w, http.StatusNotFound, "Session not found", nil)
 		return
@@ -385,7 +386,7 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 
 	now := time.Now().UnixMilli()
 	sess.ArchivedAt = &now
-	if err := h.index.GetStore().SaveResearchSession(sess); err != nil {
+	if err := h.index.GetStore().SaveResearchSession(r.Context(), sess); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to archive session", err)
 		return
 	}
@@ -399,7 +400,7 @@ func (h *ApiHandler) handleDeleteSession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	id := r.PathValue("id")
-	if err := h.index.GetStore().DeleteResearchSession(id); err != nil {
+	if err := h.index.GetStore().DeleteResearchSession(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to delete session", err)
 		return
 	}
@@ -414,7 +415,7 @@ func (h *ApiHandler) handleDeleteReport(w http.ResponseWriter, r *http.Request) 
 	id := r.PathValue("id")
 	turnId := r.PathValue("turnId")
 	log.Info().Str("sessionId", id).Str("turnId", turnId).Msg("Deleting research report")
-	if err := h.index.GetStore().DeleteResearchReport(turnId); err != nil {
+	if err := h.index.GetStore().DeleteResearchReport(r.Context(), turnId); err != nil {
 		log.Error().Err(err).Str("turnId", turnId).Msg("Failed to delete research report")
 		writeError(w, http.StatusInternalServerError, "Failed to delete report", err)
 		return

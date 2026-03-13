@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 )
 
@@ -10,6 +11,27 @@ func TestTaskStore(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
+
+	// Helper to claim task (emulating manager logic)
+	claimTask := func() (*Task, error) {
+		var task *Task
+		err := store.Transaction(ctx, func(tx *sql.Tx) error {
+			t, err := store.GetNextPendingTaskTx(ctx, tx)
+			if err != nil {
+				return err
+			}
+			if t == nil {
+				return nil
+			}
+			if err := store.UpdateTaskStatusTx(ctx, tx, t.ID, TaskStatusRunning); err != nil {
+				return err
+			}
+			t.Status = TaskStatusRunning
+			task = t
+			return nil
+		})
+		return task, err
+	}
 
 	// Test Create
 	taskID := "task-1"
@@ -31,7 +53,7 @@ func TestTaskStore(t *testing.T) {
 	}
 
 	// Test Claim
-	claimed, err := store.ClaimNextTask(ctx)
+	claimed, err := claimTask()
 	if err != nil {
 		t.Fatalf("claim task: %v", err)
 	}
@@ -63,7 +85,7 @@ func TestTaskStore(t *testing.T) {
 	// Test Mark Failed with retry
 	taskID2 := "task-2"
 	store.CreateTask(ctx, taskID2, "retry-task", payload, 3, "")
-	store.ClaimNextTask(ctx)
+	claimTask()
 	if err := store.MarkTaskFailed(ctx, taskID2, "error", true); err != nil {
 		t.Fatalf("mark failed retry: %v", err)
 	}

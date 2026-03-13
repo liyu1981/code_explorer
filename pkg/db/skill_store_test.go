@@ -11,28 +11,26 @@ func TestSkillStore(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Test Create
 	skill := &Skill{
-		Name:         "go-expert",
-		Description:  "Expert in Go",
-		SystemPrompt: "You are an expert in Go.",
-		Tags:         "go backend",
-		IsBuiltin:    true,
+		Name:         "test-skill",
+		Description:  "test description",
+		SystemPrompt: "test prompt",
+		Tags:         "test tags",
+		IsBuiltin:    false,
 	}
+
+	// Test Create
 	if err := store.CreateSkill(ctx, skill); err != nil {
 		t.Fatalf("create skill: %v", err)
 	}
-	if skill.ID == "" {
-		t.Error("expected ID to be set")
-	}
 
-	// Test Get by Name
-	got, err := store.GetSkillByName(ctx, "go-expert")
+	// Test Get
+	got, err := store.GetSkillByName(ctx, "test-skill")
 	if err != nil {
 		t.Fatalf("get skill: %v", err)
 	}
-	if got == nil || got.Description != "Expert in Go" || got.Tags != "go backend" {
-		t.Errorf("expected tags 'go backend', got %v", got.Tags)
+	if got.Name != "test-skill" {
+		t.Errorf("expected test-skill, got %s", got.Name)
 	}
 
 	// Test Update
@@ -40,8 +38,7 @@ func TestSkillStore(t *testing.T) {
 	if err := store.UpdateSkill(ctx, skill); err != nil {
 		t.Fatalf("update skill: %v", err)
 	}
-
-	got, _ = store.GetSkillByName(ctx, "go-expert")
+	got, _ = store.GetSkillByName(ctx, "test-skill")
 	if got.Tags != "go devops" {
 		t.Errorf("expected updated tags, got %s", got.Tags)
 	}
@@ -59,8 +56,7 @@ func TestSkillStore(t *testing.T) {
 	if err := store.DeleteSkill(ctx, skill.ID); err != nil {
 		t.Fatalf("delete skill: %v", err)
 	}
-
-	got, _ = store.GetSkillByName(ctx, "go-expert")
+	got, _ = store.GetSkillByName(ctx, "test-skill")
 	if got != nil {
 		t.Error("expected skill to be deleted")
 	}

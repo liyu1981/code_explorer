@@ -16,7 +16,7 @@ func TestSaveKnowledgeTool(t *testing.T) {
 	stream := &mockStreamWriter{}
 	tool := NewSaveKnowledgeTool(store)
 
-	cb, err := store.GetOrCreateCodebase("/tmp/test", "test", "local")
+	cb, err := store.GetOrCreateCodebase(ctx, "/tmp/test", "test", "local")
 	if err != nil {
 		t.Fatalf("Failed to create codebase: %v", err)
 	}

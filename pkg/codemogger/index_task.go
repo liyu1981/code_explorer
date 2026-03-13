@@ -39,6 +39,6 @@ func (c *CodeIndex) HandleIndexTask(ctx context.Context, task *db.Task, updatePr
 		},
 	}
 
-	_, err := c.Index(payload.Dir, opts)
+	_, err := c.Index(ctx, payload.Dir, opts)
 	return err
 }

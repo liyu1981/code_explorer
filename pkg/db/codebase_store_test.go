@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"testing"
 )
 
@@ -8,56 +9,58 @@ func TestCodebaseStore(t *testing.T) {
 	store, cleanup := SetupTestDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	// Test GetOrCreate
-	cb, err := store.GetOrCreateCodebase("/test", "test", "local")
+	cb, err := store.GetOrCreateCodebase(ctx, "/test/path", "test-repo", "git")
 	if err != nil {
-		t.Fatalf("get or create: %v", err)
+		t.Fatalf("GetOrCreateCodebase: %v", err)
 	}
-	if cb.Name != "test" {
-		t.Errorf("expected name 'test', got %s", cb.Name)
+	if cb.Name != "test-repo" || cb.RootPath != "/test/path" {
+		t.Errorf("unexpected codebase: %+v", cb)
 	}
 
-	// Test GetOrCreate existing
-	cb2, err := store.GetOrCreateCodebase("/test", "other", "remote")
+	// Test duplicate GetOrCreate
+	cb2, err := store.GetOrCreateCodebase(ctx, "/test/path", "other-name", "git")
 	if err != nil {
-		t.Fatalf("get or create existing: %v", err)
+		t.Fatalf("GetOrCreateCodebase duplicate: %v", err)
 	}
-	if cb2.ID != cb.ID || cb2.Name != "test" {
-		t.Errorf("expected same codebase, got %v", cb2)
+	if cb2.ID != cb.ID {
+		t.Errorf("expected same ID, got %s != %s", cb2.ID, cb.ID)
 	}
 
 	// Test List
-	list, err := store.ListCodebases()
+	codebases, err := store.ListCodebases(ctx)
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("ListCodebases: %v", err)
 	}
-	if len(list) != 1 {
-		t.Errorf("expected 1 codebase, got %d", len(list))
+	if len(codebases) != 1 {
+		t.Errorf("expected 1 codebase, got %d", len(codebases))
 	}
 
 	// Test GetByID
-	got, err := store.GetCodebaseByID(cb.ID)
+	got, err := store.GetCodebaseByID(ctx, cb.ID)
 	if err != nil {
-		t.Fatalf("get by id: %v", err)
+		t.Fatalf("GetCodebaseByID: %v", err)
 	}
 	if got.ID != cb.ID {
-		t.Errorf("expected id %s, got %s", cb.ID, got.ID)
+		t.Errorf("expected ID %s, got %s", cb.ID, got.ID)
 	}
 
-	// Test Update Version
-	if err := store.UpdateCodebaseVersion(cb.ID, "v1.0.0"); err != nil {
-		t.Fatalf("update version: %v", err)
+	// Test UpdateVersion
+	if err := store.UpdateCodebaseVersion(ctx, cb.ID, "v1.0.0"); err != nil {
+		t.Fatalf("UpdateCodebaseVersion: %v", err)
 	}
-	got, _ = store.GetCodebaseByID(cb.ID)
+	got, _ = store.GetCodebaseByID(ctx, cb.ID)
 	if got.Version != "v1.0.0" {
 		t.Errorf("expected version v1.0.0, got %s", got.Version)
 	}
 
 	// Test Delete
-	if err := store.DeleteCodebase(cb.ID); err != nil {
-		t.Fatalf("delete: %v", err)
+	if err := store.DeleteCodebase(ctx, cb.ID); err != nil {
+		t.Fatalf("DeleteCodebase: %v", err)
 	}
-	got, _ = store.GetCodebaseByID(cb.ID)
+	got, _ = store.GetCodebaseByID(ctx, cb.ID)
 	if got != nil {
 		t.Error("expected codebase to be deleted")
 	}

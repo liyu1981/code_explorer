@@ -19,7 +19,7 @@ func (h *ApiHandler) handleSaveSavedReport(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := h.index.GetStore().SaveSavedReport(&report); err != nil {
+	if err := h.index.GetStore().SaveSavedReport(r.Context(), &report); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to save report", err)
 		return
 	}
@@ -34,7 +34,7 @@ func (h *ApiHandler) handleGetSavedReport(w http.ResponseWriter, r *http.Request
 	}
 
 	id := r.PathValue("id")
-	report, err := h.index.GetStore().GetSavedReport(id)
+	report, err := h.index.GetStore().GetSavedReport(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to get report", err)
 		return
@@ -58,7 +58,7 @@ func (h *ApiHandler) handleListSavedReports(w http.ResponseWriter, r *http.Reque
 	page := getIntParam(r, "page", 1)
 	pageSize := getIntParam(r, "pageSize", 10)
 
-	reports, total, err := h.index.GetStore().ListSavedReports(page, pageSize, query)
+	reports, total, err := h.index.GetStore().ListSavedReports(r.Context(), page, pageSize, query)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list reports", err)
 		return
@@ -79,7 +79,7 @@ func (h *ApiHandler) handleDeleteSavedReport(w http.ResponseWriter, r *http.Requ
 	}
 
 	id := r.PathValue("id")
-	if err := h.index.GetStore().DeleteSavedReport(id); err != nil {
+	if err := h.index.GetStore().DeleteSavedReport(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to delete report", err)
 		return
 	}

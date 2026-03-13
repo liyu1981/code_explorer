@@ -1,11 +1,6 @@
 package db
 
 import (
-	"database/sql"
-	"fmt"
-	"io"
-	"sync"
-
 	_ "github.com/tursodatabase/go-libsql"
 )
 
@@ -53,19 +48,6 @@ type IndexedFile struct {
 	IndexedAt  int64
 }
 
-type Store struct {
-	db     *sql.DB
-	dbPath string
-	mu     sync.Mutex
-}
-
-func NewStore(db *sql.DB, dbPath string) *Store {
-	return &Store{
-		db:     db,
-		dbPath: dbPath,
-	}
-}
-
 type SearchResult struct {
 	ChunkKey  string
 	FilePath  string
@@ -110,40 +92,3 @@ type CodeChunk struct {
 	EndLine   int
 	FileHash  string
 }
-
-func (s *Store) reconnect() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.db != nil {
-		if err := s.db.Ping(); err == nil {
-			return nil
-		}
-		s.db.Close()
-	}
-
-	dsn := "file:" + s.dbPath + "?_busy_timeout=5000"
-	db, err := sql.Open("libsql", dsn)
-	if err != nil {
-		return err
-	}
-
-	// Enable WAL mode for better concurrency
-	if _, err := db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
-		db.Close()
-		return fmt.Errorf("failed to enable WAL mode: %w", err)
-	}
-
-	s.db = db
-	return db.Ping()
-}
-
-func (s *Store) DB() *sql.DB {
-	return s.db
-}
-
-func (s *Store) Close() error {
-	return s.db.Close()
-}
-
-var _ io.Closer = (*Store)(nil)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -108,7 +109,7 @@ func handleIndex() {
 	}
 
 	fmt.Printf("Indexing %s...\n", dir)
-	res, err := idx.Index(dir, opts)
+	res, err := idx.Index(context.Background(), dir, opts)
 	if err != nil {
 		log.Fatal().Msgf("\nIndexing failed: %v", err)
 	}
@@ -151,7 +152,7 @@ func handleSearch() {
 		IncludeSnippet: true,
 	}
 
-	results, err := idx.Search(query, opts)
+	results, err := idx.Search(context.Background(), query, opts)
 	if err != nil {
 		log.Fatal().Msgf("Search failed: %v", err)
 	}
@@ -175,7 +176,7 @@ func handleListFiles() {
 	}
 	defer idx.Close()
 
-	files, err := idx.ListFiles()
+	files, err := idx.ListFiles(context.Background())
 	if err != nil {
 		log.Fatal().Msgf("Failed to list files: %v", err)
 	}
@@ -199,7 +200,7 @@ func handleListCodebases() {
 	}
 	defer idx.Close()
 
-	codebases, err := idx.ListCodebases()
+	codebases, err := idx.ListCodebases(context.Background())
 	if err != nil {
 		log.Fatal().Msgf("Failed to list codebases: %v", err)
 	}

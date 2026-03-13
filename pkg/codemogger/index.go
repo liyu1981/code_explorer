@@ -1,6 +1,7 @@
 package codemogger
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -97,20 +98,20 @@ func ProjectDbPath(dir string) string {
 	return filepath.Join(dbDir, "ce.db")
 }
 
-func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) {
+func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (*IndexResult, error) {
 	log.Info().Str("dir", dir).Msg("Starting indexing")
 	start := time.Now()
 	rootDir, _ := filepath.Abs(dir)
 
 	// 1. Get/Create system codebase
-	cb, err := c.store.GetOrCreateCodebase(rootDir, "", "local")
+	cb, err := c.store.GetOrCreateCodebase(ctx, rootDir, "", "local")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get/create system codebase: %w", err)
 	}
 	log.Debug().Str("codebaseID", cb.ID).Msg("System codebase entry identified")
 
 	// 2. Ensure codemogger metadata exists
-	metadataID, err := c.store.CodemoggerEnsureMetadata(cb.ID)
+	metadataID, err := c.store.CodemoggerEnsureMetadata(ctx, cb.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure codemogger metadata: %w", err)
 	}
@@ -119,7 +120,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	// 3. Detect version (git commit)
 	version := detectVersion(rootDir)
 	if version != "" {
-		_ = c.store.UpdateCodebaseVersion(cb.ID, version)
+		_ = c.store.UpdateCodebaseVersion(ctx, cb.ID, version)
 		log.Debug().Str("version", version).Msg("Detected codebase version")
 	}
 
@@ -140,7 +141,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	log.Info().Msg("Checking file hashes...")
 	for i, file := range files {
 		activeFiles[file.AbsPath] = true
-		storedHash, err := c.store.CodemoggerGetFileHash(metadataID, file.AbsPath)
+		storedHash, err := c.store.CodemoggerGetFileHash(ctx, metadataID, file.AbsPath)
 		if err != nil {
 			log.Warn().Str("file", file.AbsPath).Err(err).Msg("Failed to get file hash")
 			continue
@@ -206,7 +207,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 
 	if len(fileChunks) > 0 {
 		log.Info().Msg("Saving chunks to database...")
-		if err := c.store.CodemoggerBatchUpsertAllFileChunks(metadataID, fileChunks); err != nil {
+		if err := c.store.CodemoggerBatchUpsertAllFileChunks(ctx, metadataID, fileChunks); err != nil {
 			return nil, fmt.Errorf("failed to upsert chunks: %w", err)
 		}
 		log.Info().Msg("Chunks saved successfully")
@@ -215,7 +216,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	embedded := 0
 	log.Info().Str("model", c.embeddingModel).Msg("Starting embedding...")
 	for {
-		stale, err := c.store.CodemoggerGetStaleEmbeddings(metadataID, c.embeddingModel, 1000)
+		stale, err := c.store.CodemoggerGetStaleEmbeddings(ctx, metadataID, c.embeddingModel, 1000)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to get stale embeddings")
 			break
@@ -251,7 +252,7 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 			items[i].ModelName = c.embeddingModel
 		}
 
-		if err := c.store.CodemoggerBatchUpsertEmbeddings(items); err != nil {
+		if err := c.store.CodemoggerBatchUpsertEmbeddings(ctx, items); err != nil {
 			log.Error().Err(err).Msg("Failed to save embeddings")
 			break
 		}
@@ -268,10 +269,10 @@ func (c *CodeIndex) Index(dir string, opts *IndexOptions) (*IndexResult, error) 
 	for k := range activeFiles {
 		activeFilesList = append(activeFilesList, k)
 	}
-	removed, _ := c.store.CodemoggerRemoveStaleFiles(metadataID, activeFilesList)
+	removed, _ := c.store.CodemoggerRemoveStaleFiles(ctx, metadataID, activeFilesList)
 
-	_ = c.store.CodemoggerRebuildFTSTable(metadataID)
-	_ = c.store.CodemoggerTouchCodebase(metadataID)
+	_ = c.store.CodemoggerRebuildFTSTable(ctx, metadataID)
+	_ = c.store.CodemoggerTouchCodebase(ctx, metadataID)
 
 	duration := int(time.Since(start).Milliseconds())
 
@@ -327,7 +328,7 @@ func buildEmbedText(filePath, kind, name, signature, snippet string) string {
 	return text
 }
 
-func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, error) {
+func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOptions) ([]SearchResult, error) {
 	log.Info().Str("query", query).Interface("opts", opts).Msg("Searching index")
 	if query == "" {
 		return []SearchResult{}, nil
@@ -354,7 +355,7 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 		if len(vectors) == 0 || vectors[0] == nil {
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerVectorSearch(vectors[0], limit, includeSnippet)
+		results, err := c.store.CodemoggerVectorSearch(ctx, vectors[0], limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
@@ -365,7 +366,7 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 		if processed == "" {
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerFTSSearch(processed, limit, includeSnippet)
+		results, err := c.store.CodemoggerFTSSearch(ctx, processed, limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
@@ -373,12 +374,12 @@ func (c *CodeIndex) Search(query string, opts *SearchOptions) ([]SearchResult, e
 
 	case SearchModeHybrid:
 		processed := search.PreprocessQuery(query)
-		ftsResults, _ := c.store.CodemoggerFTSSearch(processed, limit, includeSnippet)
+		ftsResults, _ := c.store.CodemoggerFTSSearch(ctx, processed, limit, includeSnippet)
 
 		vectors, _ := c.embedder.Embed([]string{query})
 		var vecResults []db.SearchResult
 		if len(vectors) > 0 && vectors[0] != nil {
-			vecResults, _ = c.store.CodemoggerVectorSearch(vectors[0], limit, includeSnippet)
+			vecResults, _ = c.store.CodemoggerVectorSearch(ctx, vectors[0], limit, includeSnippet)
 		}
 
 		merged := search.RRFMerge(ftsResults, vecResults, limit, 60, 0.4, 0.6)
@@ -406,8 +407,8 @@ func convertResults(results []db.SearchResult) []SearchResult {
 	return converted
 }
 
-func (c *CodeIndex) ListFiles() ([]IndexedFile, error) {
-	files, err := c.store.CodemoggerListFiles("")
+func (c *CodeIndex) ListFiles(ctx context.Context) ([]IndexedFile, error) {
+	files, err := c.store.CodemoggerListFiles(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -423,8 +424,8 @@ func (c *CodeIndex) ListFiles() ([]IndexedFile, error) {
 	return converted, nil
 }
 
-func (c *CodeIndex) ListCodebases() ([]Codebase, error) {
-	codebases, err := c.store.CodemoggerListCodebases()
+func (c *CodeIndex) ListCodebases(ctx context.Context) ([]Codebase, error) {
+	codebases, err := c.store.CodemoggerListCodebases(ctx)
 	if err != nil {
 		return nil, err
 	}

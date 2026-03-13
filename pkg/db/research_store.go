@@ -1,17 +1,14 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"time"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-func (s *Store) SaveResearchSession(session *ResearchSession) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
+func (s *Store) SaveResearchSession(ctx context.Context, session *ResearchSession) error {
 	query := `
 		INSERT INTO research_sessions (id, codebase_id, title, state, created_at, archived_at)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -20,18 +17,14 @@ func (s *Store) SaveResearchSession(session *ResearchSession) error {
 			state = excluded.state,
 			archived_at = excluded.archived_at
 	`
-	_, err := s.db.Exec(query,
+	_, err := s.ExecWrite(ctx, query,
 		session.ID, session.CodebaseID, session.Title,
 		session.State, session.CreatedAt, session.ArchivedAt,
 	)
 	return err
 }
 
-func (s *Store) GetResearchSession(id string) (*ResearchSession, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) GetResearchSession(ctx context.Context, id string) (*ResearchSession, error) {
 	query := `
 		SELECT rs.id, rs.codebase_id, c.root_path, c.name, c.version, rs.title, rs.state, rs.created_at, rs.archived_at
 		FROM research_sessions rs
@@ -39,7 +32,7 @@ func (s *Store) GetResearchSession(id string) (*ResearchSession, error) {
 		WHERE rs.id = ?
 	`
 	var sess ResearchSession
-	err := s.db.QueryRow(query, id).Scan(
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&sess.ID, &sess.CodebaseID, &sess.CodebasePath, &sess.CodebaseName, &sess.CodebaseVersion, &sess.Title,
 		&sess.State, &sess.CreatedAt, &sess.ArchivedAt,
 	)
@@ -52,11 +45,7 @@ func (s *Store) GetResearchSession(id string) (*ResearchSession, error) {
 	return &sess, nil
 }
 
-func (s *Store) GetResearchSessionsByCodebase(codebaseID string, includeArchived bool) ([]ResearchSession, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) GetResearchSessionsByCodebase(ctx context.Context, codebaseID string, includeArchived bool) ([]ResearchSession, error) {
 	query := `
 		SELECT rs.id, rs.codebase_id, c.root_path, c.name, c.version, rs.title, rs.state, rs.created_at, rs.archived_at
 		FROM research_sessions rs
@@ -69,7 +58,7 @@ func (s *Store) GetResearchSessionsByCodebase(codebaseID string, includeArchived
 	// Order by active first (archived_at IS NULL is 1 in boolean expression, so DESC puts NULLs first), then by creation date DESC
 	query += " ORDER BY rs.archived_at IS NULL DESC, rs.created_at DESC"
 
-	rows, err := s.db.Query(query, codebaseID)
+	rows, err := s.db.QueryContext(ctx, query, codebaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -89,11 +78,7 @@ func (s *Store) GetResearchSessionsByCodebase(codebaseID string, includeArchived
 	return results, rows.Err()
 }
 
-func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) ListResearchSessions(ctx context.Context, includeArchived bool) ([]ResearchSession, error) {
 	query := `
 		SELECT rs.id, rs.codebase_id, c.root_path, c.name, c.version, rs.title, rs.state, rs.created_at, rs.archived_at
 		FROM research_sessions rs
@@ -104,7 +89,7 @@ func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, e
 	}
 	query += " ORDER BY rs.archived_at IS NULL DESC, rs.created_at DESC"
 
-	rows, err := s.db.Query(query)
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -125,11 +110,7 @@ func (s *Store) ListResearchSessions(includeArchived bool) ([]ResearchSession, e
 }
 
 // GetResearchSessionsPaginated returns a paginated list of sessions for management
-func (s *Store) GetResearchSessionsPaginated(codebaseID string, page, pageSize int) ([]ResearchSession, int, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, 0, err
-	}
-
+func (s *Store) GetResearchSessionsPaginated(ctx context.Context, codebaseID string, page, pageSize int) ([]ResearchSession, int, error) {
 	offset := (page - 1) * pageSize
 	whereClause := ""
 	var args []any
@@ -140,7 +121,7 @@ func (s *Store) GetResearchSessionsPaginated(codebaseID string, page, pageSize i
 
 	countQuery := "SELECT COUNT(*) FROM research_sessions rs " + whereClause
 	var total int
-	err := s.db.QueryRow(countQuery, args...).Scan(&total)
+	err := s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -154,7 +135,7 @@ func (s *Store) GetResearchSessionsPaginated(codebaseID string, page, pageSize i
 		LIMIT ? OFFSET ?
 	`
 	args = append(args, pageSize, offset)
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -174,21 +155,12 @@ func (s *Store) GetResearchSessionsPaginated(codebaseID string, page, pageSize i
 	return results, total, rows.Err()
 }
 
-func (s *Store) DeleteResearchSession(id string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	// Because of ON DELETE CASCADE, reports will be deleted automatically
-	_, err := s.db.Exec("DELETE FROM research_sessions WHERE id = ?", id)
+func (s *Store) DeleteResearchSession(ctx context.Context, id string) error {
+	_, err := s.ExecWrite(ctx, "DELETE FROM research_sessions WHERE id = ?", id)
 	return err
 }
 
-func (s *Store) SaveResearchReportChunk(sessionID, turnID, chunk string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
+func (s *Store) SaveResearchReportChunk(ctx context.Context, sessionID, turnID, chunk string) error {
 	now := time.Now().UnixMilli()
 	query := `
 		INSERT INTO research_reports (id, session_id, turn_id, stream_data, created_at, updated_at)
@@ -198,22 +170,18 @@ func (s *Store) SaveResearchReportChunk(sessionID, turnID, chunk string) error {
 			updated_at = excluded.updated_at
 	`
 	newID, _ := gonanoid.New()
-	_, err := s.db.Exec(query, newID, sessionID, turnID, chunk, now, now)
+	_, err := s.ExecWrite(ctx, query, newID, sessionID, turnID, chunk, now, now)
 	return err
 }
 
-func (s *Store) GetResearchReportsBySession(sessionID string) ([]ResearchReport, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) GetResearchReportsBySession(ctx context.Context, sessionID string) ([]ResearchReport, error) {
 	query := `
 		SELECT id, session_id, turn_id, stream_data, created_at, updated_at
 		FROM research_reports
 		WHERE session_id = ?
 		ORDER BY id ASC
 	`
-	rows, err := s.db.Query(query, sessionID)
+	rows, err := s.db.QueryContext(ctx, query, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -230,29 +198,17 @@ func (s *Store) GetResearchReportsBySession(sessionID string) ([]ResearchReport,
 	return results, rows.Err()
 }
 
-func (s *Store) DeleteReportsBySession(sessionID string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.Exec("DELETE FROM research_reports WHERE session_id = ?", sessionID)
+func (s *Store) DeleteReportsBySession(ctx context.Context, sessionID string) error {
+	_, err := s.ExecWrite(ctx, "DELETE FROM research_reports WHERE session_id = ?", sessionID)
 	return err
 }
 
-func (s *Store) DeleteResearchReport(turnID string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.Exec("DELETE FROM research_reports WHERE turn_id = ?", turnID)
+func (s *Store) DeleteResearchReport(ctx context.Context, turnID string) error {
+	_, err := s.ExecWrite(ctx, "DELETE FROM research_reports WHERE turn_id = ?", turnID)
 	return err
 }
 
-func (s *Store) SaveSavedReport(report *SavedReport) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
+func (s *Store) SaveSavedReport(ctx context.Context, report *SavedReport) error {
 	if report.ID == "" {
 		id, _ := gonanoid.New()
 		report.ID = id
@@ -269,25 +225,21 @@ func (s *Store) SaveSavedReport(report *SavedReport) error {
 			query = excluded.query,
 			content = excluded.content
 	`
-	_, err := s.db.Exec(query,
+	_, err := s.ExecWrite(ctx, query,
 		report.ID, report.SessionID, report.CodebaseID, report.Title,
 		report.Query, report.Content, report.CodebaseName, report.CodebasePath, report.CreatedAt,
 	)
 	return err
 }
 
-func (s *Store) GetSavedReport(id string) (*SavedReport, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
+func (s *Store) GetSavedReport(ctx context.Context, id string) (*SavedReport, error) {
 	query := `
 		SELECT id, session_id, codebase_id, title, query, content, codebase_name, codebase_path, created_at
 		FROM saved_reports
 		WHERE id = ?
 	`
 	var r SavedReport
-	err := s.db.QueryRow(query, id).Scan(
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&r.ID, &r.SessionID, &r.CodebaseID, &r.Title, &r.Query, &r.Content, &r.CodebaseName, &r.CodebasePath, &r.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -299,11 +251,7 @@ func (s *Store) GetSavedReport(id string) (*SavedReport, error) {
 	return &r, nil
 }
 
-func (s *Store) ListSavedReports(page, pageSize int, searchText string) ([]SavedReport, int, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, 0, err
-	}
-
+func (s *Store) ListSavedReports(ctx context.Context, page, pageSize int, searchText string) ([]SavedReport, int, error) {
 	offset := (page - 1) * pageSize
 	var total int
 	var rows *sql.Rows
@@ -311,7 +259,7 @@ func (s *Store) ListSavedReports(page, pageSize int, searchText string) ([]Saved
 
 	if searchText != "" {
 		countQuery := "SELECT COUNT(*) FROM saved_reports_fts WHERE saved_reports_fts MATCH ?"
-		err = s.db.QueryRow(countQuery, searchText).Scan(&total)
+		err = s.db.QueryRowContext(ctx, countQuery, searchText).Scan(&total)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -324,10 +272,10 @@ func (s *Store) ListSavedReports(page, pageSize int, searchText string) ([]Saved
 			ORDER BY r.created_at DESC
 			LIMIT ? OFFSET ?
 		`
-		rows, err = s.db.Query(query, searchText, pageSize, offset)
+		rows, err = s.db.QueryContext(ctx, query, searchText, pageSize, offset)
 	} else {
 		countQuery := "SELECT COUNT(*) FROM saved_reports"
-		err = s.db.QueryRow(countQuery).Scan(&total)
+		err = s.db.QueryRowContext(ctx, countQuery).Scan(&total)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -338,7 +286,7 @@ func (s *Store) ListSavedReports(page, pageSize int, searchText string) ([]Saved
 			ORDER BY created_at DESC
 			LIMIT ? OFFSET ?
 		`
-		rows, err = s.db.Query(query, pageSize, offset)
+		rows, err = s.db.QueryContext(ctx, query, pageSize, offset)
 	}
 
 	if err != nil {
@@ -359,27 +307,19 @@ func (s *Store) ListSavedReports(page, pageSize int, searchText string) ([]Saved
 	return results, total, rows.Err()
 }
 
-func (s *Store) DeleteSavedReport(id string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.Exec("DELETE FROM saved_reports WHERE id = ?", id)
+func (s *Store) DeleteSavedReport(ctx context.Context, id string) error {
+	_, err := s.ExecWrite(ctx, "DELETE FROM saved_reports WHERE id = ?", id)
 	return err
 }
 
-func (s *Store) PruneReportsBySession(sessionID string, maxReports int) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
+func (s *Store) PruneReportsBySession(ctx context.Context, sessionID string, maxReports int) error {
 	query := `
 		SELECT turn_id FROM research_reports
 		WHERE session_id = ?
 		ORDER BY created_at ASC
 		LIMIT (SELECT MAX(0, COUNT(*) - ?) FROM research_reports WHERE session_id = ?)
 	`
-	rows, err := s.db.Query(query, sessionID, maxReports, sessionID)
+	rows, err := s.db.QueryContext(ctx, query, sessionID, maxReports, sessionID)
 	if err != nil {
 		return err
 	}
@@ -399,7 +339,7 @@ func (s *Store) PruneReportsBySession(sessionID string, maxReports int) error {
 	}
 
 	for _, turnID := range turnIDs {
-		if err := s.DeleteResearchReport(turnID); err != nil {
+		if err := s.DeleteResearchReport(ctx, turnID); err != nil {
 			return err
 		}
 	}
@@ -407,11 +347,7 @@ func (s *Store) PruneReportsBySession(sessionID string, maxReports int) error {
 	return nil
 }
 
-func (s *Store) PruneSessionsByCodebase(codebaseID string, maxTotal int) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
+func (s *Store) PruneSessionsByCodebase(ctx context.Context, codebaseID string, maxTotal int) error {
 	// Find sessions to delete
 	// First prioritize archived (archived_at IS NOT NULL is 1, so DESC puts them first)
 	// Then within that group, oldest first (created_at ASC)
@@ -421,7 +357,7 @@ func (s *Store) PruneSessionsByCodebase(codebaseID string, maxTotal int) error {
 		ORDER BY archived_at IS NOT NULL DESC, created_at ASC
 		LIMIT (SELECT MAX(0, COUNT(*) - ?) FROM research_sessions WHERE codebase_id = ?)
 	`
-	rows, err := s.db.Query(query, codebaseID, maxTotal, codebaseID)
+	rows, err := s.db.QueryContext(ctx, query, codebaseID, maxTotal, codebaseID)
 	if err != nil {
 		return err
 	}
@@ -441,7 +377,7 @@ func (s *Store) PruneSessionsByCodebase(codebaseID string, maxTotal int) error {
 	}
 
 	for _, id := range ids {
-		if err := s.DeleteResearchSession(id); err != nil {
+		if err := s.DeleteResearchSession(ctx, id); err != nil {
 			return err
 		}
 	}
@@ -449,21 +385,13 @@ func (s *Store) PruneSessionsByCodebase(codebaseID string, maxTotal int) error {
 	return nil
 }
 
-func (s *Store) PruneArchivedSessions(maxTotal int) error {
-	// Reusing PruneSessionsByCodebase logic but globally if needed,
-	// however, the requirement is "per room" (codebase).
-	// Let's keep this as a global safety prune if requested,
-	// but the primary one is PruneSessionsByCodebase.
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
+func (s *Store) PruneArchivedSessions(ctx context.Context, maxTotal int) error {
 	query := `
 		SELECT id FROM research_sessions
 		ORDER BY archived_at IS NOT NULL DESC, created_at ASC
 		LIMIT (SELECT MAX(0, COUNT(*) - ?) FROM research_sessions)
 	`
-	rows, err := s.db.Query(query, maxTotal)
+	rows, err := s.db.QueryContext(ctx, query, maxTotal)
 	if err != nil {
 		return err
 	}
@@ -483,7 +411,7 @@ func (s *Store) PruneArchivedSessions(maxTotal int) error {
 	}
 
 	for _, id := range ids {
-		if err := s.DeleteResearchSession(id); err != nil {
+		if err := s.DeleteResearchSession(ctx, id); err != nil {
 			return err
 		}
 	}

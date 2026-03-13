@@ -20,10 +20,6 @@ type KnowledgePage struct {
 }
 
 func (s *Store) CreateKnowledgePage(ctx context.Context, page *KnowledgePage) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
 	if page.ID == "" {
 		id, err := gonanoid.New()
 		if err != nil {
@@ -33,7 +29,7 @@ func (s *Store) CreateKnowledgePage(ctx context.Context, page *KnowledgePage) er
 	}
 
 	now := time.Now()
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.ExecWrite(ctx, `
 		INSERT INTO knowledge_pages (id, codebase_id, slug, title, content, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, page.ID, page.CodebaseID, page.Slug, page.Title, page.Content, now, now)
@@ -48,10 +44,6 @@ func (s *Store) CreateKnowledgePage(ctx context.Context, page *KnowledgePage) er
 }
 
 func (s *Store) GetKnowledgePageBySlug(ctx context.Context, codebaseID, slug string) (*KnowledgePage, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
 	var p KnowledgePage
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, codebase_id, slug, title, content, created_at, updated_at
@@ -70,10 +62,6 @@ func (s *Store) GetKnowledgePageBySlug(ctx context.Context, codebaseID, slug str
 }
 
 func (s *Store) ListKnowledgePages(ctx context.Context, codebaseID string) ([]KnowledgePage, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, codebase_id, slug, title, content, created_at, updated_at
 		FROM knowledge_pages
@@ -98,24 +86,27 @@ func (s *Store) ListKnowledgePages(ctx context.Context, codebaseID string) ([]Kn
 }
 
 func (s *Store) UpdateKnowledgePage(ctx context.Context, page *KnowledgePage) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx, `
-		UPDATE knowledge_pages
-		SET title = ?, content = ?, slug = ?, updated_at = ?
-		WHERE id = ?
-	`, page.Title, page.Content, page.Slug, now, page.ID)
+	err := s.Transaction(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `
+			UPDATE knowledge_pages
+			SET title = ?, content = ?, slug = ?, updated_at = ?
+			WHERE id = ?
+		`, page.Title, page.Content, page.Slug, now, page.ID)
+
+		if err != nil {
+			return err
+		}
+
+		affected, _ := res.RowsAffected()
+		if affected == 0 {
+			return fmt.Errorf("knowledge page not found")
+		}
+		return nil
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to update knowledge page: %w", err)
-	}
-
-	affected, _ := res.RowsAffected()
-	if affected == 0 {
-		return fmt.Errorf("knowledge page not found")
 	}
 
 	page.UpdatedAt = now
@@ -123,10 +114,6 @@ func (s *Store) UpdateKnowledgePage(ctx context.Context, page *KnowledgePage) er
 }
 
 func (s *Store) DeleteKnowledgePage(ctx context.Context, id string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.ExecContext(ctx, "DELETE FROM knowledge_pages WHERE id = ?", id)
+	_, err := s.ExecWrite(ctx, "DELETE FROM knowledge_pages WHERE id = ?", id)
 	return err
 }

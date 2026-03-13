@@ -21,10 +21,6 @@ type Skill struct {
 }
 
 func (s *Store) CreateSkill(ctx context.Context, skill *Skill) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
 	if skill.ID == "" {
 		id, err := gonanoid.New()
 		if err != nil {
@@ -34,7 +30,7 @@ func (s *Store) CreateSkill(ctx context.Context, skill *Skill) error {
 	}
 
 	now := time.Now()
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.ExecWrite(ctx, `
 		INSERT INTO agent_skills (id, name, description, system_prompt, tags, is_builtin, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, skill.ID, skill.Name, skill.Description, skill.SystemPrompt, skill.Tags, skill.IsBuiltin, now, now)
@@ -49,10 +45,6 @@ func (s *Store) CreateSkill(ctx context.Context, skill *Skill) error {
 }
 
 func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
 	var sk Skill
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, name, description, system_prompt, tags, is_builtin, created_at, updated_at
@@ -71,10 +63,6 @@ func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error)
 }
 
 func (s *Store) ListAgentSkills(ctx context.Context) ([]Skill, error) {
-	if err := s.reconnect(); err != nil {
-		return nil, err
-	}
-
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, name, description, system_prompt, tags, is_builtin, created_at, updated_at
 		FROM agent_skills
@@ -98,12 +86,8 @@ func (s *Store) ListAgentSkills(ctx context.Context) ([]Skill, error) {
 }
 
 func (s *Store) UpdateSkill(ctx context.Context, skill *Skill) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx, `
+	_, err := s.ExecWrite(ctx, `
 		UPDATE agent_skills
 		SET description = ?, system_prompt = ?, tags = ?, updated_at = ?
 		WHERE id = ?
@@ -113,20 +97,11 @@ func (s *Store) UpdateSkill(ctx context.Context, skill *Skill) error {
 		return fmt.Errorf("failed to update skill: %w", err)
 	}
 
-	affected, _ := res.RowsAffected()
-	if affected == 0 {
-		return fmt.Errorf("skill not found")
-	}
-
 	skill.UpdatedAt = now
 	return nil
 }
 
 func (s *Store) DeleteSkill(ctx context.Context, id string) error {
-	if err := s.reconnect(); err != nil {
-		return err
-	}
-
-	_, err := s.db.ExecContext(ctx, "DELETE FROM agent_skills WHERE id = ?", id)
+	_, err := s.ExecWrite(ctx, "DELETE FROM agent_skills WHERE id = ?", id)
 	return err
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func (h *ApiHandler) handleListCodebases(w http.ResponseWriter, r *http.Request) {
-	codebases, err := h.index.ListCodebases()
+	codebases, err := h.index.ListCodebases(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list codebases", err)
 		return
@@ -24,7 +24,7 @@ func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	metadata, err := h.index.GetStore().CodemoggerGetMetadataByCodebase(codebaseID)
+	metadata, err := h.index.GetStore().CodemoggerGetMetadataByCodebase(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get codemogger metadata", err)
 		return
@@ -35,7 +35,7 @@ func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	files, err := h.index.GetStore().CodemoggerListFiles(metadata.ID)
+	files, err := h.index.GetStore().CodemoggerListFiles(r.Context(), metadata.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list files", err)
 		return
@@ -55,7 +55,7 @@ func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Re
 }
 
 func (h *ApiHandler) handleListFiles(w http.ResponseWriter, r *http.Request) {
-	files, err := h.index.ListFiles()
+	files, err := h.index.ListFiles(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list files", err)
 		return
@@ -114,7 +114,7 @@ func (h *ApiHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		IncludeSnippet: true,
 	}
 
-	results, err := h.index.Search(req.Query, opts)
+	results, err := h.index.Search(r.Context(), req.Query, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Search failed", err)
 		return

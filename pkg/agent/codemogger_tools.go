@@ -36,7 +36,7 @@ func (t *ListFilesTool) Parameters() map[string]any {
 }
 
 func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
-	files, err := t.index.ListFiles()
+	files, err := t.index.ListFiles(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to list files: %w", err)
 	}
@@ -112,7 +112,7 @@ func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream 
 		IncludeSnippet: true,
 	}
 
-	results, err := t.index.Search(req.Query, opts)
+	results, err := t.index.Search(ctx, req.Query, opts)
 	if err != nil {
 		return "", fmt.Errorf("search failed: %w", err)
 	}
