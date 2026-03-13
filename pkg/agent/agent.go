@@ -298,9 +298,3 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 func (a *Agent) Messages() []Message {
 	return a.messages
 }
-
-type Config struct {
-	LLM           map[string]any `json:"llm"`
-	Tools         []string       `json:"tools"`
-	MaxIterations int            `json:"max_iterations"`
-}
