@@ -19,6 +19,7 @@ type Config struct {
 type SystemConfig struct {
 	DBPath               string         `json:"db_path,omitempty"`
 	LLM                  map[string]any `json:"llm,omitempty"`
+	ContextLength        int            `json:"context_length,omitempty"`
 	MaxTaskRetentionDays int            `json:"max_task_retention_days,omitempty"`
 }
 
@@ -182,6 +183,7 @@ func DefaultConfig() *Config {
 				"model":    "gpt-4o",
 				"base_url": "https://api.openai.com/v1",
 			},
+			ContextLength:        262144,
 			MaxTaskRetentionDays: 180,
 		},
 		Research: ResearchConfig{

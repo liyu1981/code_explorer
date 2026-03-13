@@ -60,6 +60,18 @@ func HandleSummarizeTopicTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 
 	updateProgress(40, "Generating summary...")
 
+	// Load the "concise_topic_summarizer" skill from the database
+	skill, err := idx.GetStore().GetSkillByName(ctx, "concise_topic_summarizer")
+	if err != nil {
+		return fmt.Errorf("failed to load concise_topic_summarizer skill: %w", err)
+	}
+
+	// Use RunPipeline for summarization
+	systemPrompt := "You are a concise summarizer. Your task is to generate a short, professional title for a research session based on the user's initial query and the AI's findings."
+	if skill != nil && skill.SystemPrompt != "" {
+		systemPrompt = skill.SystemPrompt
+	}
+
 	// Build Agent
 	ag, err := agentFactory.BuildFromConfig(&agent.Config{
 		MaxIterations: 1,
@@ -68,8 +80,6 @@ func HandleSummarizeTopicTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 		return fmt.Errorf("failed to build agent: %w", err)
 	}
 
-	// Use RunPipeline for summarization
-	systemPrompt := "You are a concise summarizer. Your task is to generate a short, professional title for a research session based on the user's initial query and the AI's findings."
 	userInput := fmt.Sprintf("Generate a concise title (strictly maximum 5 words) for this research.\n\nQuery: %s\n\nPartial Report: %s", firstQuery, firstReport)
 
 	title, err := ag.RunPipeline(ctx, []agent.AgentPipelineStep{

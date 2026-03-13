@@ -143,6 +143,7 @@ type Agent struct {
 	tools          *ToolRegistry
 	messages       []Message
 	maxIterations  int
+	contextLength  int
 	responseFormat *ResponseFormat
 }
 
@@ -151,6 +152,12 @@ type AgentOption func(*Agent)
 func WithMaxIterations(n int) AgentOption {
 	return func(a *Agent) {
 		a.maxIterations = n
+	}
+}
+
+func WithContextLength(n int) AgentOption {
+	return func(a *Agent) {
+		a.contextLength = n
 	}
 }
 
@@ -172,11 +179,39 @@ func NewAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
 		tools:         tools,
 		messages:      make([]Message, 0),
 		maxIterations: 10,
+		contextLength: 262144, // Default to 256k
 	}
 	for _, opt := range opts {
 		opt(a)
 	}
 	return a
+}
+
+// MeasureContextLength approximates the total character count of the current context.
+func (a *Agent) MeasureContextLength() int {
+	total := 0
+
+	// Count messages
+	for _, m := range a.messages {
+		total += len(m.Role)
+		total += len(m.Content)
+		for _, tc := range m.ToolCalls {
+			total += len(tc.ID)
+			total += len(tc.Function.Name)
+			total += len(tc.Function.Arguments)
+		}
+		total += len(m.ToolCallID)
+	}
+
+	// Count tools
+	tools := a.tools.MarshalToolsForLLM()
+	for _, t := range tools {
+		if b, err := json.Marshal(t); err == nil {
+			total += len(b)
+		}
+	}
+
+	return total
 }
 
 func (a *Agent) SetSystemPrompt(prompt string) {
@@ -234,6 +269,13 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 
 	for i := 0; i < maxIterations; i++ {
 		log.Debug().Int("iteration", i).Msg("Agent iteration start")
+
+		// Check context length
+		currentLength := a.MeasureContextLength()
+		if a.contextLength > 0 && currentLength > a.contextLength {
+			return "", fmt.Errorf("context length exceeded: current %d, limit %d", currentLength, a.contextLength)
+		}
+
 		var response string
 		var toolCalls []ToolCall
 		var err error

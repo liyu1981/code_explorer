@@ -16,9 +16,10 @@ import (
 var embeddedSkills embed.FS
 
 var buildinSkillTags = map[string]string{
-	"general-researcher":     "researcher",
-	"knowledge-base-builder": "knowledge-builder",
-	"knowledge-base-planner": "knowledge-builder",
+	"concise_topic_summarizer": "summarizer",
+	"general-researcher":       "researcher",
+	"knowledge-base-builder":   "knowledge-builder",
+	"knowledge-base-planner":   "knowledge-builder",
 }
 
 // SyncBuiltinSkills seeds the database with embedded skill prompts

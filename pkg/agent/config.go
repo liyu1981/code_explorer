@@ -9,6 +9,7 @@ type Config struct {
 	LLM           map[string]any `json:"llm"`
 	Tools         []string       `json:"tools"`
 	MaxIterations int            `json:"max_iterations"`
+	ContextLength int            `json:"context_length"`
 }
 
 func LoadConfigFromFile(path string) (*Config, error) {

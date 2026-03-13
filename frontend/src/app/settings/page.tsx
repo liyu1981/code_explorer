@@ -7,6 +7,7 @@ import {
   Monitor,
   Search,
   Database,
+  Cpu,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -15,6 +16,7 @@ import { AppHeader } from "../_components/app-header";
 import { LoadingState } from "../_components/loading-state";
 import { SettingsTabs } from "./_components/settings-tabs";
 import { SystemSettings } from "./_components/system-settings";
+import { LLMSettings } from "./_components/llm-settings";
 import { ResearchSettings } from "./_components/research-settings";
 import { CodeMoggerSettings } from "./_components/codemogger-settings";
 
@@ -23,6 +25,7 @@ interface Config {
     db_path?: string;
     is_default_db?: boolean;
     llm?: Record<string, any>;
+    context_length?: number;
     max_task_retention_days?: number;
   };
   research: {
@@ -45,7 +48,7 @@ interface Config {
   };
 }
 
-type TabType = "system" | "research" | "codemogger";
+type TabType = "system" | "llm" | "research" | "codemogger";
 
 export default function SettingsPage() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -110,9 +113,15 @@ export default function SettingsPage() {
     [
       {
         id: "system",
-        label: "System & LLM",
+        label: "System",
         icon: Monitor,
-        description: "Global paths and general reasoning provider settings.",
+        description: "Global paths and general system behavior.",
+      },
+      {
+        id: "llm",
+        label: "LLM Configuration",
+        icon: Cpu,
+        description: "Primary reasoning provider and model settings.",
       },
       {
         id: "research",
@@ -183,6 +192,9 @@ export default function SettingsPage() {
               <>
                 {activeTab === "system" && (
                   <SystemSettings config={config} setConfig={setConfig} />
+                )}
+                {activeTab === "llm" && (
+                  <LLMSettings config={config} setConfig={setConfig} />
                 )}
                 {activeTab === "research" && (
                   <ResearchSettings config={config} setConfig={setConfig} />

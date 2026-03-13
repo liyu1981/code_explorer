@@ -55,7 +55,19 @@ func (f *AgentFactory) BuildFromConfig(cfg *Config) (*Agent, error) {
 		return nil, fmt.Errorf("failed to build LLM: %w", err)
 	}
 
-	agent := NewAgent(llm, f.toolRegistry, WithMaxIterations(cfg.MaxIterations))
+	contextLength := cfg.ContextLength
+	if contextLength <= 0 {
+		if cl, ok := llmCfg["context_length"].(int); ok {
+			contextLength = cl
+		} else if cl, ok := llmCfg["context_length"].(float64); ok {
+			contextLength = int(cl)
+		}
+	}
+	if contextLength <= 0 {
+		contextLength = 262144
+	}
+
+	agent := NewAgent(llm, f.toolRegistry, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
 	return agent, nil
 }
 

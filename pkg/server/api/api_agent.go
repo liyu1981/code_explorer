@@ -204,6 +204,11 @@ func getSystemLLMConfig() map[string]any {
 	if llmCfg["type"] == nil || llmCfg["type"] == "" {
 		llmCfg["type"] = "openai"
 	}
+	if config.Get().System.ContextLength > 0 {
+		llmCfg["context_length"] = config.Get().System.ContextLength
+	} else {
+		llmCfg["context_length"] = 262144
+	}
 	return llmCfg
 }
 

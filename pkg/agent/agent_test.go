@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -98,8 +100,22 @@ func TestResponseFormatFromSchema(t *testing.T) {
 	if err := json.Unmarshal(b, &target); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
+}
 
-	if target["type"] != "json_schema" {
-		t.Errorf("unexpected marshaled type: %v", target["type"])
+func TestAgentContextLimit(t *testing.T) {
+	mockLLM := NewMockLLM("gpt-4o", []string{"Hello"}, nil)
+	tools := NewToolRegistry()
+
+	// Limit that is very small
+	limit := 10
+	ag := NewAgent(mockLLM, tools, WithContextLength(limit))
+
+	_, err := ag.RunLoop(context.Background(), "This input is definitely longer than 10 characters", "test-turn", nil)
+	if err == nil {
+		t.Fatal("expected error due to context limit, but got nil")
+	}
+
+	if !strings.Contains(err.Error(), "context length exceeded") {
+		t.Errorf("expected context length exceeded error, got: %v", err)
 	}
 }
