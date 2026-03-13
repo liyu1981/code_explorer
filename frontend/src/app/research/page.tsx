@@ -44,6 +44,7 @@ function ResearchContent() {
   const [sessions, setSessions] = useAtom(researchSessionsAtom);
   const [activeSessionId, setActiveSessionId] = useAtom(activeSessionIdAtom);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const rehydratingRef = useRef<string | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,12 +53,13 @@ function ResearchContent() {
   // Rehydration Effect
   useEffect(() => {
     const rehydrate = async () => {
-      if (!urlId) return;
+      if (!urlId || rehydratingRef.current === urlId) return;
 
       // If already fully in memory, skip
       const existing = sessions.find((s) => s.id === urlId);
       if (existing && existing.turns.length > 0) return;
 
+      rehydratingRef.current = urlId;
       try {
         const sessResponse = await api.get(
           "/api/research/sessions?includeArchived=true",
@@ -65,7 +67,10 @@ function ResearchContent() {
         const allSessions = sessResponse.data;
         const sessionData = allSessions.find((s: any) => s.id === urlId);
 
-        if (!sessionData) return;
+        if (!sessionData) {
+          rehydratingRef.current = null;
+          return;
+        }
 
         const reportsResponse = await api.get(
           `/api/research/sessions/${urlId}/reports`,
@@ -176,11 +181,13 @@ function ResearchContent() {
         });
       } catch (e) {
         console.error("Rehydration failed", e);
+      } finally {
+        rehydratingRef.current = null;
       }
     };
 
     rehydrate();
-  }, [urlId, sessions, setSessions]);
+  }, [urlId, setSessions]); // Remove sessions from deps to avoid loop
 
   // Sync activeSessionId with URL
   useEffect(() => {

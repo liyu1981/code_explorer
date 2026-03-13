@@ -6,7 +6,6 @@ import {
   Clock,
   Loader2,
   AlertCircle,
-  X,
   ArrowLeft,
 } from "lucide-react";
 import { useState } from "react";
@@ -91,26 +90,28 @@ export default function TasksPage() {
               {rootTaskId ? "Task Lineage" : "Tasks"}
             </h1>
           </div>
-          {rootTaskId && (
-            <button
-              onClick={() => setRootTaskId(null)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-xs font-bold transition-colors border border-border"
-            >
-              <X className="h-3 w-3" />
-              Clear Filter
-            </button>
-          )}
         </div>
       </AppHeader>
 
       <div className="flex-1 overflow-auto p-6 bg-background/50">
         <div className="max-w-6xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6">
-            <p className="text-muted-foreground text-sm">
-              {rootTaskId
-                ? `Showing task ${rootTaskId} and all its sub-tasks.`
-                : "Monitor long-running background operations like codebase indexing."}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-muted-foreground text-sm">
+                {rootTaskId
+                  ? `Showing task ${rootTaskId} and all its sub-tasks.`
+                  : "Monitor long-running background operations like codebase indexing."}
+              </p>
+              {rootTaskId && (
+                <button
+                  onClick={() => setRootTaskId(null)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-wider transition-colors border border-primary/20"
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  return to all tasks
+                </button>
+              )}
+            </div>
           </div>
 
           {isLoading && !tasks ? (
