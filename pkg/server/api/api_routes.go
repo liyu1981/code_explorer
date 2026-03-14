@@ -177,7 +177,6 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/agent_skills", h.handleListSkills)
 	mux.HandleFunc("GET /api/agent_skills/get", h.handleGetSkill)
 	mux.HandleFunc("PUT /api/agent_skills", h.handleUpdateSkill)
-	mux.HandleFunc("POST /api/agent_skills/reset", h.handleResetSkill)
 }
 
 // handleHealth returns the health status of the API

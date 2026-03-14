@@ -12,7 +12,14 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
-func HandleSummarizeTopicTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, agentFactory AgentFactoryInterface, updateProgress func(progress int, message string), notifyUpdated func(sessionId string, title string)) error {
+func HandleSummarizeTopicTask(
+	ctx context.Context,
+	idx *codemogger.CodeIndex,
+	task *db.Task,
+	agentFactory agent.AgentFactoryInterface,
+	updateProgress func(progress int, message string),
+	notifyUpdated func(sessionId string, title string),
+) error {
 	var payload struct {
 		SessionID string `json:"sessionId"`
 	}
@@ -53,28 +60,14 @@ func HandleSummarizeTopicTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 				firstReport += chunk.Choices[0].Delta.Content
 			}
 		}
-		if len(firstReport) > 500 {
-			break
-		}
 	}
 
 	updateProgress(40, "Generating summary...")
 
-	// Load the "concise_topic_summarizer" skill from the database
-	skill, err := idx.GetStore().GetSkillByName(ctx, "concise_topic_summarizer")
-	if err != nil {
-		return fmt.Errorf("failed to load concise_topic_summarizer skill: %w", err)
-	}
-
-	// Use RunPipeline for summarization
-	systemPrompt := "You are a concise summarizer. Your task is to generate a short, professional title for a research session based on the user's initial query and the AI's findings."
-	if skill != nil && skill.SystemPrompt != "" {
-		systemPrompt = skill.SystemPrompt
-	}
-
-	// Build Agent
-	ag, err := agentFactory.BuildFromConfig(&agent.Config{
+	// Build Agent using the skill
+	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
 		MaxIterations: 1,
+		SkillName:     "concise-topic-summarizer",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to build agent: %w", err)
@@ -84,8 +77,7 @@ func HandleSummarizeTopicTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 
 	title, err := ag.RunPipeline(ctx, []agent.AgentPipelineStep{
 		{
-			SystemPrompt: systemPrompt,
-			UserInput:    userInput,
+			UserInput: userInput,
 		},
 	}, task.ID, nil)
 

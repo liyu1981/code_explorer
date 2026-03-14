@@ -1,13 +1,12 @@
-import { Save, Loader2, RotateCcw } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Skill {
   id: string;
   name: string;
-  description: string;
   system_prompt: string;
   tags: string;
-  is_builtin: boolean;
+  tools: string;
   updated_at: string;
 }
 
@@ -17,7 +16,6 @@ interface SkillEditorProps {
   isDirty: boolean | null | undefined;
   message: { type: "success" | "error"; text: string } | null;
   onSave: () => void;
-  onReset: () => void;
   onChange: (updates: Partial<Skill>) => void;
 }
 
@@ -27,7 +25,6 @@ export function SkillEditor({
   isDirty,
   message,
   onSave,
-  onReset,
   onChange,
 }: SkillEditorProps) {
   return (
@@ -70,20 +67,7 @@ export function SkillEditor({
         )}
 
         <div className="space-y-6 flex-1 flex flex-col overflow-hidden">
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                Description
-              </label>
-              <input
-                type="text"
-                value={selectedSkill.description}
-                onChange={(e) => onChange({ description: e.target.value })}
-                className="w-full bg-card border border-border rounded-xl px-4 py-3 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-medium"
-                placeholder="Skill description..."
-              />
-            </div>
-
+          <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                 Tags (space separated)
@@ -96,23 +80,25 @@ export function SkillEditor({
                 placeholder="e.g. go backend analysis"
               />
             </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                Tools (space separated)
+              </label>
+              <input
+                type="text"
+                value={selectedSkill.tools}
+                onChange={(e) => onChange({ tools: e.target.value })}
+                className="w-full bg-card border border-border rounded-xl px-4 py-3 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-medium"
+                placeholder="e.g. web_search file_read"
+              />
+            </div>
           </div>
 
           <div className="space-y-2 flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                System Prompt
-              </label>
-              {selectedSkill.is_builtin && (
-                <button
-                  onClick={onReset}
-                  className="text-[10px] font-bold text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Reset to Default
-                </button>
-              )}
-            </div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              System Prompt
+            </label>
             <textarea
               value={selectedSkill.system_prompt}
               onChange={(e) => onChange({ system_prompt: e.target.value })}

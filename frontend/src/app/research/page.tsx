@@ -551,7 +551,7 @@ function ResearchContent() {
         codebaseId: activeSession.codebaseId,
         title: activeSession.title,
         query: turn.query,
-        content: turn.report,
+        turnId: turn.id,
         codebaseName: activeSession.codebaseName,
         codebasePath: activeSession.codebasePath,
       });

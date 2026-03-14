@@ -41,17 +41,17 @@ func (t *ListAgentSkillsTool) Execute(ctx context.Context, input json.RawMessage
 	}
 
 	type SkillInfo struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Tags        string `json:"tags"`
+		Name  string `json:"name"`
+		Tags  string `json:"tags"`
+		Tools string `json:"tools"`
 	}
 
 	info := make([]SkillInfo, len(skills))
 	for i, s := range skills {
 		info[i] = SkillInfo{
-			Name:        s.Name,
-			Description: s.Description,
-			Tags:        s.Tags,
+			Name:  s.Name,
+			Tags:  s.Tags,
+			Tools: s.Tools,
 		}
 	}
 

@@ -1,17 +1,18 @@
 "use client";
-import { Bookmark, Loader2, Trash2, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { useAtom } from "jotai";
-import { toast } from "sonner";
 import useSWR from "swr";
 import { API_URL, api, fetcher } from "@/lib/api";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
-import { Markdown } from "../_components/markdown";
 import { LoadingState } from "../_components/loading-state";
 import { ErrorState } from "../_components/error-state";
 import { activeSavedReportsAtom } from "../_jotai/ui-store";
+import { ResearchReport } from "../research/_components/research-report";
+import type { ResearchTurn } from "../_jotai/research-store";
+import type { Source } from "../research/_components/source-card";
 
 interface SavedReport {
   id: string;
@@ -19,10 +20,90 @@ interface SavedReport {
   codebaseId: string;
   title: string;
   query: string;
-  content: string;
+  streamData: string;
   codebaseName: string;
   codebasePath: string;
   createdAt: number;
+}
+
+interface OpenAIChunk {
+  choices: {
+    delta: {
+      content?: string;
+    };
+  }[];
+}
+
+interface CEEvent {
+  object: string;
+  id?: string;
+  status?: "pending" | "active" | "completed";
+  label?: string;
+  content?: string;
+  source?: Source;
+  resource?: Source;
+  query?: string;
+  timestamp?: number;
+}
+
+function parseStreamData(streamData: string): ResearchTurn[] {
+  const lines = streamData.split("\n\n");
+  const turns: ResearchTurn[] = [];
+  let currentTurnId = "";
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+
+    if (line.startsWith("data: ")) {
+      const data = line.slice(6);
+      if (data === "[DONE]") continue;
+      try {
+        const chunk: OpenAIChunk = JSON.parse(data);
+        const content = chunk.choices[0]?.delta?.content;
+        if (content && currentTurnId) {
+          const turn = turns.find((t) => t.id === currentTurnId);
+          if (turn) {
+            turn.report += content;
+          }
+        }
+      } catch (e) {}
+    } else if (line.startsWith("ce: ")) {
+      const data = line.slice(4);
+      try {
+        const ce: CEEvent = JSON.parse(data);
+        switch (ce.object) {
+          case "research.turn.started":
+            currentTurnId = ce.id!;
+            turns.push({
+              id: currentTurnId,
+              query: ce.query!,
+              report: "",
+              sources: [],
+              timestamp: ce.timestamp!,
+            });
+            break;
+          case "research.source.added":
+            if (ce.source && currentTurnId) {
+              const turn = turns.find((t) => t.id === currentTurnId);
+              if (turn) {
+                turn.sources.push(ce.source);
+              }
+            }
+            break;
+          case "resource.material":
+            if (ce.resource && currentTurnId) {
+              const turn = turns.find((t) => t.id === currentTurnId);
+              if (turn) {
+                turn.sources.push(ce.resource);
+              }
+            }
+            break;
+        }
+      } catch (e) {}
+    }
+  }
+
+  return turns;
 }
 
 function SavedReportContent() {
@@ -40,6 +121,11 @@ function SavedReportContent() {
     fetcher,
   );
 
+  const turns = useMemo(() => {
+    if (!report?.streamData) return [];
+    return parseStreamData(report.streamData);
+  }, [report?.streamData]);
+
   useEffect(() => {
     if (report) {
       setActiveReports((prev) => {
@@ -51,20 +137,6 @@ function SavedReportContent() {
       });
     }
   }, [report, setActiveReports]);
-
-  const handleDelete = async () => {
-    if (!id || !confirm("Are you sure you want to delete this snapshot?"))
-      return;
-    try {
-      await api.delete(`/api/saved_reports/${id}`);
-      setActiveReports((prev) => prev.filter((r) => r.id !== id));
-      toast.success("Snapshot deleted successfully");
-      router.push("/saved_reports");
-    } catch (e) {
-      console.error("Delete failed", e);
-      toast.error("Failed to delete snapshot");
-    }
-  };
 
   const handleClose = () => {
     if (id) {
@@ -107,9 +179,11 @@ function SavedReportContent() {
       <AppHeader>
         <div className="flex items-center gap-4 w-full">
           <div className="flex items-center gap-3">
-            <Bookmark className="h-5 w-5 text-primary" />
+            <span className="px-2 py-1 text-[10px] font-bold text-muted-foreground bg-muted rounded-md uppercase tracking-widest">
+              CODEBASE: {report.codebaseName}
+            </span>
             <h1 className="text-xl font-bold tracking-tight text-primary truncate max-w-[600px]">
-              {report.query}
+              {report.title}
             </h1>
           </div>
           <div className="flex items-center gap-2 ml-auto">
@@ -122,39 +196,19 @@ function SavedReportContent() {
               <X className="h-4 w-4" />
               Close
             </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-              title="Delete Snapshot"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
           </div>
         </div>
       </AppHeader>
 
       <div className="flex-1 overflow-auto bg-background/50">
-        <div className="max-w-4xl mx-auto w-full py-12 px-6">
-          <div className="space-y-8">
-            <div className="space-y-4">
-              <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                {report.query}
-              </h2>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium uppercase tracking-widest">
-                <span>Session: {report.title}</span>
-                <span>•</span>
-                <span>
-                  Saved on {new Date(report.createdAt).toLocaleString()}
-                </span>
-              </div>
+        <div className="max-w-6xl mx-auto w-full py-8 px-6">
+          {turns.length > 0 ? (
+            <ResearchReport turns={turns} hideTurnInfo={true} />
+          ) : (
+            <div className="text-center text-muted-foreground py-12">
+              No research data available
             </div>
-
-            <div className="prose prose-invert max-w-none">
-              <Markdown content={report.content} />
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </AppContainer>

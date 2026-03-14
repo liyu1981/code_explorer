@@ -27,7 +27,7 @@ type SavedReport struct {
 	CodebaseID   string `json:"codebaseId"`
 	Title        string `json:"title"`
 	Query        string `json:"query"`
-	Content      string `json:"content"`
+	StreamData   string `json:"streamData"`
 	CodebaseName string `json:"codebaseName"`
 	CodebasePath string `json:"codebasePath"`
 	CreatedAt    int64  `json:"createdAt"`

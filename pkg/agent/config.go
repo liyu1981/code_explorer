@@ -10,6 +10,7 @@ type Config struct {
 	Tools         []string       `json:"tools"`
 	MaxIterations int            `json:"max_iterations"`
 	ContextLength int            `json:"context_length"`
+	SkillName     string         `json:"skill_name"`
 }
 
 func LoadConfigFromFile(path string) (*Config, error) {

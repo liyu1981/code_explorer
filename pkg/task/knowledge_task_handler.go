@@ -17,13 +17,7 @@ type TaskManager interface {
 	GetTask(ctx context.Context, id string) (*db.Task, error)
 }
 
-type AgentFactoryInterface interface {
-	BuildFromConfig(cfg *agent.Config) (*agent.Agent, error)
-	GetSkillPrompt(ctx context.Context, name string) (string, error)
-	RegisterTool(tool agent.Tool)
-}
-
-func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, taskManager TaskManager, agentFactory AgentFactoryInterface, updateProgress func(progress int, message string)) error {
+func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, taskManager TaskManager, agentFactory agent.AgentFactoryInterface, updateProgress func(progress int, message string)) error {
 	var payload struct {
 		CodebaseID string `json:"codebaseId"`
 	}
@@ -61,8 +55,9 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
 
 	// 3. Build Agent
-	ag, err := agentFactory.BuildFromConfig(&agent.Config{
+	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
 		MaxIterations: 20,
+		SkillName:     "architect-planner",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to build orchestrator agent: %w", err)
@@ -82,7 +77,7 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	return nil
 }
 
-func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, agentFactory AgentFactoryInterface, updateProgress func(progress int, message string)) error {
+func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, agentFactory agent.AgentFactoryInterface, updateProgress func(progress int, message string)) error {
 	var payload struct {
 		CodebaseID string `json:"codebaseId"`
 		Path       string `json:"path"`
@@ -121,8 +116,9 @@ func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeInd
 	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
 
 	// 3. Build Agent
-	ag, err := agentFactory.BuildFromConfig(&agent.Config{
+	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
 		MaxIterations: 10,
+		SkillName:     skillName,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to build analyze agent: %w", err)

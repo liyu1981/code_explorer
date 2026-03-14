@@ -4,9 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/db"
 )
+
+type AgentFactoryInterface interface {
+	BuildFromConfig(ctx context.Context, cfg *Config) (*Agent, error)
+	GetSkillPrompt(ctx context.Context, name string) (string, error)
+	RegisterTool(tool Tool)
+}
 
 type AgentFactory struct {
 	toolRegistry *ToolRegistry
@@ -44,7 +51,24 @@ func (f *AgentFactory) GetSkillPrompt(ctx context.Context, name string) (string,
 	return skill.SystemPrompt, nil
 }
 
-func (f *AgentFactory) BuildFromConfig(cfg *Config) (*Agent, error) {
+func (f *AgentFactory) GetSkillTools(ctx context.Context, name string) ([]string, error) {
+	if f.store == nil {
+		return nil, fmt.Errorf("store not initialized in AgentFactory")
+	}
+	skill, err := f.store.GetSkillByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if skill == nil {
+		return nil, fmt.Errorf("skill %s not found", name)
+	}
+	if skill.Tools == "" {
+		return nil, nil
+	}
+	return strings.Fields(skill.Tools), nil
+}
+
+func (f *AgentFactory) BuildFromConfig(ctx context.Context, cfg *Config) (*Agent, error) {
 	llmCfg := cfg.LLM
 	if llmCfg == nil {
 		llmCfg = f.defaultLLM
@@ -67,7 +91,25 @@ func (f *AgentFactory) BuildFromConfig(cfg *Config) (*Agent, error) {
 		contextLength = 262144
 	}
 
-	agent := NewAgent(llm, f.toolRegistry, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
+	tools := f.toolRegistry
+
+	if cfg.SkillName != "" && f.store != nil {
+		skillTools, err := f.GetSkillTools(ctx, cfg.SkillName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get skill tools: %w", err)
+		}
+		if len(skillTools) > 0 {
+			filtered := NewToolRegistry()
+			for _, toolName := range skillTools {
+				if tool, ok := f.toolRegistry.Get(toolName); ok {
+					filtered.Register(tool)
+				}
+			}
+			tools = filtered
+		}
+	}
+
+	agent := NewAgent(llm, tools, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
 	return agent, nil
 }
 

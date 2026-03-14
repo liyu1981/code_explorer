@@ -115,6 +115,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Query     string `json:"query"`
 		SessionID string `json:"sessionId"`
+		SkillName string `json:"skillName"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -127,15 +128,28 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
+	log.Info().Str("query", req.Query).Str("session", req.SessionID).Str("skill", req.SkillName).Msg("Handling agent research request")
 
-	ag, err := h.agentFactory.BuildFromConfig(&agent.Config{
+	agentCfg := &agent.Config{
 		MaxIterations: 10,
-	})
+		SkillName:     req.SkillName,
+	}
+
+	ag, err := h.agentFactory.BuildFromConfig(r.Context(), agentCfg)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to build agent")
 		writeError(w, http.StatusInternalServerError, "Failed to build agent", err)
 		return
+	}
+
+	if req.SkillName != "" {
+		skillPrompt, err := h.agentFactory.GetSkillPrompt(r.Context(), req.SkillName)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to get skill prompt")
+			writeError(w, http.StatusInternalServerError, "Failed to get skill prompt", err)
+			return
+		}
+		ag.SetSystemPrompt(skillPrompt)
 	}
 
 	// Set headers for streaming

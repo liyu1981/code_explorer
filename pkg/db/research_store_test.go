@@ -67,7 +67,7 @@ func TestResearchStore(t *testing.T) {
 		SessionID:  "sess1",
 		CodebaseID: cb.ID,
 		Title:      "Saved",
-		Content:    "Content",
+		StreamData: "StreamData",
 	}
 	if err := store.SaveSavedReport(ctx, sr); err != nil {
 		t.Fatalf("save saved report: %v", err)

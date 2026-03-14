@@ -20,6 +20,7 @@ interface ResearchReportProps {
   onRegenerateTurn?: (turn: ResearchTurn) => void;
   onSaveTurn?: (turn: ResearchTurn) => void;
   isStreaming?: boolean;
+  hideTurnInfo?: boolean;
 }
 
 export function ResearchReport({
@@ -28,6 +29,7 @@ export function ResearchReport({
   onRegenerateTurn,
   onSaveTurn,
   isStreaming,
+  hideTurnInfo = false,
 }: ResearchReportProps) {
   const [, setTick] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -103,65 +105,67 @@ export function ResearchReport({
                 <span className="text-lg font-bold tracking-tight text-foreground/80 flex-1">
                   {turn.query}
                 </span>
-                <div className="flex items-center gap-4">
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
-                      Turn #{turnIndex + 1}
-                    </span>
-                    <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground/50 uppercase tracking-tighter whitespace-nowrap">
-                      <Clock className="h-2.5 w-2.5" />
-                      <span>
-                        Updated:{" "}
-                        {getRelativeTime(turn.updatedAt || turn.timestamp)} :
-                        Created: {getRelativeTime(turn.timestamp)}
+                {!hideTurnInfo && (
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
+                        Turn #{turnIndex + 1}
                       </span>
+                      <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground/50 uppercase tracking-tighter whitespace-nowrap">
+                        <Clock className="h-2.5 w-2.5" />
+                        <span>
+                          Updated:{" "}
+                          {getRelativeTime(turn.updatedAt || turn.timestamp)} :
+                          Created: {getRelativeTime(turn.timestamp)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {onSaveTurn && !isStreaming && (
+                        <button
+                          type="button"
+                          onClick={() => onSaveTurn(turn)}
+                          className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                          title="Save Snapshot"
+                        >
+                          <Bookmark className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(turn.id, turn.report)}
+                        className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        title="Copy Markdown"
+                      >
+                        {copiedId === turn.id ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </button>
+                      {onRegenerateTurn && !isStreaming && (
+                        <button
+                          type="button"
+                          onClick={() => onRegenerateTurn(turn)}
+                          className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                          title="Regenerate Turn"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </button>
+                      )}
+                      {onDeleteTurn && !isStreaming && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteTurn(turn.id)}
+                          className="p-2 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                          title="Delete Turn"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {onSaveTurn && !isStreaming && (
-                      <button
-                        type="button"
-                        onClick={() => onSaveTurn(turn)}
-                        className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                        title="Save Snapshot"
-                      >
-                        <Bookmark className="h-4 w-4" />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(turn.id, turn.report)}
-                      className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                      title="Copy Markdown"
-                    >
-                      {copiedId === turn.id ? (
-                        <Check className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </button>
-                    {onRegenerateTurn && !isStreaming && (
-                      <button
-                        type="button"
-                        onClick={() => onRegenerateTurn(turn)}
-                        className="p-2 text-muted-foreground/50 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                        title="Regenerate Turn"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                      </button>
-                    )}
-                    {onDeleteTurn && !isStreaming && (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteTurn(turn.id)}
-                        className="p-2 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
-                        title="Delete Turn"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="flex-1">

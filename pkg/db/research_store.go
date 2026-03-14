@@ -218,29 +218,29 @@ func (s *Store) SaveSavedReport(ctx context.Context, report *SavedReport) error 
 	}
 
 	query := `
-		INSERT INTO saved_reports (id, session_id, codebase_id, title, query, content, codebase_name, codebase_path, created_at)
+		INSERT INTO saved_reports (id, session_id, codebase_id, title, query, stream_data, codebase_name, codebase_path, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			query = excluded.query,
-			content = excluded.content
+			stream_data = excluded.stream_data
 	`
 	_, err := s.ExecWrite(ctx, query,
 		report.ID, report.SessionID, report.CodebaseID, report.Title,
-		report.Query, report.Content, report.CodebaseName, report.CodebasePath, report.CreatedAt,
+		report.Query, report.StreamData, report.CodebaseName, report.CodebasePath, report.CreatedAt,
 	)
 	return err
 }
 
 func (s *Store) GetSavedReport(ctx context.Context, id string) (*SavedReport, error) {
 	query := `
-		SELECT id, session_id, codebase_id, title, query, content, codebase_name, codebase_path, created_at
+		SELECT id, session_id, codebase_id, title, query, stream_data, codebase_name, codebase_path, created_at
 		FROM saved_reports
 		WHERE id = ?
 	`
 	var r SavedReport
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
-		&r.ID, &r.SessionID, &r.CodebaseID, &r.Title, &r.Query, &r.Content, &r.CodebaseName, &r.CodebasePath, &r.CreatedAt,
+		&r.ID, &r.SessionID, &r.CodebaseID, &r.Title, &r.Query, &r.StreamData, &r.CodebaseName, &r.CodebasePath, &r.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -265,7 +265,7 @@ func (s *Store) ListSavedReports(ctx context.Context, page, pageSize int, search
 		}
 
 		query := `
-			SELECT r.id, r.session_id, r.codebase_id, r.title, r.query, r.content, r.codebase_name, r.codebase_path, r.created_at
+			SELECT r.id, r.session_id, r.codebase_id, r.title, r.query, r.stream_data, r.codebase_name, r.codebase_path, r.created_at
 			FROM saved_reports r
 			JOIN saved_reports_fts f ON r.id = f.id
 			WHERE f.saved_reports_fts MATCH ?
@@ -281,7 +281,7 @@ func (s *Store) ListSavedReports(ctx context.Context, page, pageSize int, search
 		}
 
 		query := `
-			SELECT id, session_id, codebase_id, title, query, content, codebase_name, codebase_path, created_at
+			SELECT id, session_id, codebase_id, title, query, stream_data, codebase_name, codebase_path, created_at
 			FROM saved_reports
 			ORDER BY created_at DESC
 			LIMIT ? OFFSET ?
@@ -298,7 +298,7 @@ func (s *Store) ListSavedReports(ctx context.Context, page, pageSize int, search
 	for rows.Next() {
 		var r SavedReport
 		if err := rows.Scan(
-			&r.ID, &r.SessionID, &r.CodebaseID, &r.Title, &r.Query, &r.Content, &r.CodebaseName, &r.CodebasePath, &r.CreatedAt,
+			&r.ID, &r.SessionID, &r.CodebaseID, &r.Title, &r.Query, &r.StreamData, &r.CodebaseName, &r.CodebasePath, &r.CreatedAt,
 		); err != nil {
 			return nil, 0, err
 		}

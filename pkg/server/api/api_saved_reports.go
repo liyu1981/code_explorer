@@ -7,19 +7,73 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 )
 
+type SavedReportWithSources struct {
+	ID           string `json:"id"`
+	SessionID    string `json:"sessionId"`
+	CodebaseID   string `json:"codebaseId"`
+	Title        string `json:"title"`
+	Query        string `json:"query"`
+	StreamData   string `json:"streamData"`
+	CodebaseName string `json:"codebaseName"`
+	CodebasePath string `json:"codebasePath"`
+	CreatedAt    int64  `json:"createdAt"`
+}
+
 func (h *ApiHandler) handleSaveSavedReport(w http.ResponseWriter, r *http.Request) {
 	if h.index == nil {
 		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
 		return
 	}
 
-	var report db.SavedReport
-	if err := json.NewDecoder(r.Body).Decode(&report); err != nil {
+	var req struct {
+		SessionID    string `json:"sessionId"`
+		CodebaseID   string `json:"codebaseId"`
+		Title        string `json:"title"`
+		Query        string `json:"query"`
+		TurnID       string `json:"turnId"`
+		StreamData   string `json:"streamData"`
+		CodebaseName string `json:"codebaseName"`
+		CodebasePath string `json:"codebasePath"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 
-	if err := h.index.GetStore().SaveSavedReport(r.Context(), &report); err != nil {
+	streamData := req.StreamData
+
+	// If turnId is provided, fetch stream_data from research_reports
+	if req.TurnID != "" && streamData == "" {
+		reports, err := h.index.GetStore().GetResearchReportsBySession(r.Context(), req.SessionID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to get research reports", err)
+			return
+		}
+		for _, rp := range reports {
+			if rp.TurnID == req.TurnID {
+				streamData = rp.StreamData
+				break
+			}
+		}
+	}
+
+	if streamData == "" {
+		writeError(w, http.StatusBadRequest, "streamData or turnId is required", nil)
+		return
+	}
+
+	report := &db.SavedReport{
+		SessionID:    req.SessionID,
+		CodebaseID:   req.CodebaseID,
+		Title:        req.Title,
+		Query:        req.Query,
+		StreamData:   streamData,
+		CodebaseName: req.CodebaseName,
+		CodebasePath: req.CodebasePath,
+	}
+
+	if err := h.index.GetStore().SaveSavedReport(r.Context(), report); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to save report", err)
 		return
 	}
@@ -45,7 +99,19 @@ func (h *ApiHandler) handleGetSavedReport(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, report)
+	response := SavedReportWithSources{
+		ID:           report.ID,
+		SessionID:    report.SessionID,
+		CodebaseID:   report.CodebaseID,
+		Title:        report.Title,
+		Query:        report.Query,
+		StreamData:   report.StreamData,
+		CodebaseName: report.CodebaseName,
+		CodebasePath: report.CodebasePath,
+		CreatedAt:    report.CreatedAt,
+	}
+
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *ApiHandler) handleListSavedReports(w http.ResponseWriter, r *http.Request) {

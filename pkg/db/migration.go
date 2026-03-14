@@ -262,6 +262,11 @@ func (m *Migrator) Drop() error {
 	return err
 }
 
+func (m *Migrator) CurrentVersion() (int, error) {
+	version, _, err := m.getVersion()
+	return version, err
+}
+
 func (m *Migrator) Status() (version int, dirty bool, all []Migration, err error) {
 	if err := m.ensureMigrationTable(); err != nil {
 		return 0, false, nil, err

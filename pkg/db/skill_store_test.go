@@ -13,10 +13,9 @@ func TestSkillStore(t *testing.T) {
 
 	skill := &Skill{
 		Name:         "test-skill",
-		Description:  "test description",
 		SystemPrompt: "test prompt",
 		Tags:         "test tags",
-		IsBuiltin:    false,
+		Tools:        "tool1 tool2",
 	}
 
 	// Test Create

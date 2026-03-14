@@ -1,22 +1,21 @@
 "use client";
 
-import { Wand2, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Wand2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import { LoadingState } from "../_components/loading-state";
-import { SkillList } from "./_components/skill-list";
 import { SkillEditor } from "./_components/skill-editor";
-import Link from "next/link";
+import { SkillList } from "./_components/skill-list";
 
 interface Skill {
   id: string;
   name: string;
-  description: string;
   system_prompt: string;
   tags: string;
-  is_builtin: boolean;
+  tools: string;
   updated_at: string;
 }
 
@@ -74,40 +73,9 @@ export default function SkillsSettingsPage() {
   const isDirty =
     selectedSkill &&
     originalSkill &&
-    (selectedSkill.description !== originalSkill.description ||
-      selectedSkill.system_prompt !== originalSkill.system_prompt ||
-      selectedSkill.tags !== originalSkill.tags);
-
-  const handleReset = async () => {
-    if (!selectedSkill || !selectedSkill.is_builtin) return;
-    if (
-      !confirm(
-        "Are you sure you want to reset this skill to its default built-in prompt? Any changes you made will be lost.",
-      )
-    ) {
-      return;
-    }
-
-    setSaving(true);
-    setMessage(null);
-    try {
-      const resp = await api.post(
-        `/api/agent_skills/reset?name=${selectedSkill.name}`,
-      );
-      if (resp.status === 200) {
-        const data = resp.data;
-        setSelectedSkill(data);
-        setMessage({ type: "success", text: "Skill reset to default" });
-        fetchSkills();
-      } else {
-        setMessage({ type: "error", text: "Failed to reset skill" });
-      }
-    } catch (e) {
-      setMessage({ type: "error", text: "An error occurred while resetting" });
-    } finally {
-      setSaving(false);
-    }
-  };
+    (selectedSkill.system_prompt !== originalSkill.system_prompt ||
+      selectedSkill.tags !== originalSkill.tags ||
+      selectedSkill.tools !== originalSkill.tools);
 
   const handleSkillChange = (updates: Partial<Skill>) => {
     if (!selectedSkill) return;
@@ -160,7 +128,6 @@ export default function SkillsSettingsPage() {
             isDirty={isDirty}
             message={message}
             onSave={handleSave}
-            onReset={handleReset}
             onChange={handleSkillChange}
           />
         ) : (

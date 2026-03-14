@@ -1,13 +1,11 @@
 import { cn } from "@/lib/utils";
-import { Badge } from "../../_components/badge";
 
 interface Skill {
   id: string;
   name: string;
-  description: string;
   system_prompt: string;
   tags: string;
-  is_builtin: boolean;
+  tools: string;
   updated_at: string;
 }
 
@@ -40,16 +38,9 @@ export function SkillList({
                   : "hover:bg-muted text-muted-foreground hover:text-foreground",
               )}
             >
-              <div className="font-bold text-sm flex items-center justify-between">
-                {skill.name}
-                {skill.is_builtin && (
-                  <Badge variant="primary" className="text-[8px] px-1.5 py-0.5">
-                    Built-in
-                  </Badge>
-                )}
-              </div>
+              <div className="font-bold text-sm">{skill.name}</div>
               <p className="text-[10px] opacity-70 line-clamp-1 mt-0.5 font-medium">
-                {skill.description}
+                {skill.tags || "No tags"}
               </p>
             </button>
           ))}

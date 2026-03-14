@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/liyu1981/code_explorer/pkg/db"
-	"github.com/liyu1981/code_explorer/pkg/prompt"
 )
 
 func (h *ApiHandler) handleListSkills(w http.ResponseWriter, r *http.Request) {
@@ -54,22 +53,5 @@ func (h *ApiHandler) handleUpdateSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, skill)
-}
-
-func (h *ApiHandler) handleResetSkill(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		writeError(w, http.StatusBadRequest, "name is required", nil)
-		return
-	}
-
-	// We need to find the embedded default
-	if err := prompt.ResetSkillToDefault(r.Context(), name, h.index.GetStore()); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to reset skill", err)
-		return
-	}
-
-	skill, _ := h.index.GetStore().GetSkillByName(r.Context(), name)
 	writeJSON(w, http.StatusOK, skill)
 }
