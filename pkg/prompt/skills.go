@@ -8,6 +8,7 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/db"
 )
@@ -50,11 +51,6 @@ func SyncBuiltinSkills(ctx context.Context, store *db.Store) error {
 			continue
 		}
 
-		if existing != nil {
-			// Skip if already exists to preserve user modifications
-			continue
-		}
-
 		content, err := fs.ReadFile(embeddedSkills, filepath.Join("skills", entry.Name()))
 		if err != nil {
 			log.Printf("Warning: failed to read embedded skill file %s: %v", entry.Name(), err)
@@ -86,6 +82,24 @@ func SyncBuiltinSkills(ctx context.Context, store *db.Store) error {
 			tools = t
 		}
 
+		if existing != nil {
+			// Compare existing skill with embedded version
+			if existing.SystemPrompt == systemPrompt && existing.Tags == tags && existing.Tools == tools {
+				// Skills are equal, skip seeding
+				continue
+			}
+
+			// Skills are different, create backup by renaming the existing skill
+			backupName := fmt.Sprintf("%s_%d", name, time.Now().Unix())
+			existing.Name = backupName
+			if err := store.UpdateSkill(ctx, existing); err != nil {
+				log.Printf("Warning: failed to backup skill %s: %v", name, err)
+				continue
+			}
+			log.Printf("Backed up skill %s as %s", name, backupName)
+		}
+
+		// Create or update skill with embedded version
 		skill := &db.Skill{
 			Name:         name,
 			SystemPrompt: systemPrompt,
@@ -93,10 +107,20 @@ func SyncBuiltinSkills(ctx context.Context, store *db.Store) error {
 			Tools:        tools,
 		}
 
-		if err := store.CreateSkill(ctx, skill); err != nil {
-			log.Printf("Warning: failed to seed skill %s: %v", name, err)
+		if existing == nil {
+			// Skill doesn't exist, create new
+			if err := store.CreateSkill(ctx, skill); err != nil {
+				log.Printf("Warning: failed to seed skill %s: %v", name, err)
+			} else {
+				log.Printf("Seeded built-in skill: %s", name)
+			}
 		} else {
-			log.Printf("Seeded built-in skill: %s", name)
+			// Skill exists but was different, update it
+			if err := store.UpdateSkill(ctx, skill); err != nil {
+				log.Printf("Warning: failed to update skill %s: %v", name, err)
+			} else {
+				log.Printf("Updated built-in skill: %s", name)
+			}
 		}
 	}
 
