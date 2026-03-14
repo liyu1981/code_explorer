@@ -104,11 +104,11 @@ func TestResponseFormatFromSchema(t *testing.T) {
 
 func TestAgentContextLimit(t *testing.T) {
 	mockLLM := NewMockLLM("gpt-4o", []string{"Hello"}, nil)
-	tools := NewToolRegistry()
 
 	// Limit that is very small
 	limit := 10
-	ag := NewAgent(mockLLM, tools, WithContextLength(limit))
+	factory := NewAgentFactory(nil, nil)
+	ag := factory.BuildTestAgent(mockLLM, WithContextLength(limit))
 
 	_, err := ag.RunLoop(context.Background(), "This input is definitely longer than 10 characters", "test-turn", nil)
 	if err == nil {

@@ -74,7 +74,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		}
 
 		h.taskManager = task.NewManager(store, numWorkers, h.Publish)
-		h.registerQueueHandlers()
+		task.RegisterQueueHandlers(h.taskManager, config.Index, factory, h.Publish)
 
 		h.taskManager.StartWorkers(context.Background(), isDev)
 	}
@@ -88,35 +88,6 @@ func (h *ApiHandler) Stop() {
 	if h.taskManager != nil {
 		h.taskManager.Stop()
 	}
-}
-
-func (h *ApiHandler) registerQueueHandlers() {
-	h.taskManager.RegisterHandler("codemogger-index", h.handleIndexTask)
-	h.taskManager.RegisterHandler("knowledge-build", h.handleKnowledgeBuildTask)
-	h.taskManager.RegisterHandler("wiki-analyze", h.handleWikiAnalyzeTask)
-	h.taskManager.RegisterHandler("summarize-topic", h.handleSummarizeTopicTask)
-}
-
-func (h *ApiHandler) handleIndexTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
-	return h.index.HandleIndexTask(ctx, task, updateProgress)
-}
-
-func (h *ApiHandler) handleKnowledgeBuildTask(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
-	return task.HandleKnowledgeBuildTask(ctx, h.index, taskItem, h.taskManager, h.agentFactory, updateProgress)
-}
-
-func (h *ApiHandler) handleWikiAnalyzeTask(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
-	return task.HandleKnowledgeWikiAnalyzeTask(ctx, h.index, taskItem, h.agentFactory, updateProgress)
-}
-
-func (h *ApiHandler) handleSummarizeTopicTask(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
-	return task.HandleSummarizeTopicTask(ctx, h.index, taskItem, h.agentFactory, updateProgress, func(sessionId string, title string) {
-		h.Publish("research", map[string]any{
-			"type":      "research.session.updated",
-			"sessionId": sessionId,
-			"title":     title,
-		})
-	})
 }
 
 // RegisterRoutes configures all API routes on the provided mux

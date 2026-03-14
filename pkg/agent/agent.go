@@ -173,7 +173,7 @@ func WithResponseFormat(rf *ResponseFormat) AgentOption {
 	}
 }
 
-func NewAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
+func newAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
 	a := &Agent{
 		llm:           llm,
 		tools:         tools,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/agent/tools"
@@ -48,11 +49,20 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 
 	systemPrompt := skill.SystemPrompt
 
-	// 2. Register tools that need codebase root
-	agentFactory.RegisterTool(tools.NewGetTreeTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewReadFileTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewGrepSearchTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
+	// 2. Register tools that need codebase root from skill.Tools
+	toolNames := strings.Fields(skill.Tools)
+	for _, toolName := range toolNames {
+		switch toolName {
+		case "get_tree":
+			agentFactory.RegisterTool(tools.NewGetTreeTool(cb.RootPath))
+		case "read_file":
+			agentFactory.RegisterTool(tools.NewReadFileTool(cb.RootPath))
+		case "grep_search":
+			agentFactory.RegisterTool(tools.NewGrepSearchTool(cb.RootPath))
+		case "list_agent_skills":
+			agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
+		}
+	}
 
 	// 3. Build Agent
 	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{

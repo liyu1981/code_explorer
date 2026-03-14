@@ -37,6 +37,14 @@ func (f *AgentFactory) Tools() *ToolRegistry {
 	return f.toolRegistry
 }
 
+func (f *AgentFactory) BuildTestAgent(llm LLM, opts ...AgentOption) *Agent {
+	tools := f.toolRegistry
+	if tools == nil {
+		tools = NewToolRegistry()
+	}
+	return newAgent(llm, tools, opts...)
+}
+
 func (f *AgentFactory) GetSkillPrompt(ctx context.Context, name string) (string, error) {
 	if f.store == nil {
 		return "", fmt.Errorf("store not initialized in AgentFactory")
@@ -109,7 +117,7 @@ func (f *AgentFactory) BuildFromConfig(ctx context.Context, cfg *Config) (*Agent
 		}
 	}
 
-	agent := NewAgent(llm, tools, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
+	agent := newAgent(llm, tools, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
 	return agent, nil
 }
 
