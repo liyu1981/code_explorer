@@ -17,6 +17,7 @@ interface Skill {
   tags: string;
   tools: string;
   updated_at: string;
+  is_builtin: boolean;
 }
 
 export default function SkillsSettingsPage() {
@@ -66,6 +67,24 @@ export default function SkillsSettingsPage() {
       setMessage({ type: "error", text: "An error occurred while saving" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (skillId: string) => {
+    if (!confirm("Are you sure you want to delete this skill?")) return;
+    try {
+      const resp = await api.delete(`/api/agent_skills?id=${skillId}`);
+      if (resp.status === 200) {
+        setSkills((current) => current.filter((s) => s.id !== skillId));
+        if (selectedSkill?.id === skillId) {
+          setSelectedSkill(null);
+        }
+        setMessage({ type: "success", text: "Skill deleted successfully" });
+      } else {
+        setMessage({ type: "error", text: "Failed to delete skill" });
+      }
+    } catch (e) {
+      setMessage({ type: "error", text: "An error occurred while deleting" });
     }
   };
 
@@ -119,6 +138,7 @@ export default function SkillsSettingsPage() {
             setSelectedSkill(skill);
             setMessage(null);
           }}
+          onDelete={handleDelete}
         />
 
         {selectedSkill ? (

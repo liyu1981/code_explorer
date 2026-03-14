@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -12,6 +11,8 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/util"
 	gonanoid "github.com/matoous/go-nanoid/v2"
+
+	"github.com/rs/zerolog/log"
 )
 
 type TaskHandler func(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error
@@ -69,7 +70,7 @@ func (m *Manager) Start(ctx context.Context) error {
 
 func (m *Manager) cleanupLoop() {
 	defer m.wg.Done()
-	log.Printf("Queue cleanup worker started")
+	log.Info().Msg("Queue cleanup worker started")
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
@@ -85,7 +86,7 @@ func (m *Manager) cleanupLoop() {
 	for {
 		select {
 		case <-m.stopChan:
-			log.Printf("Queue cleanup worker stopping")
+			log.Info().Msg("Queue cleanup worker stopping")
 			return
 		case <-ticker.C:
 			m.runCleanup()
@@ -98,12 +99,12 @@ func (m *Manager) runCleanup() {
 	if days <= 0 {
 		return
 	}
-	log.Printf("Running task cleanup (older than %d days)", days)
+	log.Info().Int("days", days).Msg("Running task cleanup")
 	affected, err := m.store.CleanupTasks(context.Background(), days)
 	if err != nil {
-		log.Printf("Task cleanup failed: %v", err)
+		log.Info().Err(err).Msg("Task cleanup failed")
 	} else if affected > 0 {
-		log.Printf("Task cleanup completed: removed %d tasks", affected)
+		log.Info().Int64("affected", affected).Msg("Task cleanup completed")
 	}
 }
 
@@ -126,12 +127,12 @@ func (m *Manager) Stop() {
 
 func (m *Manager) worker(id int) {
 	defer m.wg.Done()
-	log.Printf("Queue worker %d started", id)
+	log.Info().Int("id", id).Msg("Queue worker started")
 
 	for {
 		select {
 		case <-m.stopChan:
-			log.Printf("Queue worker %d stopping", id)
+			log.Info().Int("id", id).Msg("Queue worker stopping")
 			return
 		default:
 			var task *db.Task
@@ -152,10 +153,10 @@ func (m *Manager) worker(id int) {
 			})
 
 			if err != nil {
-				log.Printf("Worker %d: failed to claim task: %v", id, err)
+				log.Info().Int("id", id).Err(err).Msg("Worker failed to claim task")
 				select {
 				case <-m.stopChan:
-					log.Printf("Queue worker %d stopping", id)
+					log.Info().Int("id", id).Msg("Queue worker stopping")
 					return
 				case <-time.After(1 * time.Second):
 					continue
@@ -165,7 +166,7 @@ func (m *Manager) worker(id int) {
 			if task == nil {
 				select {
 				case <-m.stopChan:
-					log.Printf("Queue worker %d stopping", id)
+					log.Info().Int("id", id).Msg("Queue worker stopping")
 					return
 				case <-time.After(500 * time.Millisecond):
 					continue
@@ -181,7 +182,7 @@ func (m *Manager) runTask(task *db.Task) {
 	handler, ok := m.handlers[task.Name]
 	if !ok {
 		errStr := fmt.Sprintf("no handler registered for task: %s", task.Name)
-		log.Println(errStr)
+		log.Info().Str("taskName", task.Name).Msg(errStr)
 		m.store.MarkTaskFailed(context.Background(), task.ID, errStr, false)
 		m.notifyTaskUpdate(task.ID, task.Name, db.TaskStatusFailed, task.Progress, errStr, time.Now())
 		return
@@ -210,7 +211,7 @@ func (m *Manager) runTask(task *db.Task) {
 
 	err := handler(ctx, task, updateProgress)
 	if err != nil {
-		log.Printf("Task %s (%s) failed: %v", task.Name, task.ID, err)
+		log.Info().Str("name", task.Name).Str("id", task.ID).Err(err).Msg("Task failed")
 		retry := task.Retries < task.MaxRetries
 		m.store.MarkTaskFailed(context.Background(), task.ID, err.Error(), retry)
 
@@ -222,7 +223,7 @@ func (m *Manager) runTask(task *db.Task) {
 		return
 	}
 
-	log.Printf("Task %s (%s) completed", task.Name, task.ID)
+	log.Info().Str("name", task.Name).Str("id", task.ID).Msg("Task completed")
 	m.store.MarkTaskCompleted(context.Background(), task.ID, lastMessage)
 	m.notifyTaskUpdate(task.ID, task.Name, db.TaskStatusCompleted, 100, "Task completed", time.Now())
 }

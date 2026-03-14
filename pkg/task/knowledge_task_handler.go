@@ -39,12 +39,12 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	}
 
 	// 1. Get Skill
-	skill, err := idx.GetStore().GetSkillByName(ctx, "architect-planner")
+	skill, err := idx.GetStore().GetSkillByName(ctx, "knowledge-base-planner")
 	if err != nil {
-		return fmt.Errorf("failed to get skill architect-planner: %w", err)
+		return fmt.Errorf("failed to get skill knowledge-base-planner: %w", err)
 	}
 	if skill == nil {
-		return fmt.Errorf("skill architect-planner not found")
+		return fmt.Errorf("skill knowledge-base-planner not found")
 	}
 
 	systemPrompt := skill.SystemPrompt
@@ -67,7 +67,7 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	// 3. Build Agent
 	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
 		MaxIterations: 20,
-		SkillName:     "architect-planner",
+		SkillName:     "knowledge-base-planner",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to build orchestrator agent: %w", err)
@@ -77,7 +77,7 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 
 	// 4. Run Agent
 	updateProgress(10, "Orchestrator starting analysis...")
-	input := fmt.Sprintf("Analyze the codebase at %s and identify key modules and architecture.", cb.RootPath)
+	input := fmt.Sprintf("Analyze the codebase at %s and generate wiki building tasks", cb.RootPath)
 	_, err = ag.RunLoop(ctx, input, task.ID, nil)
 	if err != nil {
 		return fmt.Errorf("orchestrator execution failed: %w", err)

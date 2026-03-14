@@ -2,12 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/rs/zerolog/log"
 )
 
 var upgrader = websocket.Upgrader{
@@ -79,7 +80,7 @@ func (h *WsHub) run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
-			log.Printf("Client registered")
+			log.Info().Msg("Client registered")
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
@@ -92,7 +93,7 @@ func (h *WsHub) run() {
 				close(client.send)
 			}
 			h.mu.Unlock()
-			log.Printf("Client unregistered")
+			log.Info().Msg("Client unregistered")
 		case message := <-h.broadcast:
 			h.mu.Lock()
 			if clients, ok := h.subscriptions[message.Topic]; ok {
@@ -117,7 +118,7 @@ func (c *WsClient) writePump() {
 	for message := range c.send {
 		c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 		if err := c.conn.WriteJSON(message); err != nil {
-			log.Printf("Error writing JSON message: %v", err)
+			log.Error().Err(err).Msg("Error writing JSON message")
 			return
 		}
 	}
@@ -129,10 +130,10 @@ func (c *WsClient) writePump() {
 func (h *ApiHandler) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		log.Error().Err(err).Msg("WebSocket upgrade error")
 		return
 	}
-	log.Printf("New WebSocket client connected")
+	log.Info().Msg("New WebSocket client connected")
 	client := &WsClient{
 		hub:    h.hub,
 		conn:   conn,
@@ -152,14 +153,14 @@ func (c *WsClient) handlePingMessage() {
 	pongMsg := map[string]string{"type": "pong"}
 	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := c.conn.WriteJSON(pongMsg); err != nil {
-		log.Printf("Error sending pong: %v", err)
+		log.Error().Err(err).Msg("Error sending pong")
 	}
 }
 
 func (c *WsClient) handleSubscribeMessage(msg map[string]any) {
 	topic, ok := msg["topic"].(string)
 	if !ok {
-		log.Printf("Subscribe message without topic: %v", msg)
+		log.Debug().Interface("msg", msg).Msg("Subscribe message without topic")
 		return
 	}
 	c.hub.mu.Lock()
@@ -169,13 +170,13 @@ func (c *WsClient) handleSubscribeMessage(msg map[string]any) {
 	c.hub.subscriptions[topic][c] = true
 	c.topics[topic] = true
 	c.hub.mu.Unlock()
-	log.Printf("Client subscribed to topic: %s", topic)
+	log.Info().Str("topic", topic).Msg("Client subscribed to topic")
 }
 
 func (c *WsClient) handleUnsubscribeMessage(msg map[string]any) {
 	topic, ok := msg["topic"].(string)
 	if !ok {
-		log.Printf("Unsubscribe message without topic: %v", msg)
+		log.Debug().Interface("msg", msg).Msg("Unsubscribe message without topic")
 		return
 	}
 	c.hub.mu.Lock()
@@ -184,7 +185,7 @@ func (c *WsClient) handleUnsubscribeMessage(msg map[string]any) {
 	}
 	delete(c.topics, topic)
 	c.hub.mu.Unlock()
-	log.Printf("Client unsubscribed from topic: %s", topic)
+	log.Info().Str("topic", topic).Msg("Client unsubscribed from topic")
 }
 
 // handleTextMessage processes incoming text messages from the client.
@@ -192,14 +193,14 @@ func (c *WsClient) handleTextMessage(message []byte) {
 	// Try to parse as JSON
 	var msg map[string]any
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Non-JSON text message: %s", string(message))
+		log.Debug().Str("message", string(message)).Msg("Non-JSON text message")
 		return
 	}
 
 	// Check if message has a "type" field
 	msgType, ok := msg["type"].(string)
 	if !ok {
-		log.Printf("Message without type field: %v", msg)
+		log.Debug().Interface("msg", msg).Msg("Message without type field")
 		return
 	}
 
@@ -212,7 +213,7 @@ func (c *WsClient) handleTextMessage(message []byte) {
 	case "unsubscribe":
 		c.handleUnsubscribeMessage(msg)
 	default:
-		log.Printf("Unknown message type: %s", msgType)
+		log.Debug().Str("msgType", msgType).Msg("Unknown message type")
 	}
 }
 
@@ -226,7 +227,7 @@ func (c *WsClient) readPump() {
 		messageType, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("Unexpected WebSocket close: %v", err)
+				log.Debug().Err(err).Msg("Unexpected WebSocket close")
 			}
 			break
 		}
@@ -251,7 +252,7 @@ func (h *ApiHandler) Publish(topic string, payload any) {
 	case h.hub.broadcast <- msg:
 	default:
 		// Drop message if channel is full to avoid blocking the caller
-		log.Printf("Broadcast channel full, message dropped for topic: %s", topic)
+		log.Warn().Str("topic", topic).Msg("Broadcast channel full, message dropped")
 	}
 }
 

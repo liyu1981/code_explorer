@@ -3,13 +3,14 @@ package server
 import (
 	"embed"
 	"io/fs"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/server/api"
 	"github.com/liyu1981/code_explorer/pkg/util"
+
+	"github.com/rs/zerolog/log"
 )
 
 //go:embed all:ui/out
@@ -33,7 +34,7 @@ type Config struct {
 func NewUIServer(config *Config) *UIServer {
 	staticFS, err := fs.Sub(frontendFS, "ui/out")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Failed to get static FS")
 	}
 
 	return &UIServer{
@@ -99,7 +100,7 @@ func (s *UIServer) Start() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Printf("UI server listening on %s", s.listenAddr)
+	log.Info().Str("addr", s.listenAddr).Msg("UI server listening")
 	return s.server.ListenAndServe()
 }
 
@@ -119,7 +120,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 		// Don't log static assets to reduce noise
 		if !strings.HasPrefix(r.URL.Path, "/_next") && !strings.HasPrefix(r.URL.Path, "/static") {
-			log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
+			log.Info().Str("method", r.Method).Str("path", r.URL.Path).Dur("duration", time.Since(start)).Msg("")
 		}
 	})
 }

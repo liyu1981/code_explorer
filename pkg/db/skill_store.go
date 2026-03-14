@@ -17,6 +17,7 @@ type Skill struct {
 	Tools        string    `json:"tools"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	IsBuiltin    bool      `json:"is_builtin"`
 }
 
 func (s *Store) CreateSkill(ctx context.Context, skill *Skill) error {
@@ -61,6 +62,24 @@ func (s *Store) GetSkillByName(ctx context.Context, name string) (*Skill, error)
 	return &sk, nil
 }
 
+func (s *Store) GetSkillByID(ctx context.Context, id string) (*Skill, error) {
+	var sk Skill
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, name, system_prompt, tags, tools, created_at, updated_at
+		FROM agent_skills
+		WHERE id = ?
+	`, id).Scan(&sk.ID, &sk.Name, &sk.SystemPrompt, &sk.Tags, &sk.Tools, &sk.CreatedAt, &sk.UpdatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skill: %w", err)
+	}
+
+	return &sk, nil
+}
+
 func (s *Store) ListAgentSkills(ctx context.Context) ([]Skill, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, name, system_prompt, tags, tools, created_at, updated_at
@@ -69,6 +88,30 @@ func (s *Store) ListAgentSkills(ctx context.Context) ([]Skill, error) {
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list skills: %w", err)
+	}
+	defer rows.Close()
+
+	var skills []Skill
+	for rows.Next() {
+		var sk Skill
+		if err := rows.Scan(&sk.ID, &sk.Name, &sk.SystemPrompt, &sk.Tags, &sk.Tools, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan skill: %w", err)
+		}
+		skills = append(skills, sk)
+	}
+
+	return skills, nil
+}
+
+func (s *Store) ListSkillsByNamePrefix(ctx context.Context, prefix string) ([]Skill, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, system_prompt, tags, tools, created_at, updated_at
+		FROM agent_skills
+		WHERE name LIKE ?
+		ORDER BY created_at ASC
+	`, prefix+"_%")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list skills by prefix: %w", err)
 	}
 	defer rows.Close()
 
