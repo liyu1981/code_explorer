@@ -1,18 +1,18 @@
 "use client";
 
-import { PlusCircle } from "lucide-react";
+import { GitGraph } from "lucide-react";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
 import { CodebaseList } from "./_components/codebase-list";
 
-export default function NewResearchPage() {
+export default function CodebasePage() {
   return (
     <AppContainer>
       <AppHeader>
         <div className="flex items-center gap-4">
-          <PlusCircle className="h-5 w-5 text-primary" />
+          <GitGraph className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-bold tracking-tight text-primary">
-            New Research
+            Codebases
           </h1>
         </div>
       </AppHeader>

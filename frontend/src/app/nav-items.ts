@@ -1,5 +1,5 @@
 import {
-  PlusCircle,
+  GitGraph,
   Settings,
   History,
   Bookmark,
@@ -19,10 +19,10 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   {
-    id: "new",
-    label: "New Research",
-    path: "/new",
-    icon: PlusCircle,
+    id: "codebase",
+    label: "Codebases",
+    path: "/codebase",
+    icon: GitGraph,
   },
   {
     id: "skills",
