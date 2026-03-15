@@ -11,7 +11,7 @@ import (
 func RegisterQueueHandlers(
 	m *Manager,
 	index *codemogger.CodeIndex,
-	agentFactory *agent.AgentFactory,
+	agentFactory agent.AgentFactoryInterface,
 	publishFn func(topic string, payload any),
 ) {
 	m.RegisterHandler("codemogger-index", func(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {

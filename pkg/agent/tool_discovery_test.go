@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -43,7 +43,11 @@ func TestGetTreeTool(t *testing.T) {
 		os.WriteFile(fullPath, []byte(content), 0644)
 	}
 
-	tool := NewGetTreeTool(tempDir)
+	tool := NewGetTreeTool()
+	state := map[string]any{"baseDir": tempDir}
+	if err := tool.Bind(context.Background(), &state); err != nil {
+		t.Fatalf("Bind failed: %v", err)
+	}
 	stream := &mockStreamWriter{}
 
 	t.Run("Depth 1", func(t *testing.T) {
@@ -120,7 +124,11 @@ func TestReadFileTool(t *testing.T) {
 	content := "line1\nline2\nline3\nline4\nline5"
 	os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte(content), 0644)
 
-	tool := NewReadFileTool(tempDir)
+	tool := NewReadFileTool()
+	state := map[string]any{"baseDir": tempDir}
+	if err := tool.Bind(context.Background(), &state); err != nil {
+		t.Fatalf("Bind failed: %v", err)
+	}
 	stream := &mockStreamWriter{}
 
 	t.Run("Read whole file", func(t *testing.T) {
@@ -166,7 +174,11 @@ func TestGrepSearchTool(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "a.txt"), []byte("hello world\nfoo bar"), 0644)
 	os.WriteFile(filepath.Join(tempDir, "b.txt"), []byte("hello again"), 0644)
 
-	tool := NewGrepSearchTool(tempDir)
+	tool := NewGrepSearchTool()
+	state := map[string]any{"baseDir": tempDir}
+	if err := tool.Bind(context.Background(), &state); err != nil {
+		t.Fatalf("Bind failed: %v", err)
+	}
 	stream := &mockStreamWriter{}
 
 	t.Run("Search existing pattern", func(t *testing.T) {

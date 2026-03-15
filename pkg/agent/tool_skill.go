@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -9,13 +9,12 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
-// ListAgentSkillsTool allows an agent to list available skills
 type ListAgentSkillsTool struct {
 	store *db.Store
 }
 
-func NewListAgentSkillsBaseTool(store *db.Store) *ListAgentSkillsTool {
-	return &ListAgentSkillsTool{store: store}
+func NewListAgentSkillsTool() Tool {
+	return &ListAgentSkillsTool{}
 }
 
 func (t *ListAgentSkillsTool) Name() string {
@@ -24,6 +23,10 @@ func (t *ListAgentSkillsTool) Name() string {
 
 func (t *ListAgentSkillsTool) Description() string {
 	return "Lists all available agent skills and their descriptions, including tags."
+}
+
+func (t *ListAgentSkillsTool) Clone() Tool {
+	return &ListAgentSkillsTool{store: t.store}
 }
 
 func (t *ListAgentSkillsTool) Parameters() map[string]any {
@@ -35,6 +38,10 @@ func (t *ListAgentSkillsTool) Parameters() map[string]any {
 }
 
 func (t *ListAgentSkillsTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.store == nil {
+		return "", fmt.Errorf("store is nil")
+	}
+
 	skills, err := t.store.ListAgentSkills(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to list agent skills: %w", err)
@@ -61,4 +68,14 @@ func (t *ListAgentSkillsTool) Execute(ctx context.Context, input json.RawMessage
 	}
 
 	return string(data), nil
+}
+
+func (t *ListAgentSkillsTool) Bind(ctx context.Context, state *map[string]any) error {
+	store := (*state)["store"].(*db.Store)
+	if store != nil {
+		t.store = store
+		return nil
+	} else {
+		return fmt.Errorf("bind failed: store is nil")
+	}
 }

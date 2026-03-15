@@ -8,14 +8,11 @@ import (
 	"sync"
 
 	"github.com/liyu1981/code_explorer/pkg/db"
-
-	"github.com/liyu1981/code_explorer/pkg/agent/tools"
 )
 
 type AgentFactoryInterface interface {
-	BuildFromConfig(ctx context.Context, cfg *Config) (*Agent, error)
+	BuildFromConfig(ctx context.Context, cfg *Config, bindDataProviders ...AgentBindDataProvider) (*Agent, error)
 	GetSkillPrompt(ctx context.Context, name string) (string, error)
-	RegisterTool(tool Tool)
 }
 
 var (
@@ -26,10 +23,10 @@ var (
 )
 
 type AgentFactory struct {
-	baseToolRegistry *BaseToolRegistry
-	store            *db.Store
-	defaultLLM       map[string]any
-	mu               sync.RWMutex
+	toolRegistry *ToolRegistry
+	store        *db.Store
+	defaultLLM   map[string]any
+	mu           sync.RWMutex
 }
 
 type AgentBindDataProvider func(m *map[string]any)
@@ -37,9 +34,9 @@ type AgentBindDataProvider func(m *map[string]any)
 func InitAgentFactory(store *db.Store, defaultLLM map[string]any) error {
 	factoryOnce.Do(func() {
 		factoryInstance = &AgentFactory{
-			baseToolRegistry: NewBaseToolRegistry(),
-			store:            store,
-			defaultLLM:       defaultLLM,
+			toolRegistry: NewToolRegistry(),
+			store:        store,
+			defaultLLM:   defaultLLM,
 		}
 		factoryErr = nil
 		resetFactory = func() {
@@ -62,59 +59,59 @@ func ResetAgentFactory() {
 
 func NewAgentFactoryForTest(store *db.Store, defaultLLM map[string]any) *AgentFactory {
 	return &AgentFactory{
-		baseToolRegistry: NewBaseToolRegistry(),
-		store:            store,
-		defaultLLM:       defaultLLM,
+		toolRegistry: NewToolRegistry(),
+		store:        store,
+		defaultLLM:   defaultLLM,
 	}
 }
 
-func (f *AgentFactory) InitBaseTools() {
-	// tools/skill.go
-	f.RegisterTool(tools.NewListAgentSkillsBaseTool())
-
-	// tools/knowledge.go
-	f.RegisterTool(tools.NewSaveKnowledgeBaseTool())
-
-	// tools/task.go
-	f.RegisterTool(tools.NewQueueTaskBaseTool())
-
-	// tools/codemogger.go
-	f.RegisterTool(tools.NewListFilesBaseTool())
-	f.RegisterTool(tools.NewSearchBaseTool())
-
-	// tools/discovery.go
-	f.RegisterTool(tools.NewReadFileBaseTool())
-	f.RegisterTool(tools.NewGetTreeBaseTool())
-	f.RegisterTool(tools.NewGrepSearchBaseTool())
-}
-
-func (f *AgentFactory) registerBaseTool(tool *BaseTool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.baseToolRegistry.RegisterTool(tool)
-}
-
-func (f *AgentFactory) BaseToolRegistry() *BaseToolRegistry {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	return f.baseToolRegistry
-}
-
-func (f *AgentFactory) GetTool(name string) (Tool, bool) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	return f.toolRegistry.Get(name)
-}
-
+// BuildTestAgent is a helper for tests to create an agent with mocked dependencies
 func (f *AgentFactory) BuildTestAgent(llm LLM, opts ...AgentOption) *Agent {
 	f.mu.RLock()
-	tools := f.toolRegistry
-	f.mu.RUnlock()
+	defer f.mu.RUnlock()
 
-	if tools == nil {
-		tools = NewToolRegistry()
-	}
-	return newAgent(llm, tools, opts...)
+	// Create a new tool registry for this agent
+	toolRegistry := NewToolRegistry()
+
+	// Register core tools
+	f.registerToolToRegistry(toolRegistry, NewListAgentSkillsTool())
+	f.registerToolToRegistry(toolRegistry, NewSaveKnowledgeTool())
+	f.registerToolToRegistry(toolRegistry, NewQueueTaskTool())
+	f.registerToolToRegistry(toolRegistry, NewListFilesTool())
+	f.registerToolToRegistry(toolRegistry, NewSearchTool())
+	f.registerToolToRegistry(toolRegistry, NewReadFileTool())
+	f.registerToolToRegistry(toolRegistry, NewGetTreeTool())
+	f.registerToolToRegistry(toolRegistry, NewGrepSearchTool())
+
+	return newAgent(llm, toolRegistry, opts...)
+}
+
+// registerToolToRegistry registers a tool to the given registry
+func (f *AgentFactory) registerToolToRegistry(registry *ToolRegistry, tool Tool) {
+	registry.Register(tool)
+}
+
+func (f *AgentFactory) InitTools() {
+	f.registerTool(NewListAgentSkillsTool())
+	f.registerTool(NewSaveKnowledgeTool())
+	f.registerTool(NewQueueTaskTool())
+	f.registerTool(NewListFilesTool())
+	f.registerTool(NewSearchTool())
+	f.registerTool(NewReadFileTool())
+	f.registerTool(NewGetTreeTool())
+	f.registerTool(NewGrepSearchTool())
+}
+
+func (f *AgentFactory) registerTool(tool Tool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.toolRegistry.Register(tool)
+}
+
+func (f *AgentFactory) ToolRegistry() *ToolRegistry {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.toolRegistry
 }
 
 func (f *AgentFactory) GetSkillPrompt(ctx context.Context, name string) (string, error) {
@@ -151,6 +148,14 @@ func (f *AgentFactory) GetSkillTools(ctx context.Context, name string) ([]string
 func (f *AgentFactory) BuildFromConfig(
 	ctx context.Context,
 	cfg *Config,
+) (*Agent, error) {
+	return f.buildFromConfigInternal(ctx, cfg)
+}
+
+// buildFromConfigInternal is the internal implementation that accepts bind data providers
+func (f *AgentFactory) buildFromConfigInternal(
+	ctx context.Context,
+	cfg *Config,
 	bindDataProviders ...AgentBindDataProvider,
 ) (*Agent, error) {
 	llmCfg := cfg.LLM
@@ -181,7 +186,7 @@ func (f *AgentFactory) BuildFromConfig(
 	}
 
 	f.mu.RLock()
-	tools := f.toolRegistry
+	toolRegistry := NewToolRegistry()
 
 	if cfg.SkillName != "" && f.store != nil {
 		skillTools, err := f.GetSkillTools(ctx, cfg.SkillName)
@@ -190,23 +195,24 @@ func (f *AgentFactory) BuildFromConfig(
 			return nil, fmt.Errorf("failed to get skill tools: %w", err)
 		}
 		if len(skillTools) > 0 {
-			filtered := NewToolRegistry()
 			for _, toolName := range skillTools {
-				if tool, ok := f.toolRegistry.Get(toolName); ok {
-					aTool := tool.Clone()
-					if err = aTool.Bind(ctx, bindData); err != nil {
-						f.mu.RUnlock()
-						return nil, fmt.Errorf("failed to bind tool %s: %w", toolName, err)
-					}
-					filtered.Register(aTool)
+				tool, ok := f.toolRegistry.Get(toolName)
+				if !ok {
+					f.mu.RUnlock()
+					return nil, fmt.Errorf("tool %s not found in registry", toolName)
 				}
+				boundTool := tool.Clone()
+				if err := boundTool.Bind(ctx, bindData); err != nil {
+					f.mu.RUnlock()
+					return nil, fmt.Errorf("failed to bind tool %s: %w", toolName, err)
+				}
+				toolRegistry.Register(boundTool)
 			}
-			tools = filtered
 		}
 	}
 	f.mu.RUnlock()
 
-	agent := newAgent(llm, tools, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
+	agent := newAgent(llm, toolRegistry, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
 	return agent, nil
 }
 

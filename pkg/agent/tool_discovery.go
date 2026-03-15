@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type ReadFileTool struct {
 	baseDir string
 }
 
-func NewReadFileBaseTool() *ReadFileTool {
+func NewReadFileTool() Tool {
 	return &ReadFileTool{}
 }
 
@@ -29,6 +29,10 @@ func (t *ReadFileTool) Name() string {
 
 func (t *ReadFileTool) Description() string {
 	return "Reads the content of a file. Supports optional start_line and end_line."
+}
+
+func (t *ReadFileTool) Clone() Tool {
+	return &ReadFileTool{baseDir: t.baseDir}
 }
 
 func (t *ReadFileTool) Parameters() map[string]any {
@@ -53,6 +57,10 @@ func (t *ReadFileTool) Parameters() map[string]any {
 }
 
 func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.baseDir == "" {
+		return "", fmt.Errorf("baseDir is empty")
+	}
+
 	var req struct {
 		Path      string `json:"path"`
 		StartLine int    `json:"start_line"`
@@ -87,10 +95,14 @@ func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, strea
 	return strings.Join(lines, "\n"), nil
 }
 
-func (t *ReadFileTool) Bind(ctx context.Context, state map[string]any) {
-	if baseDir := state["baseDir"].(string); baseDir != "" {
+func (t *ReadFileTool) Bind(ctx context.Context, state *map[string]any) error {
+	if state == nil {
+		return fmt.Errorf("bind failed: state is nil")
+	}
+	if baseDir := (*state)["baseDir"].(string); baseDir != "" {
 		t.baseDir = baseDir
 	}
+	return nil
 }
 
 // GetTreeTool provides directory structure
@@ -98,8 +110,8 @@ type GetTreeTool struct {
 	baseDir string
 }
 
-func NewGetTreeBaseTool(baseDir string) *GetTreeTool {
-	return &GetTreeTool{baseDir: baseDir}
+func NewGetTreeTool() Tool {
+	return &GetTreeTool{}
 }
 
 func (t *GetTreeTool) Name() string {
@@ -108,6 +120,10 @@ func (t *GetTreeTool) Name() string {
 
 func (t *GetTreeTool) Description() string {
 	return "Returns a tree-like directory structure of the codebase."
+}
+
+func (t *GetTreeTool) Clone() Tool {
+	return &GetTreeTool{baseDir: t.baseDir}
 }
 
 func (t *GetTreeTool) Parameters() map[string]any {
@@ -133,6 +149,10 @@ func (t *GetTreeTool) Parameters() map[string]any {
 //
 // also will respect the .gitignore rules (with help from gocodewalker, see ref in codemogger/scan/walker.go)
 func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.baseDir == "" {
+		return "", fmt.Errorf("baseDir is empty")
+	}
+
 	var req struct {
 		Depth int `json:"depth"`
 	}
@@ -172,13 +192,23 @@ func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream
 	return strings.Join(allPaths, " "), nil
 }
 
+func (t *GetTreeTool) Bind(ctx context.Context, state *map[string]any) error {
+	baseDir := (*state)["baseDir"].(string)
+	if baseDir != "" {
+		t.baseDir = baseDir
+		return nil
+	} else {
+		return fmt.Errorf("bind failed: basedDir is nil")
+	}
+}
+
 // GrepSearchTool allows fast pattern search
 type GrepSearchTool struct {
 	baseDir string
 }
 
-func NewGrepSearchBaseTool(baseDir string) *GrepSearchTool {
-	return &GrepSearchTool{baseDir: baseDir}
+func NewGrepSearchTool() Tool {
+	return &GrepSearchTool{}
 }
 
 func (t *GrepSearchTool) Name() string {
@@ -187,6 +217,10 @@ func (t *GrepSearchTool) Name() string {
 
 func (t *GrepSearchTool) Description() string {
 	return "Performs a fast regex search across the codebase using ripgrep (if available) or grep."
+}
+
+func (t *GrepSearchTool) Clone() Tool {
+	return &GrepSearchTool{baseDir: t.baseDir}
 }
 
 func (t *GrepSearchTool) Parameters() map[string]any {
@@ -203,6 +237,10 @@ func (t *GrepSearchTool) Parameters() map[string]any {
 }
 
 func (t *GrepSearchTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.baseDir == "" {
+		return "", fmt.Errorf("baseDir is empty")
+	}
+
 	var req struct {
 		Pattern string `json:"pattern"`
 	}
@@ -228,4 +266,14 @@ func (t *GrepSearchTool) Execute(ctx context.Context, input json.RawMessage, str
 	}
 
 	return result, nil
+}
+
+func (t *GrepSearchTool) Bind(ctx context.Context, state *map[string]any) error {
+	baseDir := (*state)["baseDir"].(string)
+	if baseDir != "" {
+		t.baseDir = baseDir
+		return nil
+	} else {
+		return fmt.Errorf("bind failed: basedDir is nil")
+	}
 }

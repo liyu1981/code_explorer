@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type QueueTaskTool struct {
 	store *db.Store
 }
 
-func NewQueueTaskBaseTool() *QueueTaskTool {
+func NewQueueTaskTool() Tool {
 	return &QueueTaskTool{}
 }
 
@@ -25,6 +25,10 @@ func (t *QueueTaskTool) Name() string {
 
 func (t *QueueTaskTool) Description() string {
 	return "Queues a new background task. Returns the task ID."
+}
+
+func (t *QueueTaskTool) Clone() Tool {
+	return &QueueTaskTool{store: t.store}
 }
 
 func (t *QueueTaskTool) Parameters() map[string]any {
@@ -53,6 +57,10 @@ func (t *QueueTaskTool) Parameters() map[string]any {
 }
 
 func (t *QueueTaskTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.store == nil {
+		return "", fmt.Errorf("store is nil")
+	}
+
 	var req struct {
 		ID         string `json:"id"`
 		Name       string `json:"name"`
@@ -77,9 +85,12 @@ func (t *QueueTaskTool) Execute(ctx context.Context, input json.RawMessage, stre
 	return req.ID, nil
 }
 
-func (t *QueueTaskTool) Bind(ctx context.Context, data map[string]any) error {
-	if data["store"] != nil {
-		t.store = data["store"].(*db.Store)
+func (t *QueueTaskTool) Bind(ctx context.Context, data *map[string]any) error {
+	store := (*data)["store"].(*db.Store)
+	if store != nil {
+		t.store = store
+		return nil
+	} else {
+		return fmt.Errorf("bind failed: store is nil")
 	}
-	return nil
 }

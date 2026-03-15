@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -28,7 +28,8 @@ func TestCodemoggerTools(t *testing.T) {
 
 	t.Run("ListFilesTool", func(t *testing.T) {
 		tool := NewListFilesTool()
-		if err := tool.Bind(ctx, map[string]any{"index": idx}); err != nil {
+		state := map[string]any{"index": idx}
+		if err := tool.Bind(ctx, &state); err != nil {
 			t.Fatalf("Bind failed: %v", err)
 		}
 
@@ -53,7 +54,8 @@ func TestCodemoggerTools(t *testing.T) {
 
 	t.Run("SearchTool", func(t *testing.T) {
 		tool := NewSearchTool()
-		if err := tool.Bind(ctx, map[string]any{"index": idx}); err != nil {
+		state := map[string]any{"index": idx}
+		if err := tool.Bind(ctx, &state); err != nil {
 			t.Fatalf("Bind failed: %v", err)
 		}
 

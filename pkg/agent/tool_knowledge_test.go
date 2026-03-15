@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -14,7 +14,11 @@ func TestSaveKnowledgeTool(t *testing.T) {
 
 	ctx := context.Background()
 	stream := &mockStreamWriter{}
-	tool := NewSaveKnowledgeTool(store)
+	tool := NewSaveKnowledgeTool()
+	state := map[string]any{"store": store}
+	if err := tool.Bind(context.Background(), &state); err != nil {
+		t.Fatalf("Bind failed: %v", err)
+	}
 
 	cb, err := store.GetOrCreateCodebase(ctx, "/tmp/test", "test", "local")
 	if err != nil {

@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -14,8 +14,8 @@ type SaveKnowledgeTool struct {
 	store *db.Store
 }
 
-func NewSaveKnowledgeBaseTool(store *db.Store) *SaveKnowledgeTool {
-	return &SaveKnowledgeTool{store: store}
+func NewSaveKnowledgeTool() Tool {
+	return &SaveKnowledgeTool{}
 }
 
 func (t *SaveKnowledgeTool) Name() string {
@@ -24,6 +24,10 @@ func (t *SaveKnowledgeTool) Name() string {
 
 func (t *SaveKnowledgeTool) Description() string {
 	return "Saves or updates a knowledge page for a codebase."
+}
+
+func (t *SaveKnowledgeTool) Clone() Tool {
+	return &SaveKnowledgeTool{store: t.store}
 }
 
 func (t *SaveKnowledgeTool) Parameters() map[string]any {
@@ -52,6 +56,10 @@ func (t *SaveKnowledgeTool) Parameters() map[string]any {
 }
 
 func (t *SaveKnowledgeTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.store == nil {
+		return "", fmt.Errorf("store is nil")
+	}
+
 	var req struct {
 		CodebaseID string `json:"codebase_id"`
 		Slug       string `json:"slug"`
@@ -87,4 +95,14 @@ func (t *SaveKnowledgeTool) Execute(ctx context.Context, input json.RawMessage, 
 	}
 
 	return "Knowledge page saved successfully", nil
+}
+
+func (t *SaveKnowledgeTool) Bind(ctx context.Context, state *map[string]any) error {
+	store := (*state)["store"].(*db.Store)
+	if store != nil {
+		t.store = store
+		return nil
+	} else {
+		return fmt.Errorf("bind failed: store is nil")
+	}
 }

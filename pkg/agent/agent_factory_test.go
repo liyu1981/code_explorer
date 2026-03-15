@@ -23,7 +23,7 @@ func TestAgentFactory_RegisterTool(t *testing.T) {
 	factory := NewAgentFactoryForTest(nil, nil)
 
 	tool := &testMockTool{name: "test-tool"}
-	factory.RegisterTool(tool)
+	factory.registerTool(tool)
 
 	got, ok := factory.toolRegistry.Get("test-tool")
 	if !ok {
@@ -38,9 +38,9 @@ func TestAgentFactory_Tools(t *testing.T) {
 	factory := NewAgentFactoryForTest(nil, nil)
 
 	tool := &testMockTool{name: "test-tool"}
-	factory.RegisterTool(tool)
+	factory.registerTool(tool)
 
-	tools := factory.Tools()
+	tools := factory.ToolRegistry()
 	if tools == nil {
 		t.Error("expected non-nil tools")
 	}
@@ -109,8 +109,8 @@ func TestAgentFactory_BuildFromConfig_WithSkillTools(t *testing.T) {
 		"responses": []any{"response 1"},
 	})
 
-	factory.RegisterTool(&testMockTool{name: "tool1"})
-	factory.RegisterTool(&testMockTool{name: "tool2"})
+	factory.registerTool(&testMockTool{name: "tool1"})
+	factory.registerTool(&testMockTool{name: "tool2"})
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
 		MaxIterations: 10,
@@ -163,9 +163,9 @@ func TestAgentFactory_BuildFromConfig_SkillWithTools_PreservesToolsOnUpdate(t *t
 		"responses": []any{"response 1"},
 	})
 
-	factory.RegisterTool(&testMockTool{name: "toolA"})
-	factory.RegisterTool(&testMockTool{name: "toolB"})
-	factory.RegisterTool(&testMockTool{name: "toolC"})
+	factory.registerTool(&testMockTool{name: "toolA"})
+	factory.registerTool(&testMockTool{name: "toolB"})
+	factory.registerTool(&testMockTool{name: "toolC"})
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
 		MaxIterations: 10,
@@ -217,7 +217,7 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 		"responses": []any{"response 1"},
 	})
 
-	factory.RegisterTool(&testMockTool{name: "tool1"})
+	factory.registerTool(&testMockTool{name: "tool1"})
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
 		MaxIterations: 10,
@@ -325,9 +325,15 @@ type testMockTool struct {
 	name string
 }
 
-func (m *testMockTool) Name() string               { return m.name }
-func (m *testMockTool) Description() string        { return "mock description" }
+func (m *testMockTool) Name() string        { return m.name }
+func (m *testMockTool) Description() string { return "mock description" }
+func (m *testMockTool) Clone() Tool {
+	return &testMockTool{name: m.name}
+}
 func (m *testMockTool) Parameters() map[string]any { return nil }
 func (m *testMockTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	return "result", nil
+}
+func (m *testMockTool) Bind(ctx context.Context, state *map[string]any) error {
+	return nil
 }

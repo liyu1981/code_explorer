@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -15,7 +15,11 @@ func TestQueueTaskTool(t *testing.T) {
 	ctx := context.Background()
 	stream := &mockStreamWriter{}
 
-	queueTool := NewQueueTaskTool(store)
+	queueTool := NewQueueTaskTool()
+	state := map[string]any{"store": store}
+	if err := queueTool.Bind(context.Background(), &state); err != nil {
+		t.Fatalf("Bind failed: %v", err)
+	}
 
 	taskID := "task-1"
 	taskName := "test-task"

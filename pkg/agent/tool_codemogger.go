@@ -1,4 +1,4 @@
-package tools
+package agent
 
 import (
 	"context"
@@ -12,12 +12,17 @@ import (
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
+const (
+	list_files_tool_name = "codemogger_list_files"
+	list_files_tool_desc = "Lists all indexed files in the codebase."
+)
+
 // ListFilesTool exposes codemogger's ListFiles functionality to the agent
 type ListFilesTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewListFilesBaseTool() *ListFilesTool {
+func NewListFilesTool() Tool {
 	return &ListFilesTool{}
 }
 
@@ -27,6 +32,10 @@ func (t *ListFilesTool) Name() string {
 
 func (t *ListFilesTool) Description() string {
 	return "Lists all indexed files in the codebase."
+}
+
+func (t *ListFilesTool) Clone() Tool {
+	return &ListFilesTool{index: t.index}
 }
 
 func (t *ListFilesTool) Parameters() map[string]any {
@@ -55,12 +64,16 @@ func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stre
 	return string(data), nil
 }
 
-func (t *ListFilesTool) Bind(ctx context.Context, state map[string]any) error {
-	if index := state["index"].(*codemogger.CodeIndex); index != nil {
+func (t *ListFilesTool) Bind(ctx context.Context, state *map[string]any) error {
+	if state == nil {
+		return fmt.Errorf("bind failed: state is nil")
+	}
+	index := (*state)["index"].(*codemogger.CodeIndex)
+	if index != nil {
 		t.index = index
 		return nil
 	} else {
-		return fmt.Errorf("index is nil")
+		return fmt.Errorf("bind failed: index is nil")
 	}
 }
 
@@ -69,7 +82,7 @@ type SearchTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewSearchBaseTool() *SearchTool {
+func NewSearchTool() Tool {
 	return &SearchTool{}
 }
 
@@ -79,6 +92,10 @@ func (t *SearchTool) Name() string {
 
 func (t *SearchTool) Description() string {
 	return "Search the codebase using natural language (semantic) or keyword search."
+}
+
+func (t *SearchTool) Clone() Tool {
+	return &SearchTool{index: t.index}
 }
 
 func (t *SearchTool) Parameters() map[string]any {
@@ -104,6 +121,10 @@ func (t *SearchTool) Parameters() map[string]any {
 }
 
 func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.index == nil {
+		return "", fmt.Errorf("index is nil")
+	}
+
 	var req struct {
 		Query string                `json:"query"`
 		Limit int                   `json:"limit"`
@@ -160,11 +181,12 @@ func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream 
 	return markdown.String(), nil
 }
 
-func (t *SearchTool) Bind(ctx context.Context, state map[string]any) error {
-	if index := state["index"].(*codemogger.CodeIndex); index != nil {
+func (t *SearchTool) Bind(ctx context.Context, state *map[string]any) error {
+	index := (*state)["index"].(*codemogger.CodeIndex)
+	if index != nil {
 		t.index = index
 		return nil
 	} else {
-		return fmt.Errorf("index is nil")
+		return fmt.Errorf("bind failed: index is nil")
 	}
 }
