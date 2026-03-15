@@ -36,12 +36,11 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		store = config.Index.GetStore()
 	}
 
-	if err := agent.InitAgentFactory(store, getSystemLLMConfig()); err != nil {
+	if err := agent.InitAgentFactory(store, GetSystemLLMConfig()); err != nil {
 		panic("failed to initialize agent factory: " + err.Error())
 	}
 
 	factory := agent.GetAgentFactory()
-	factory.InitTools(store, config.Index)
 
 	h := &ApiHandler{
 		index:        config.Index,

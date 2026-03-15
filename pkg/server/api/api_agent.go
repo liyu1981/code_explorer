@@ -197,7 +197,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	_ = h.index.GetStore().PruneReportsBySession(r.Context(), req.SessionID, maxReports)
 }
 
-func getSystemLLMConfig() map[string]any {
+func GetSystemLLMConfig() map[string]any {
 	llmCfg := make(map[string]any)
 	if config.Get().System.LLM != nil {
 		for k, v := range config.Get().System.LLM {

@@ -8,10 +8,11 @@ import (
 	"sync"
 
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/rs/zerolog/log"
 )
 
 type AgentFactoryInterface interface {
-	BuildFromConfig(ctx context.Context, cfg *Config, bindDataProviders ...AgentBindDataProvider) (*Agent, error)
+	BuildFromConfig(ctx context.Context, cfg *Config) (*Agent, error)
 	GetSkillPrompt(ctx context.Context, name string) (string, error)
 }
 
@@ -38,6 +39,7 @@ func InitAgentFactory(store *db.Store, defaultLLM map[string]any) error {
 			store:        store,
 			defaultLLM:   defaultLLM,
 		}
+		factoryInstance.InitTools()
 		factoryErr = nil
 		resetFactory = func() {
 			factoryInstance = nil
@@ -74,14 +76,7 @@ func (f *AgentFactory) BuildTestAgent(llm LLM, opts ...AgentOption) *Agent {
 	toolRegistry := NewToolRegistry()
 
 	// Register core tools
-	f.registerToolToRegistry(toolRegistry, NewListAgentSkillsTool())
-	f.registerToolToRegistry(toolRegistry, NewSaveKnowledgeTool())
-	f.registerToolToRegistry(toolRegistry, NewQueueTaskTool())
-	f.registerToolToRegistry(toolRegistry, NewListFilesTool())
-	f.registerToolToRegistry(toolRegistry, NewSearchTool())
-	f.registerToolToRegistry(toolRegistry, NewReadFileTool())
-	f.registerToolToRegistry(toolRegistry, NewGetTreeTool())
-	f.registerToolToRegistry(toolRegistry, NewGrepSearchTool())
+	f.InitTools()
 
 	return newAgent(llm, toolRegistry, opts...)
 }
@@ -93,13 +88,28 @@ func (f *AgentFactory) registerToolToRegistry(registry *ToolRegistry, tool Tool)
 
 func (f *AgentFactory) InitTools() {
 	f.registerTool(NewListAgentSkillsTool())
+	log.Debug().Msg("Registering tool list_agent_skills")
 	f.registerTool(NewSaveKnowledgeTool())
+	log.Debug().Msg("Registering tool save_knowledge")
 	f.registerTool(NewQueueTaskTool())
-	f.registerTool(NewListFilesTool())
-	f.registerTool(NewSearchTool())
+	log.Debug().Msg("Registering tool queue_task")
+	f.registerTool(NewCodeMoggerListFilesTool())
+	log.Debug().Msg("Registering tool codemogger_list_files")
+	f.registerTool(NewCodeMoggerSearchTool())
+	log.Debug().Msg("Registering tool codgemogger_search")
 	f.registerTool(NewReadFileTool())
+	log.Debug().Msg("Registering tool read_file")
 	f.registerTool(NewGetTreeTool())
+	log.Debug().Msg("Registering tool get_tree")
 	f.registerTool(NewGrepSearchTool())
+	log.Debug().Msg("Registering tool grep_search")
+
+	tools := f.ToolRegistry().List()
+	var toolNames []string
+	for _, tool := range tools {
+		toolNames = append(toolNames, tool.Name())
+	}
+	log.Info().Interface("tools", toolNames).Msg("Registered tools")
 }
 
 func (f *AgentFactory) registerTool(tool Tool) {

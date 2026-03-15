@@ -3,7 +3,6 @@ package codemogger
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -25,9 +24,7 @@ type CodeIndex struct {
 	embeddingModel string
 }
 
-func NewCodeIndex(dbPath string) (*CodeIndex, error) {
-	cfg := config.Get()
-
+func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeIndex, error) {
 	var emb embed.Embedder
 	embCfg := cfg.CodeMogger.Embedder
 
@@ -77,25 +74,12 @@ func NewCodeIndex(dbPath string) (*CodeIndex, error) {
 		)
 	}
 
-	sqlDb, err := db.Open(dbPath)
-	if err != nil {
-		return nil, err
-	}
-
-	store := db.NewStore(sqlDb, dbPath)
-
 	return &CodeIndex{
 		store:          store,
 		dbPath:         dbPath,
 		embedder:       emb,
 		embeddingModel: cfg.CodeMogger.Embedder.Model,
 	}, nil
-}
-
-func ProjectDbPath(dir string) string {
-	home, _ := os.UserHomeDir()
-	dbDir := filepath.Join(home, ".code_explorer")
-	return filepath.Join(dbDir, "ce.db")
 }
 
 func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (*IndexResult, error) {

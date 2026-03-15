@@ -18,27 +18,27 @@ const (
 )
 
 // ListFilesTool exposes codemogger's ListFiles functionality to the agent
-type ListFilesTool struct {
+type CodeMoggerListFilesTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewListFilesTool() Tool {
-	return &ListFilesTool{}
+func NewCodeMoggerListFilesTool() Tool {
+	return &CodeMoggerListFilesTool{}
 }
 
-func (t *ListFilesTool) Name() string {
+func (t *CodeMoggerListFilesTool) Name() string {
 	return "codemogger_list_files"
 }
 
-func (t *ListFilesTool) Description() string {
+func (t *CodeMoggerListFilesTool) Description() string {
 	return "Lists all indexed files in the codebase."
 }
 
-func (t *ListFilesTool) Clone() Tool {
-	return &ListFilesTool{index: t.index}
+func (t *CodeMoggerListFilesTool) Clone() Tool {
+	return &CodeMoggerListFilesTool{index: t.index}
 }
 
-func (t *ListFilesTool) Parameters() map[string]any {
+func (t *CodeMoggerListFilesTool) Parameters() map[string]any {
 	return map[string]any{
 		"type":       "object",
 		"properties": map[string]any{},
@@ -46,7 +46,7 @@ func (t *ListFilesTool) Parameters() map[string]any {
 	}
 }
 
-func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+func (t *CodeMoggerListFilesTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	if t.index == nil {
 		return "", fmt.Errorf("index is nil")
 	}
@@ -64,7 +64,7 @@ func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stre
 	return string(data), nil
 }
 
-func (t *ListFilesTool) Bind(ctx context.Context, state *map[string]any) error {
+func (t *CodeMoggerListFilesTool) Bind(ctx context.Context, state *map[string]any) error {
 	if state == nil {
 		return fmt.Errorf("bind failed: state is nil")
 	}
@@ -78,27 +78,27 @@ func (t *ListFilesTool) Bind(ctx context.Context, state *map[string]any) error {
 }
 
 // SearchTool exposes codemogger's Search functionality to the agent
-type SearchTool struct {
+type CodeMoggerSearchTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewSearchTool() Tool {
-	return &SearchTool{}
+func NewCodeMoggerSearchTool() Tool {
+	return &CodeMoggerSearchTool{}
 }
 
-func (t *SearchTool) Name() string {
+func (t *CodeMoggerSearchTool) Name() string {
 	return "codemogger_search"
 }
 
-func (t *SearchTool) Description() string {
+func (t *CodeMoggerSearchTool) Description() string {
 	return "Search the codebase using natural language (semantic) or keyword search."
 }
 
-func (t *SearchTool) Clone() Tool {
-	return &SearchTool{index: t.index}
+func (t *CodeMoggerSearchTool) Clone() Tool {
+	return &CodeMoggerSearchTool{index: t.index}
 }
 
-func (t *SearchTool) Parameters() map[string]any {
+func (t *CodeMoggerSearchTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -120,7 +120,7 @@ func (t *SearchTool) Parameters() map[string]any {
 	}
 }
 
-func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	if t.index == nil {
 		return "", fmt.Errorf("index is nil")
 	}
@@ -181,7 +181,7 @@ func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream 
 	return markdown.String(), nil
 }
 
-func (t *SearchTool) Bind(ctx context.Context, state *map[string]any) error {
+func (t *CodeMoggerSearchTool) Bind(ctx context.Context, state *map[string]any) error {
 	index := (*state)["index"].(*codemogger.CodeIndex)
 	if index != nil {
 		t.index = index

@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/libsql"
 )
 
 func setupTestHandler(t *testing.T) (*ApiHandler, *codemogger.CodeIndex, func()) {
@@ -17,8 +20,21 @@ func setupTestHandler(t *testing.T) (*ApiHandler, *codemogger.CodeIndex, func())
 	}
 
 	dbPath := filepath.Join(tmpDir, "test.db")
-	index, err := codemogger.NewCodeIndex(dbPath)
+
+	cfg := config.DefaultConfig()
+	config.Set(cfg)
+
+	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
 	if err != nil {
+		os.RemoveAll(tmpDir)
+		t.Fatal(err)
+	}
+	store := db.NewStore(sqlDB, dbPath)
+
+	index, err := codemogger.NewCodeIndex(cfg, dbPath, store)
+	if err != nil {
+		sqlDB.Close()
+		os.RemoveAll(tmpDir)
 		t.Fatal(err)
 	}
 
@@ -27,6 +43,7 @@ func setupTestHandler(t *testing.T) (*ApiHandler, *codemogger.CodeIndex, func())
 	cleanup := func() {
 		h.Stop()
 		index.Close()
+		sqlDB.Close()
 		os.RemoveAll(tmpDir)
 	}
 

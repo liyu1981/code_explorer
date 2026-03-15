@@ -5,15 +5,25 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sync"
 
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/libsql"
+	"github.com/rs/zerolog/log"
 )
 
 var (
 	instance *Store
 	once     sync.Once
 )
+
+func ProjectDbPath(dir string) string {
+	home, _ := os.UserHomeDir()
+	dbDir := filepath.Join(home, ".code_explorer")
+	return filepath.Join(dbDir, "ce.db")
+}
 
 type Store struct {
 	db      *sql.DB
@@ -116,4 +126,29 @@ func Open(dbPath string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func InitDb(cfg *config.Config) (string, *sql.DB, *Store, error) {
+	var dbPath string
+	if cfg.System.DBPath != "" {
+		dbPath = cfg.System.DBPath
+	} else {
+		dbPath = ProjectDbPath(".")
+	}
+
+	dbDir := filepath.Dir(dbPath)
+	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
+			log.Fatal().Err(err).Msg("Failed to create db directory")
+		}
+	}
+
+	sqlDb, err := Open(dbPath)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	store := NewStore(sqlDb, dbPath)
+
+	return dbPath, sqlDb, store, nil
 }

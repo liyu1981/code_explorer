@@ -12,6 +12,8 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/format"
 	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/libsql"
 	"github.com/liyu1981/code_explorer/pkg/logger"
 	"github.com/rs/zerolog/log"
 )
@@ -62,7 +64,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 		if cfg.System.DBPath != "" {
 			dbPath = cfg.System.DBPath
 		} else {
-			dbPath = codemogger.ProjectDbPath(".")
+			dbPath = db.ProjectDbPath(".")
 		}
 	}
 
@@ -74,7 +76,13 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 		}
 	}
 
-	return codemogger.NewCodeIndex(dbPath)
+	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open db: %w", err)
+	}
+	store := db.NewStore(sqlDB, dbPath)
+
+	return codemogger.NewCodeIndex(cfg, dbPath, store)
 }
 
 func handleIndex() {

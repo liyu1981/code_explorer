@@ -2,62 +2,84 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/logger"
 	"github.com/liyu1981/code_explorer/pkg/server"
 	"github.com/rs/zerolog/log"
 )
 
-func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
-	// Try to load config from file via singleton
-	configPath := os.Getenv("CODE_EXPLORER_CONFIG")
-	if err := config.Load(configPath); err != nil {
-		log.Warn().Err(err).Msg("Failed to load configuration, using defaults")
-	}
-
-	cfg := config.Get()
-
-	if dbPath == "" {
-		if cfg.System.DBPath != "" {
-			dbPath = cfg.System.DBPath
-		} else {
-			dbPath = codemogger.ProjectDbPath(".")
+func getSystemLLMConfig() map[string]any {
+	llmCfg := make(map[string]any)
+	if config.Get().System.LLM != nil {
+		for k, v := range config.Get().System.LLM {
+			llmCfg[k] = v
 		}
+	} else {
+		llmCfg["type"] = "openai"
+		llmCfg["model"] = os.Getenv("LLM_MODEL")
+		llmCfg["base_url"] = os.Getenv("LLM_BASE_URL")
 	}
 
-	// Create db directory if it doesn't exist
-	dbDir := filepath.Dir(dbPath)
-	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dbDir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create db directory: %w", err)
-		}
+	if llmCfg["model"] == nil || llmCfg["model"] == "" {
+		llmCfg["model"] = "gpt-4o"
 	}
-
-	return codemogger.NewCodeIndex(dbPath)
+	if llmCfg["base_url"] == nil || llmCfg["base_url"] == "" {
+		llmCfg["base_url"] = "https://api.openai.com/v1"
+	}
+	if llmCfg["type"] == nil || llmCfg["type"] == "" {
+		llmCfg["type"] = "openai"
+	}
+	if config.Get().System.ContextLength > 0 {
+		llmCfg["context_length"] = config.Get().System.ContextLength
+	} else {
+		llmCfg["context_length"] = 262144
+	}
+	return llmCfg
 }
 
 func main() {
 	logger.Init()
 
+	// init config
+	// Try to load config from file via singleton
+	configPath := os.Getenv("CODE_EXPLORER_CONFIG")
+	if err := config.Load(configPath); err != nil {
+		log.Warn().Err(err).Msg("Failed to load configuration, using defaults")
+	}
+	cfg := config.Get()
+
+	// init db
+	dbPath, _, store, err := db.InitDb(cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to open db")
+	}
+
+	// init codemogger
+	idx, err := codemogger.NewCodeIndex(cfg, dbPath, store)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to init codemogger")
+	}
+	defer idx.Close()
+
+	// init agent factory
+	if err := agent.InitAgentFactory(store, getSystemLLMConfig()); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize agent factory")
+	}
+
+	// init httpSrv
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "12345"
 	}
-
-	idx, err := getIndex("")
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to open index")
-	}
-	defer idx.Close()
 
 	srv := server.New(idx)
 	httpSrv := &http.Server{
