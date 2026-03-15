@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
-	"github.com/liyu1981/code_explorer/pkg/agent/tools"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/rs/zerolog/log"
@@ -18,7 +16,7 @@ type TaskManager interface {
 	GetTask(ctx context.Context, id string) (*db.Task, error)
 }
 
-func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, taskManager TaskManager, agentFactory agent.AgentFactoryInterface, updateProgress func(progress int, message string)) error {
+func HandleKnowledgeWikiPlanTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, taskManager TaskManager, agentFactory agent.AgentFactoryInterface, updateProgress func(progress int, message string)) error {
 	var payload struct {
 		CodebaseID string `json:"codebaseId"`
 	}
@@ -49,21 +47,6 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 
 	systemPrompt := skill.SystemPrompt
 
-	// 2. Register tools that need codebase root from skill.Tools
-	toolNames := strings.Fields(skill.Tools)
-	for _, toolName := range toolNames {
-		switch toolName {
-		case "get_tree":
-			agentFactory.RegisterTool(tools.NewGetTreeTool(cb.RootPath))
-		case "read_file":
-			agentFactory.RegisterTool(tools.NewReadFileTool(cb.RootPath))
-		case "grep_search":
-			agentFactory.RegisterTool(tools.NewGrepSearchTool(cb.RootPath))
-		case "list_agent_skills":
-			agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
-		}
-	}
-
 	// 3. Build Agent
 	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
 		MaxIterations: 20,
@@ -76,8 +59,8 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	ag.SetSystemPrompt(systemPrompt)
 
 	// 4. Run Agent
-	updateProgress(10, "Orchestrator starting analysis...")
-	input := fmt.Sprintf("Analyze the codebase at %s and generate wiki building tasks", cb.RootPath)
+	updateProgress(10, "Planner starting analysis...")
+	input := fmt.Sprintf("CodebaseID: %s\n\nAnalyze the codebase at %s and generate wiki building tasks", payload.CodebaseID, cb.RootPath)
 	_, err = ag.RunLoop(ctx, input, task.ID, nil)
 	if err != nil {
 		return fmt.Errorf("orchestrator execution failed: %w", err)
@@ -87,18 +70,17 @@ func HandleKnowledgeBuildTask(ctx context.Context, idx *codemogger.CodeIndex, ta
 	return nil
 }
 
-func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, agentFactory agent.AgentFactoryInterface, updateProgress func(progress int, message string)) error {
+func HandleKnowledgeWikiBuildTask(ctx context.Context, idx *codemogger.CodeIndex, task *db.Task, agentFactory agent.AgentFactoryInterface, updateProgress func(progress int, message string)) error {
 	var payload struct {
 		CodebaseID string `json:"codebaseId"`
-		Path       string `json:"path"`
-		SkillName  string `json:"skillName"`
+		Topic      string `json:"topic"`
 		Goal       string `json:"goal"`
 	}
 	if err := json.Unmarshal([]byte(task.Payload), &payload); err != nil {
 		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	updateProgress(0, fmt.Sprintf("Analyzing module: %s...", payload.Path))
+	updateProgress(0, fmt.Sprintf("Analyzing codebase: %s...", payload.CodebaseID))
 
 	// Fetch codebase details
 	cb, err := idx.GetStore().GetCodebaseByID(ctx, payload.CodebaseID)
@@ -110,25 +92,15 @@ func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeInd
 	}
 
 	// 1. Get Skill
-	skillName := payload.SkillName
-	if skillName == "" {
-		skillName = "generic-analyst"
-	}
-	systemPrompt, err := agentFactory.GetSkillPrompt(ctx, skillName)
+	systemPrompt, err := agentFactory.GetSkillPrompt(ctx, "knowledge-base-builder")
 	if err != nil {
-		return fmt.Errorf("failed to get skill %s: %w", skillName, err)
+		return fmt.Errorf("failed to get skill knowledge-base-builder: %w", err)
 	}
-
-	// 2. Register tools scoped to modules
-	agentFactory.RegisterTool(tools.NewGetTreeTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewReadFileTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewGrepSearchTool(cb.RootPath))
-	agentFactory.RegisterTool(tools.NewListAgentSkillsTool(idx.GetStore()))
 
 	// 3. Build Agent
 	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
-		MaxIterations: 10,
-		SkillName:     skillName,
+		MaxIterations: 20,
+		SkillName:     "knowledge-base-builder",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to build analyze agent: %w", err)
@@ -137,16 +109,11 @@ func HandleKnowledgeWikiAnalyzeTask(ctx context.Context, idx *codemogger.CodeInd
 	ag.SetSystemPrompt(systemPrompt)
 
 	// 4. Run Agent
-	goal := payload.Goal
-	if goal == "" {
-		goal = fmt.Sprintf("Provide a detailed technical summary of the module at %s.", payload.Path)
-	}
-
-	input := fmt.Sprintf("Module Path: %s\nGoal: %s\n\nPlease explore the files in this path and provide a concise Markdown summary of its purpose, main components, and key logic.", payload.Path, goal)
+	input := fmt.Sprintf("Codebase ID: %s\n\nBuild the wiki page with topic: \"%s\" in markdown with goal: %s\n", payload.CodebaseID, payload.Topic, payload.Goal)
 
 	output, err := ag.RunLoop(ctx, input, task.ID, nil)
 	if err != nil {
-		return fmt.Errorf("analyze agent execution failed: %w", err)
+		return fmt.Errorf("wiki build agent execution failed: %w", err)
 	}
 
 	updateProgress(100, output) // Use output as final message

@@ -27,7 +27,11 @@ func TestCodemoggerTools(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ListFilesTool", func(t *testing.T) {
-		tool := NewListFilesTool(idx)
+		tool := NewListFilesTool()
+		if err := tool.Bind(ctx, map[string]any{"index": idx}); err != nil {
+			t.Fatalf("Bind failed: %v", err)
+		}
+
 		if tool.Name() != "codemogger_list_files" {
 			t.Errorf("unexpected name: %s", tool.Name())
 		}
@@ -48,7 +52,11 @@ func TestCodemoggerTools(t *testing.T) {
 	})
 
 	t.Run("SearchTool", func(t *testing.T) {
-		tool := NewSearchTool(idx)
+		tool := NewSearchTool()
+		if err := tool.Bind(ctx, map[string]any{"index": idx}); err != nil {
+			t.Fatalf("Bind failed: %v", err)
+		}
+
 		if tool.Name() != "codemogger_search" {
 			t.Errorf("unexpected name: %s", tool.Name())
 		}

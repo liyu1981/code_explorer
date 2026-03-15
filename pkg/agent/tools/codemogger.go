@@ -17,8 +17,8 @@ type ListFilesTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewListFilesTool(index *codemogger.CodeIndex) *ListFilesTool {
-	return &ListFilesTool{index: index}
+func NewListFilesBaseTool() *ListFilesTool {
+	return &ListFilesTool{}
 }
 
 func (t *ListFilesTool) Name() string {
@@ -38,6 +38,10 @@ func (t *ListFilesTool) Parameters() map[string]any {
 }
 
 func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
+	if t.index == nil {
+		return "", fmt.Errorf("index is nil")
+	}
+
 	files, err := t.index.ListFiles(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to list files: %w", err)
@@ -51,13 +55,22 @@ func (t *ListFilesTool) Execute(ctx context.Context, input json.RawMessage, stre
 	return string(data), nil
 }
 
+func (t *ListFilesTool) Bind(ctx context.Context, state map[string]any) error {
+	if index := state["index"].(*codemogger.CodeIndex); index != nil {
+		t.index = index
+		return nil
+	} else {
+		return fmt.Errorf("index is nil")
+	}
+}
+
 // SearchTool exposes codemogger's Search functionality to the agent
 type SearchTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewSearchTool(index *codemogger.CodeIndex) *SearchTool {
-	return &SearchTool{index: index}
+func NewSearchBaseTool() *SearchTool {
+	return &SearchTool{}
 }
 
 func (t *SearchTool) Name() string {
@@ -145,4 +158,13 @@ func (t *SearchTool) Execute(ctx context.Context, input json.RawMessage, stream 
 	}
 
 	return markdown.String(), nil
+}
+
+func (t *SearchTool) Bind(ctx context.Context, state map[string]any) error {
+	if index := state["index"].(*codemogger.CodeIndex); index != nil {
+		t.index = index
+		return nil
+	} else {
+		return fmt.Errorf("index is nil")
+	}
 }

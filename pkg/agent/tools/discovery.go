@@ -19,8 +19,8 @@ type ReadFileTool struct {
 	baseDir string
 }
 
-func NewReadFileTool(baseDir string) *ReadFileTool {
-	return &ReadFileTool{baseDir: baseDir}
+func NewReadFileBaseTool() *ReadFileTool {
+	return &ReadFileTool{}
 }
 
 func (t *ReadFileTool) Name() string {
@@ -87,12 +87,18 @@ func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, strea
 	return strings.Join(lines, "\n"), nil
 }
 
+func (t *ReadFileTool) Bind(ctx context.Context, state map[string]any) {
+	if baseDir := state["baseDir"].(string); baseDir != "" {
+		t.baseDir = baseDir
+	}
+}
+
 // GetTreeTool provides directory structure
 type GetTreeTool struct {
 	baseDir string
 }
 
-func NewGetTreeTool(baseDir string) *GetTreeTool {
+func NewGetTreeBaseTool(baseDir string) *GetTreeTool {
 	return &GetTreeTool{baseDir: baseDir}
 }
 
@@ -171,7 +177,7 @@ type GrepSearchTool struct {
 	baseDir string
 }
 
-func NewGrepSearchTool(baseDir string) *GrepSearchTool {
+func NewGrepSearchBaseTool(baseDir string) *GrepSearchTool {
 	return &GrepSearchTool{baseDir: baseDir}
 }
 

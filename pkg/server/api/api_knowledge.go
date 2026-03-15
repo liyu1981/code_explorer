@@ -118,9 +118,9 @@ func (h *ApiHandler) handleBuildKnowledge(w http.ResponseWriter, r *http.Request
 		"codebaseId": payload.CodebaseID,
 	}
 
-	taskID, err := h.taskManager.Submit(r.Context(), "knowledge-build", payloadMap, 3)
+	taskID, err := h.taskManager.Submit(r.Context(), "knowledge-wiki-plan", payloadMap, 3)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to submit knowledge build task", err)
+		writeError(w, http.StatusInternalServerError, "failed to submit knowledge wiki plan task", err)
 		return
 	}
 

@@ -9,8 +9,8 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
-func TestNewAgentFactory(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+func TestNewAgentFactoryForTest(t *testing.T) {
+	factory := NewAgentFactoryForTest(nil, nil)
 	if factory == nil {
 		t.Fatal("expected non-nil factory")
 	}
@@ -20,7 +20,7 @@ func TestNewAgentFactory(t *testing.T) {
 }
 
 func TestAgentFactory_RegisterTool(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	tool := &testMockTool{name: "test-tool"}
 	factory.RegisterTool(tool)
@@ -35,7 +35,7 @@ func TestAgentFactory_RegisterTool(t *testing.T) {
 }
 
 func TestAgentFactory_Tools(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	tool := &testMockTool{name: "test-tool"}
 	factory.RegisterTool(tool)
@@ -52,7 +52,7 @@ func TestAgentFactory_Tools(t *testing.T) {
 }
 
 func TestAgentFactory_GetSkillPrompt_StoreNil(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	_, err := factory.GetSkillPrompt(context.Background(), "test-skill")
 	if err == nil {
@@ -61,7 +61,7 @@ func TestAgentFactory_GetSkillPrompt_StoreNil(t *testing.T) {
 }
 
 func TestAgentFactory_GetSkillTools_StoreNil(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	_, err := factory.GetSkillTools(context.Background(), "test-skill")
 	if err == nil {
@@ -70,7 +70,7 @@ func TestAgentFactory_GetSkillTools_StoreNil(t *testing.T) {
 }
 
 func TestAgentFactory_BuildFromConfig_LLMNil(t *testing.T) {
-	factory := NewAgentFactory(nil, map[string]any{
+	factory := NewAgentFactoryForTest(nil, map[string]any{
 		"type":      "mock",
 		"model":     "test-model",
 		"responses": []any{"response 1"},
@@ -103,7 +103,7 @@ func TestAgentFactory_BuildFromConfig_WithSkillTools(t *testing.T) {
 		t.Fatalf("create skill: %v", err)
 	}
 
-	factory := NewAgentFactory(store, map[string]any{
+	factory := NewAgentFactoryForTest(store, map[string]any{
 		"type":      "mock",
 		"model":     "test-model",
 		"responses": []any{"response 1"},
@@ -128,6 +128,72 @@ func TestAgentFactory_BuildFromConfig_WithSkillTools(t *testing.T) {
 	if len(tools) != 2 {
 		t.Errorf("expected 2 tools, got %d", len(tools))
 	}
+
+	toolNames := make(map[string]bool)
+	for _, tool := range tools {
+		toolNames[tool.Name()] = true
+	}
+
+	if !toolNames["tool1"] {
+		t.Error("expected tool1 to be present")
+	}
+	if !toolNames["tool2"] {
+		t.Error("expected tool2 to be present")
+	}
+}
+
+func TestAgentFactory_BuildFromConfig_SkillWithTools_PreservesToolsOnUpdate(t *testing.T) {
+	store, cleanup := db.SetupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	skill := &db.Skill{
+		Name:         "updatable-skill",
+		SystemPrompt: "initial prompt",
+		Tools:        "toolA toolB",
+	}
+	if err := store.CreateSkill(ctx, skill); err != nil {
+		t.Fatalf("create skill: %v", err)
+	}
+
+	factory := NewAgentFactoryForTest(store, map[string]any{
+		"type":      "mock",
+		"model":     "test-model",
+		"responses": []any{"response 1"},
+	})
+
+	factory.RegisterTool(&testMockTool{name: "toolA"})
+	factory.RegisterTool(&testMockTool{name: "toolB"})
+	factory.RegisterTool(&testMockTool{name: "toolC"})
+
+	agent, err := factory.BuildFromConfig(ctx, &Config{
+		MaxIterations: 10,
+		SkillName:     "updatable-skill",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	tools := agent.tools.List()
+	if len(tools) != 2 {
+		t.Fatalf("expected 2 tools, got %d", len(tools))
+	}
+
+	toolNames := make(map[string]bool)
+	for _, tool := range tools {
+		toolNames[tool.Name()] = true
+	}
+
+	if !toolNames["toolA"] {
+		t.Error("expected toolA to be present")
+	}
+	if !toolNames["toolB"] {
+		t.Error("expected toolB to be present")
+	}
+	if toolNames["toolC"] {
+		t.Error("expected toolC NOT to be present (not in skill tools)")
+	}
 }
 
 func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
@@ -145,7 +211,7 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 		t.Fatalf("create skill: %v", err)
 	}
 
-	factory := NewAgentFactory(store, map[string]any{
+	factory := NewAgentFactoryForTest(store, map[string]any{
 		"type":      "mock",
 		"model":     "test-model",
 		"responses": []any{"response 1"},
@@ -167,7 +233,7 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 }
 
 func TestAgentFactory_BuildFromConfig_ContextLength(t *testing.T) {
-	factory := NewAgentFactory(nil, map[string]any{
+	factory := NewAgentFactoryForTest(nil, map[string]any{
 		"type":      "mock",
 		"model":     "test-model",
 		"responses": []any{"response 1"},
@@ -187,7 +253,7 @@ func TestAgentFactory_BuildFromConfig_ContextLength(t *testing.T) {
 }
 
 func TestAgentFactory_buildLLM_NilConfig(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	_, err := factory.buildLLM(nil)
 	if err == nil {
@@ -196,7 +262,7 @@ func TestAgentFactory_buildLLM_NilConfig(t *testing.T) {
 }
 
 func TestAgentFactory_buildLLM_UnknownType(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	_, err := factory.buildLLM(map[string]any{
 		"type": "unknown-type",
@@ -207,7 +273,7 @@ func TestAgentFactory_buildLLM_UnknownType(t *testing.T) {
 }
 
 func TestAgentFactory_buildLLM_OpenAI(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	llm, err := factory.buildLLM(map[string]any{
 		"type":     "openai",
@@ -224,7 +290,7 @@ func TestAgentFactory_buildLLM_OpenAI(t *testing.T) {
 }
 
 func TestAgentFactory_buildLLM_OpenAI_Default(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	llm, err := factory.buildLLM(map[string]any{
 		"model": "test-model",
@@ -239,7 +305,7 @@ func TestAgentFactory_buildLLM_OpenAI_Default(t *testing.T) {
 }
 
 func TestAgentFactory_buildLLM_Mock(t *testing.T) {
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 
 	llm, err := factory.buildLLM(map[string]any{
 		"type":      "mock",

@@ -107,7 +107,7 @@ func TestAgentContextLimit(t *testing.T) {
 
 	// Limit that is very small
 	limit := 10
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 	ag := factory.BuildTestAgent(mockLLM, WithContextLength(limit))
 
 	_, err := ag.RunLoop(context.Background(), "This input is definitely longer than 10 characters", "test-turn", nil)

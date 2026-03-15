@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
-	"github.com/liyu1981/code_explorer/pkg/agent/tools"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
@@ -37,21 +36,12 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		store = config.Index.GetStore()
 	}
 
-	factory := agent.NewAgentFactory(store, getSystemLLMConfig())
-	if config.Index != nil {
-		// Root-based discovery tools
-		// We can't easily get the root path here without a specific codebase,
-		// but the tool can be registered if it's dynamic or we register them per-task.
-		// For now, let's register the ones that don't need rootPath in constructor
-		// or will get it from the task context.
-		factory.RegisterTool(tools.NewListFilesTool(config.Index))
-		factory.RegisterTool(tools.NewSearchTool(config.Index))
-		factory.RegisterTool(tools.NewQueueTaskTool(store))
-		factory.RegisterTool(tools.NewPollTasksTool(store))
-		factory.RegisterTool(tools.NewReadTaskOutputTool(store))
-		factory.RegisterTool(tools.NewSaveKnowledgeTool(store))
-		factory.RegisterTool(tools.NewListAgentSkillsTool(store))
+	if err := agent.InitAgentFactory(store, getSystemLLMConfig()); err != nil {
+		panic("failed to initialize agent factory: " + err.Error())
 	}
+
+	factory := agent.GetAgentFactory()
+	factory.InitTools(store, config.Index)
 
 	h := &ApiHandler{
 		index:        config.Index,

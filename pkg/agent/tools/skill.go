@@ -14,7 +14,7 @@ type ListAgentSkillsTool struct {
 	store *db.Store
 }
 
-func NewListAgentSkillsTool(store *db.Store) *ListAgentSkillsTool {
+func NewListAgentSkillsBaseTool(store *db.Store) *ListAgentSkillsTool {
 	return &ListAgentSkillsTool{store: store}
 }
 

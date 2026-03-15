@@ -14,7 +14,7 @@ type SaveKnowledgeTool struct {
 	store *db.Store
 }
 
-func NewSaveKnowledgeTool(store *db.Store) *SaveKnowledgeTool {
+func NewSaveKnowledgeBaseTool(store *db.Store) *SaveKnowledgeTool {
 	return &SaveKnowledgeTool{store: store}
 }
 

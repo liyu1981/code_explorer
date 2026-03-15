@@ -89,7 +89,7 @@ func TestAgentIntegration(t *testing.T) {
 	registry.Register(&calculateTool{})
 
 	llm := NewHTTPClientLLM(config.model, config.endpoint, config.apiKey)
-	factory := NewAgentFactory(nil, nil)
+	factory := NewAgentFactoryForTest(nil, nil)
 	factory.RegisterTool(&echoTool{})
 	factory.RegisterTool(&calculateTool{})
 	agentInstance := factory.BuildTestAgent(llm, WithMaxIterations(5))

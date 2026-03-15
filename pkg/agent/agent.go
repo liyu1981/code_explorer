@@ -77,61 +77,6 @@ func ResponseFormatFromSchema(name string, schema *jsonschema.Schema) (*Response
 	}, nil
 }
 
-type Tool interface {
-	Name() string
-	Description() string
-	Parameters() map[string]any
-	Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error)
-}
-
-type ToolRegistry struct {
-	tools map[string]Tool
-}
-
-func NewToolRegistry() *ToolRegistry {
-	return &ToolRegistry{tools: make(map[string]Tool)}
-}
-
-func (r *ToolRegistry) Register(tool Tool) {
-	r.tools[tool.Name()] = tool
-}
-
-func (r *ToolRegistry) Get(name string) (Tool, bool) {
-	t, ok := r.tools[name]
-	return t, ok
-}
-
-func (r *ToolRegistry) List() []Tool {
-	result := make([]Tool, 0, len(r.tools))
-	for _, t := range r.tools {
-		result = append(result, t)
-	}
-	return result
-}
-
-func (r *ToolRegistry) MarshalToolsForLLM() []map[string]any {
-	result := make([]map[string]any, 0, len(r.tools))
-	for _, t := range r.tools {
-		params := t.Parameters()
-		if params == nil {
-			params = map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
-				"required":   []string{},
-			}
-		}
-		result = append(result, map[string]any{
-			"type": "function",
-			"function": map[string]any{
-				"name":        t.Name(),
-				"description": t.Description(),
-				"parameters":  params,
-			},
-		})
-	}
-	return result
-}
-
 type LLM interface {
 	Generate(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat) (string, []ToolCall, error)
 	GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat, stream protocol.IStreamWriter) (string, []ToolCall, error)

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     retries      INTEGER NOT NULL DEFAULT 0,
     max_retries  INTEGER NOT NULL DEFAULT 3,
     error        TEXT,
+    initiator_id TEXT,
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME
