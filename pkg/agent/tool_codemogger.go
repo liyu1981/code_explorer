@@ -9,6 +9,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/constant"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/util"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -65,10 +66,10 @@ func (t *CodeMoggerListFilesTool) Execute(ctx context.Context, input json.RawMes
 }
 
 func (t *CodeMoggerListFilesTool) Bind(ctx context.Context, state *map[string]any) error {
-	if state == nil {
-		return fmt.Errorf("bind failed: state is nil")
+	index, err := util.SafeExtract[*codemogger.CodeIndex](state, "index")
+	if err != nil {
+		return fmt.Errorf("bind failed: %v", err)
 	}
-	index := (*state)["index"].(*codemogger.CodeIndex)
 	if index != nil {
 		t.index = index
 		return nil
@@ -182,7 +183,10 @@ func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessag
 }
 
 func (t *CodeMoggerSearchTool) Bind(ctx context.Context, state *map[string]any) error {
-	index := (*state)["index"].(*codemogger.CodeIndex)
+	index, err := util.SafeExtract[*codemogger.CodeIndex](state, "index")
+	if err != nil {
+		return fmt.Errorf("bind failed: %v", err)
+	}
 	if index != nil {
 		t.index = index
 		return nil

@@ -7,6 +7,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
 // SaveKnowledgeTool allows an agent to save a knowledge page
@@ -98,7 +99,10 @@ func (t *SaveKnowledgeTool) Execute(ctx context.Context, input json.RawMessage, 
 }
 
 func (t *SaveKnowledgeTool) Bind(ctx context.Context, state *map[string]any) error {
-	store := (*state)["store"].(*db.Store)
+	store, err := util.SafeExtract[*db.Store](state, "store")
+	if err != nil {
+		return fmt.Errorf("bind failed: %v", err)
+	}
 	if store != nil {
 		t.store = store
 		return nil

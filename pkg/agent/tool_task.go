@@ -85,8 +85,11 @@ func (t *QueueTaskTool) Execute(ctx context.Context, input json.RawMessage, stre
 	return req.ID, nil
 }
 
-func (t *QueueTaskTool) Bind(ctx context.Context, data *map[string]any) error {
-	store := (*data)["store"].(*db.Store)
+func (t *QueueTaskTool) Bind(ctx context.Context, state *map[string]any) error {
+	store, err := util.SafeExtract[*db.Store](state, "store")
+	if err != nil {
+		return fmt.Errorf("bind failed: %v", err)
+	}
 	if store != nil {
 		t.store = store
 		return nil

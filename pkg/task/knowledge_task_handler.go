@@ -24,8 +24,8 @@ func HandleKnowledgeWikiPlanTask(ctx context.Context, idx *codemogger.CodeIndex,
 		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	log.Info().Str("codebaseId", payload.CodebaseID).Msg("Starting real knowledge build task")
-	updateProgress(0, "Starting knowledge build...")
+	log.Info().Str("codebaseId", payload.CodebaseID).Msg("Starting knowledge build plan task")
+	updateProgress(0, "Starting knowledge build planning...")
 
 	// Fetch codebase details
 	cb, err := idx.GetStore().GetCodebaseByID(ctx, payload.CodebaseID)

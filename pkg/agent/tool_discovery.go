@@ -96,13 +96,16 @@ func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, strea
 }
 
 func (t *ReadFileTool) Bind(ctx context.Context, state *map[string]any) error {
-	if state == nil {
-		return fmt.Errorf("bind failed: state is nil")
+	baseDir, err := util.SafeExtract[string](state, "baseDir")
+	if err != nil {
+		return fmt.Errorf("bind failed: %v", err)
 	}
-	if baseDir := (*state)["baseDir"].(string); baseDir != "" {
+	if baseDir != "" {
 		t.baseDir = baseDir
+		return nil
+	} else {
+		return fmt.Errorf("bind failed: basedDir is nil")
 	}
-	return nil
 }
 
 // GetTreeTool provides directory structure
@@ -193,7 +196,10 @@ func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream
 }
 
 func (t *GetTreeTool) Bind(ctx context.Context, state *map[string]any) error {
-	baseDir := (*state)["baseDir"].(string)
+	baseDir, err := util.SafeExtract[string](state, "baseDir")
+	if err != nil {
+		return fmt.Errorf("bind failed: %v", err)
+	}
 	if baseDir != "" {
 		t.baseDir = baseDir
 		return nil
@@ -269,7 +275,10 @@ func (t *GrepSearchTool) Execute(ctx context.Context, input json.RawMessage, str
 }
 
 func (t *GrepSearchTool) Bind(ctx context.Context, state *map[string]any) error {
-	baseDir := (*state)["baseDir"].(string)
+	baseDir, err := util.SafeExtract[string](state, "baseDir")
+	if err != nil {
+		return fmt.Errorf("bind failed: %v", err)
+	}
 	if baseDir != "" {
 		t.baseDir = baseDir
 		return nil

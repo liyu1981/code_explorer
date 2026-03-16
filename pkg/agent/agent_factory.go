@@ -194,6 +194,7 @@ func (f *AgentFactory) buildFromConfigInternal(
 	for _, bindDataProvider := range bindDataProviders {
 		bindDataProvider(bindData)
 	}
+	log.Debug().Interface("bindData", bindData).Msg("bind data prepared")
 
 	f.mu.RLock()
 	toolRegistry := NewToolRegistry()
