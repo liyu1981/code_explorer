@@ -62,6 +62,24 @@ func (s *Store) GetKnowledgePageBySlug(ctx context.Context, codebaseID, slug str
 	return &p, nil
 }
 
+func (s *Store) GetKnowledgePageByID(ctx context.Context, id string) (*KnowledgePage, error) {
+	var p KnowledgePage
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, codebase_id, slug, title, content, build_instructions, created_at, updated_at
+		FROM knowledge_pages
+		WHERE id = ?
+	`, id).Scan(&p.ID, &p.CodebaseID, &p.Slug, &p.Title, &p.Content, &p.BuildInstructions, &p.CreatedAt, &p.UpdatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get knowledge page: %w", err)
+	}
+
+	return &p, nil
+}
+
 func (s *Store) ListKnowledgePages(ctx context.Context, codebaseID string) ([]KnowledgePage, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, codebase_id, slug, title, content, build_instructions, created_at, updated_at

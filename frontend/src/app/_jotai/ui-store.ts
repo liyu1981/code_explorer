@@ -13,3 +13,15 @@ export const activeSavedReportsAtom = atomWithStorage<ActiveSavedReport[]>(
   "ce-active-saved-reports",
   [],
 );
+
+export interface ActiveKnowledgePage {
+	slug: string;
+	cbid: string;
+	title: string;
+	codebaseName: string;
+}
+
+export const activeKnowledgePagesAtom = atomWithStorage<ActiveKnowledgePage[]>(
+  "ce-active-knowledge-pages",
+  [],
+);

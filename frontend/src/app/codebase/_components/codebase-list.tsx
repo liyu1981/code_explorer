@@ -380,15 +380,7 @@ export function CodebaseList() {
   };
 
   const handleBuildKnowledge = async (cb: Codebase) => {
-    try {
-      await api.post("/api/knowledge/build", { codebaseId: cb.id });
-      // You might want to show a toast here
-      alert(
-        `Knowledge build started for ${cb.name}. You can track it in the Tasks page.`,
-      );
-    } catch (e) {
-      console.error("Failed to start knowledge build", e);
-    }
+    router.push(`/knowledge?cbid=${cb.id}`);
   };
 
   const handleResearch = (cb: Codebase, sessions: any[]) => {

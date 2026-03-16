@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/liyu1981/code_explorer/pkg/db"
 )
 
@@ -26,16 +28,40 @@ func (h *ApiHandler) handleListKnowledgePages(w http.ResponseWriter, r *http.Req
 func (h *ApiHandler) handleGetKnowledgePage(w http.ResponseWriter, r *http.Request) {
 	codebaseID := r.URL.Query().Get("codebase_id")
 	slug := r.URL.Query().Get("slug")
-	if codebaseID == "" || slug == "" {
-		writeError(w, http.StatusBadRequest, "codebase_id and slug are required", nil)
+
+	if codebaseID == "" {
+		writeError(w, http.StatusBadRequest, "codebase_id is required", nil)
 		return
 	}
 
-	page, err := h.index.GetStore().GetKnowledgePageBySlug(r.Context(), codebaseID, slug)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get knowledge page", err)
-		return
+	// Default to overview if slug not provided
+	if slug == "" {
+		slug = "overview"
 	}
+
+	log.Debug().Str("codebaseID", codebaseID).Str("slug", slug).Msg("handleGetKnowledgePage")
+
+	page, err := h.index.GetStore().GetKnowledgePageBySlug(r.Context(), codebaseID, slug)
+
+	// If page not found and slug is "overview", create an empty overview page
+	if (page == nil || err != nil) && slug == "overview" {
+		log.Debug().Str("codebaseID", codebaseID).Str("slug", slug).Msg("overview page not found, creating new one")
+		newPage := &db.KnowledgePage{
+			CodebaseID:        codebaseID,
+			Slug:              "overview",
+			Title:             "Overview",
+			Content:           "",
+			BuildInstructions: "",
+		}
+		if err := h.index.GetStore().CreateKnowledgePage(r.Context(), newPage); err != nil {
+			log.Error().Err(err).Str("codebaseID", codebaseID).Str("slug", slug).Msg("failed to create overview page")
+			writeError(w, http.StatusInternalServerError, "failed to create overview page", err)
+			return
+		}
+		log.Debug().Str("codebaseID", codebaseID).Str("slug", slug).Msg("overview page created")
+		page, err = h.index.GetStore().GetKnowledgePageBySlug(r.Context(), codebaseID, slug)
+	}
+
 	if page == nil {
 		writeError(w, http.StatusNotFound, "page not found", nil)
 		return

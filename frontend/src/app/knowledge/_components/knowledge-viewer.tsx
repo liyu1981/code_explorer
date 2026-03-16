@@ -22,6 +22,7 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import mermaid from "mermaid";
+import { Button } from "@/components/ui/button";
 
 const Mermaid = ({ chart }: { chart: string }) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -87,13 +88,14 @@ const Mermaid = ({ chart }: { chart: string }) => {
 
   return (
     <div className="group relative my-6 bg-muted/30 p-4 rounded-xl border border-border/50 transition-all hover:bg-muted/40">
-      <button
+      <Button
+        variant="outline"
+        size="icon-xs"
+        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 z-10"
         onClick={() => setIsOpen(true)}
-        className="absolute top-3 right-3 p-1.5 rounded-lg bg-background/50 border border-border/50 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all z-10"
-        title="Expand Diagram"
       >
         <Maximize2 className="h-4 w-4" />
-      </button>
+      </Button>
       <div
         ref={ref}
         className="mermaid w-full max-w-full overflow-auto flex justify-center"
@@ -110,34 +112,39 @@ const Mermaid = ({ chart }: { chart: string }) => {
               </Dialog.Title>
               <div className="flex items-center gap-2">
                 <div className="flex items-center bg-background/50 border border-border/50 rounded-xl p-1 gap-1">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={handleZoomOut}
-                    className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
                     title="Zoom Out"
                   >
                     <ZoomOut className="h-4 w-4" />
-                  </button>
+                  </Button>
                   <span className="text-[10px] font-mono font-bold w-12 text-center">
                     {Math.round(zoom * 100)}%
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={handleZoomIn}
-                    className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
                     title="Zoom In"
                   >
                     <ZoomIn className="h-4 w-4" />
-                  </button>
+                  </Button>
                   <div className="w-px h-4 bg-border/50 mx-1" />
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={handleReset}
-                    className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
                     title="Reset View"
                   >
                     <RotateCcw className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
-                <Dialog.Close className="p-2 hover:bg-destructive/10 hover:text-destructive rounded-xl transition-all">
-                  <X className="h-5 w-5" />
+                <Dialog.Close asChild>
+                  <Button variant="ghost" size="icon-xs">
+                    <X className="h-5 w-5" />
+                  </Button>
                 </Dialog.Close>
               </div>
             </div>
@@ -215,10 +222,10 @@ const CopyButton = ({ text }: { text: string }) => {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon-xs"
       onClick={handleCopy}
-      type="button"
-      className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
       title="Copy code"
     >
       {copied ? (
@@ -226,7 +233,7 @@ const CopyButton = ({ text }: { text: string }) => {
       ) : (
         <Copy className="h-3.5 w-3.5" />
       )}
-    </button>
+    </Button>
   );
 };
 

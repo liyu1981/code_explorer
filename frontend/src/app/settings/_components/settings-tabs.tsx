@@ -2,7 +2,7 @@ import { ChevronRight, History, Wand2, Activity, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
-type TabType = "system" | "research" | "codemogger";
+type TabType = "system" | "llm" | "research" | "codemogger";
 
 interface Tab {
   id: TabType;
