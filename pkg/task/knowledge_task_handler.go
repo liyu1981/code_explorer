@@ -66,10 +66,13 @@ func HandleKnowledgeWikiPlanTask(ctx context.Context, idx *codemogger.CodeIndex,
 	// 4. Run Agent
 	updateProgress(10, "Planner starting analysis...")
 	input := fmt.Sprintf("CodebaseID: %s\n\nAnalyze the codebase at %s and generate wiki building tasks", payload.CodebaseID, cb.RootPath)
-	_, err = ag.RunLoop(ctx, input, task.ID, nil)
+	var finalResult string
+	finalResult, err = ag.RunLoop(ctx, input, task.ID, nil)
 	if err != nil {
 		return fmt.Errorf("orchestrator execution failed: %w", err)
 	}
+
+	log.Debug().Str("finalResult", finalResult).Msg("Received final result")
 
 	updateProgress(100, "Knowledge build complete")
 	return nil

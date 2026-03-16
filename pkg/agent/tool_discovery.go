@@ -135,22 +135,23 @@ func (t *GetTreeTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"depth": map[string]any{
 				"type":        "integer",
-				"description": "Max depth to traverse (default 3)",
+				"description": "Max depth to traverse (default 0, unlimited)",
 			},
 		},
 	}
 }
 
-// Execute will return a string with the directory structure as follows
-//   example: depth=1
-//            GEMINI.md  bin/
-//            (all names in one line, with space as separator, and dir is suffixed with trailing slash)
-
-//	example: depth=2
-//	         GEMINI.md  bin/ bin/index.js
-//	         (all names in one line, with space as separator, list in depth-first order of all files within depth)
+// Execute returns a string with the directory structure in unix `tree` style.
+// If depth is not provided (or <= 0), it recurses infinitely.
 //
-// also will respect the .gitignore rules (with help from gocodewalker, see ref in codemogger/scan/walker.go)
+// Example output (depth=2):
+//
+//	.
+//	├── GEMINI.md
+//	├── bin/
+//	│   └── index.js
+//	└── cmd/
+//	    └── main.go
 func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	if t.baseDir == "" {
 		return "", fmt.Errorf("baseDir is empty")
@@ -160,39 +161,101 @@ func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream
 		Depth int `json:"depth"`
 	}
 	json.Unmarshal(input, &req)
-	if req.Depth <= 0 {
-		req.Depth = 3
-	}
+	// depth <= 0 means unlimited
+	maxDepth := req.Depth
 
+	// Collect all file paths from the walker
 	fileListQueue := util.StartFileWalker(t.baseDir, true)
 
-	pathMap := make(map[string]bool)
+	// Build a set of relative file paths
+	filePaths := make(map[string]struct{})
 	for f := range fileListQueue {
 		rel, err := filepath.Rel(t.baseDir, f.Location)
 		if err != nil {
 			continue
 		}
-		parts := strings.Split(rel, string(os.PathSeparator))
+		filePaths[filepath.ToSlash(rel)] = struct{}{}
+	}
 
-		for i := 1; i <= len(parts) && i <= req.Depth; i++ {
-			subPath := filepath.Join(parts[:i]...)
-			if i < len(parts) {
-				// It's a directory
-				pathMap[filepath.ToSlash(subPath)+"/"] = true
+	// Build a tree node structure
+	type node struct {
+		name     string
+		children map[string]*node
+		isDir    bool
+	}
+
+	root := &node{name: ".", children: make(map[string]*node), isDir: true}
+
+	for rel := range filePaths {
+		parts := strings.Split(rel, "/")
+		cur := root
+		for i, part := range parts {
+			if _, ok := cur.children[part]; !ok {
+				isDir := i < len(parts)-1
+				cur.children[part] = &node{
+					name:     part,
+					children: make(map[string]*node),
+					isDir:    isDir,
+				}
+			}
+			if i < len(parts)-1 {
+				cur.children[part].isDir = true
+			}
+			cur = cur.children[part]
+		}
+	}
+
+	// Render the tree recursively
+	var sb strings.Builder
+	sb.WriteString(".\n")
+
+	var render func(n *node, prefix string, depth int)
+	render = func(n *node, prefix string, depth int) {
+		if maxDepth > 0 && depth > maxDepth {
+			return
+		}
+
+		// Sort children: dirs first, then files, both alphabetically
+		var dirs, files []string
+		for name, child := range n.children {
+			if child.isDir {
+				dirs = append(dirs, name)
 			} else {
-				// It's a file
-				pathMap[filepath.ToSlash(subPath)] = true
+				files = append(files, name)
+			}
+		}
+		sort.Strings(dirs)
+		sort.Strings(files)
+		sorted := append(dirs, files...)
+
+		for i, name := range sorted {
+			child := n.children[name]
+			isLast := i == len(sorted)-1
+
+			connector := "├── "
+			if isLast {
+				connector = "└── "
+			}
+
+			label := name
+			if child.isDir {
+				label = name + "/"
+			}
+			sb.WriteString(prefix + connector + label + "\n")
+
+			if child.isDir {
+				extension := "│   "
+				if isLast {
+					extension = "    "
+				}
+				render(child, prefix+extension, depth+1)
 			}
 		}
 	}
 
-	var allPaths []string
-	for p := range pathMap {
-		allPaths = append(allPaths, p)
-	}
-	sort.Strings(allPaths)
+	render(root, "", 1)
 
-	return strings.Join(allPaths, " "), nil
+	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
 func (t *GetTreeTool) Bind(ctx context.Context, state *map[string]any) error {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
@@ -50,6 +49,61 @@ func TestGetTreeTool(t *testing.T) {
 	}
 	stream := &mockStreamWriter{}
 
+	// parseTreeLines extracts the entry names (stripping tree connector prefixes)
+	// from a tree-formatted output string.
+	parseTreeLines := func(res string) []string {
+		var names []string
+		for _, line := range strings.Split(res, "\n") {
+			// Skip the root "." line
+			if line == "." {
+				continue
+			}
+			// Strip connector prefix: "├── ", "└── ", and any leading "│   " / "    " padding
+			// Find the last occurrence of "── " which marks the start of the name
+			idx := strings.LastIndex(line, "── ")
+			if idx == -1 {
+				continue
+			}
+			names = append(names, line[idx+3:])
+		}
+		return names
+	}
+
+	containsAll := func(t *testing.T, got []string, want []string) {
+		t.Helper()
+		set := make(map[string]bool, len(got))
+		for _, g := range got {
+			set[g] = true
+		}
+		for _, w := range want {
+			if !set[w] {
+				t.Errorf("missing expected entry %q in output", w)
+			}
+		}
+	}
+
+	containsNone := func(t *testing.T, got []string, banned []string) {
+		t.Helper()
+		for _, g := range got {
+			for _, b := range banned {
+				if g == b || strings.HasPrefix(g, b) {
+					t.Errorf("found unexpected/ignored entry %q in output", g)
+				}
+			}
+		}
+	}
+
+	t.Run("Root line", func(t *testing.T) {
+		input := json.RawMessage(`{"depth": 1}`)
+		res, err := tool.Execute(context.Background(), input, stream)
+		if err != nil {
+			t.Fatalf("Execute failed: %v", err)
+		}
+		if !strings.HasPrefix(res, ".\n") {
+			t.Errorf("expected output to start with '.\\n', got: %q", res[:min(len(res), 10)])
+		}
+	})
+
 	t.Run("Depth 1", func(t *testing.T) {
 		input := json.RawMessage(`{"depth": 1}`)
 		res, err := tool.Execute(context.Background(), input, stream)
@@ -57,24 +111,14 @@ func TestGetTreeTool(t *testing.T) {
 			t.Fatalf("Execute failed: %v", err)
 		}
 
-		// Expected: .gitignore GEMINI.md (not here) main.go bin/ src/
-		// (wait, .gitignore itself should be shown? Yes, usually)
-		// The example says: GEMINI.md bin/
-		// So we expect: .gitignore bin/ main.go src/ (alphabetical? depth-first? instruction says depth-first)
+		entries := parseTreeLines(res)
 
-		// Let's see what the current implementation gives (indented tree)
-		// But the instruction says: (all names in one line, with space as separator, and dir is suffixed with trailing slash)
-
-		// For depth=1, depth-first doesn't matter much for order, just files in root and immediate dirs.
-
-		parts := strings.Fields(res)
-		sort.Strings(parts)
-		expected := []string{".gitignore", "bin/", "main.go", "src/"}
-		sort.Strings(expected)
-
-		if strings.Join(parts, " ") != strings.Join(expected, " ") {
-			t.Errorf("Expected %v, got %v", expected, parts)
-		}
+		// Only root-level entries should appear
+		containsAll(t, entries, []string{".gitignore", "bin/", "main.go", "src/"})
+		// Nested entries must not appear at depth 1
+		containsNone(t, entries, []string{"index.js", "lib/", "utils.go"})
+		// Ignored entries must not appear
+		containsNone(t, entries, []string{"ignored.txt", "node_modules/", ".git/"})
 	})
 
 	t.Run("Depth 2", func(t *testing.T) {
@@ -84,34 +128,68 @@ func TestGetTreeTool(t *testing.T) {
 			t.Fatalf("Execute failed: %v", err)
 		}
 
-		// Expected: .gitignore bin/ bin/index.js main.go src/ src/lib/
-		parts := strings.Fields(res)
-		// Instruction says: list in depth-first order
-		// bin/ comes before bin/index.js
-		// src/ comes before src/lib/
+		entries := parseTreeLines(res)
 
-		expected := []string{".gitignore", "bin/", "bin/index.js", "main.go", "src/", "src/lib/"}
-		// Check if they are all present
-		for _, e := range expected {
-			found := false
-			for _, p := range parts {
-				if p == e {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("Missing expected item: %s", e)
-			}
+		// Depth-2 entries should include direct children of root-level dirs
+		containsAll(t, entries, []string{".gitignore", "bin/", "index.js", "main.go", "src/", "lib/"})
+		// Depth-3 entries (utils.go inside src/lib/) must not appear
+		containsNone(t, entries, []string{"utils.go"})
+		// Ignored entries must not appear
+		containsNone(t, entries, []string{"ignored.txt", "node_modules/", ".git/"})
+	})
+
+	t.Run("Unlimited depth", func(t *testing.T) {
+		input := json.RawMessage(`{}`)
+		res, err := tool.Execute(context.Background(), input, stream)
+		if err != nil {
+			t.Fatalf("Execute failed: %v", err)
 		}
 
-		// Also check that ignored.txt and node_modules/ are NOT present
-		for _, p := range parts {
-			if p == "ignored.txt" || strings.HasPrefix(p, "node_modules") || strings.HasPrefix(p, ".git/") {
-				t.Errorf("Found ignored item: %s", p)
+		entries := parseTreeLines(res)
+
+		// All non-ignored entries at every level should appear
+		containsAll(t, entries, []string{".gitignore", "bin/", "index.js", "main.go", "src/", "lib/", "utils.go"})
+		containsNone(t, entries, []string{"ignored.txt", "node_modules/", ".git/"})
+	})
+
+	t.Run("Tree connectors", func(t *testing.T) {
+		input := json.RawMessage(`{"depth": 2}`)
+		res, err := tool.Execute(context.Background(), input, stream)
+		if err != nil {
+			t.Fatalf("Execute failed: %v", err)
+		}
+
+		// Verify structural tree characters are present
+		if !strings.Contains(res, "├── ") && !strings.Contains(res, "└── ") {
+			t.Errorf("expected tree connectors (├── or └── ) in output, got:\n%s", res)
+		}
+		// Last sibling in any group must use └──, not ├──
+		lines := strings.Split(res, "\n")
+		for i, line := range lines {
+			if i == len(lines)-1 {
+				continue
+			}
+			nextIndent := len(lines[i+1]) - len(strings.TrimLeft(lines[i+1], "│ "))
+			curIndent := len(line) - len(strings.TrimLeft(line, "│ "))
+			// If next line is at a shallower or equal indent, current must be a └──
+			if nextIndent <= curIndent && strings.Contains(line, "── ") {
+				prefix := line[:strings.Index(line, "── ")]
+				if strings.HasSuffix(prefix, "├") {
+					// Only flag if the next line is NOT a child (same or lesser depth)
+					if nextIndent < curIndent {
+						t.Errorf("line %d should use └── (last sibling) but uses ├──: %q", i, line)
+					}
+				}
 			}
 		}
 	})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func TestReadFileTool(t *testing.T) {
@@ -164,7 +242,6 @@ func TestReadFileTool(t *testing.T) {
 }
 
 func TestGrepSearchTool(t *testing.T) {
-	// Skip if rg or grep not available (not easy to check here, but we assume at least grep is there)
 	tempDir, err := os.MkdirTemp("", "grep-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
