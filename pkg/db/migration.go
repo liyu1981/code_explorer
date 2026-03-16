@@ -403,6 +403,27 @@ func backupDatabase(dbPath string) error {
 		return fmt.Errorf("failed to copy database file: %w", err)
 	}
 
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		return err
+	}
+
+	var backups []os.DirEntry
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".bak") {
+			backups = append(backups, entry)
+		}
+	}
+
+	if len(backups) > 10 {
+		sort.Slice(backups, func(i, j int) bool {
+			return backups[i].Name() < backups[j].Name()
+		})
+		for _, old := range backups[:len(backups)-10] {
+			os.Remove(filepath.Join(backupDir, old.Name()))
+		}
+	}
+
 	return nil
 }
 

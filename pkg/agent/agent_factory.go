@@ -151,7 +151,7 @@ func (f *AgentFactory) GetSkillTools(ctx context.Context, name string) ([]string
 	return strings.Fields(skill.Tools), nil
 }
 
-func WithBindData(key string, value string) AgentBindDataProvider {
+func WithBindData(key string, value any) AgentBindDataProvider {
 	return func(m *map[string]any) {
 		(*m)[key] = value
 	}

@@ -48,10 +48,15 @@ func HandleKnowledgeWikiPlanTask(ctx context.Context, idx *codemogger.CodeIndex,
 	systemPrompt := skill.SystemPrompt
 
 	// 3. Build Agent
-	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
-		MaxIterations: 20,
-		SkillName:     "knowledge-base-planner",
-	})
+	ag, err := agentFactory.BuildFromConfig(
+		ctx,
+		&agent.Config{
+			MaxIterations: 20,
+			SkillName:     "knowledge-base-planner",
+		},
+		agent.WithBindData("baseDir", cb.RootPath),
+		agent.WithBindData("store", db.GetStore()),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to build orchestrator agent: %w", err)
 	}
@@ -104,7 +109,8 @@ func HandleKnowledgeWikiBuildTask(ctx context.Context, idx *codemogger.CodeIndex
 			MaxIterations: 20,
 			SkillName:     "knowledge-base-builder",
 		},
-		agent.WithBindData("baseDir", cb.RootPath),
+		agent.WithBindData("index", idx),
+		agent.WithBindData("store", db.GetStore()),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to build analyze agent: %w", err)
