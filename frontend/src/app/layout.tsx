@@ -7,7 +7,7 @@ import { WebSocketProvider } from "./_components/websocket-provider";
 import { Provider } from "jotai";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 const inter = Inter({ subsets: ["latin"] });
 

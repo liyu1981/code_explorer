@@ -15,10 +15,10 @@ export const activeSavedReportsAtom = atomWithStorage<ActiveSavedReport[]>(
 );
 
 export interface ActiveKnowledgePage {
-	slug: string;
-	cbid: string;
-	title: string;
-	codebaseName: string;
+  slug: string;
+  cbid: string;
+  title: string;
+  codebaseName: string;
 }
 
 export const activeKnowledgePagesAtom = atomWithStorage<ActiveKnowledgePage[]>(
