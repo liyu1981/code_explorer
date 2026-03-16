@@ -8,6 +8,8 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
 	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/libsql"
 )
 
 func TestCodeIndex(t *testing.T) {
@@ -47,10 +49,21 @@ func Add(a, b int) int {
 	}
 
 	// Initialize config
-	config.Set(config.DefaultConfig())
+	cfg := config.DefaultConfig()
+	config.Set(cfg)
+
+	// Create db store with migrations
+	if err := db.Migrate(dbPath); err != nil {
+		t.Fatalf("failed to migrate db: %v", err)
+	}
+	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	store := db.NewStore(sqlDB, dbPath)
 
 	// Create index
-	idx, err := NewCodeIndex(dbPath)
+	idx, err := NewCodeIndex(cfg, dbPath, store)
 	if err != nil {
 		t.Fatalf("failed to create index: %v", err)
 	}

@@ -12,7 +12,11 @@ import (
 )
 
 type AgentFactoryInterface interface {
-	BuildFromConfig(ctx context.Context, cfg *Config) (*Agent, error)
+	BuildFromConfig(
+		ctx context.Context,
+		cfg *Config,
+		bindDataProviders ...AgentBindDataProvider,
+	) (*Agent, error)
 	GetSkillPrompt(ctx context.Context, name string) (string, error)
 }
 
@@ -69,9 +73,6 @@ func NewAgentFactoryForTest(store *db.Store, defaultLLM map[string]any) *AgentFa
 
 // BuildTestAgent is a helper for tests to create an agent with mocked dependencies
 func (f *AgentFactory) BuildTestAgent(llm LLM, opts ...AgentOption) *Agent {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
 	// Create a new tool registry for this agent
 	toolRegistry := NewToolRegistry()
 
@@ -79,11 +80,6 @@ func (f *AgentFactory) BuildTestAgent(llm LLM, opts ...AgentOption) *Agent {
 	f.InitTools()
 
 	return newAgent(llm, toolRegistry, opts...)
-}
-
-// registerToolToRegistry registers a tool to the given registry
-func (f *AgentFactory) registerToolToRegistry(registry *ToolRegistry, tool Tool) {
-	registry.Register(tool)
 }
 
 func (f *AgentFactory) InitTools() {
@@ -155,11 +151,18 @@ func (f *AgentFactory) GetSkillTools(ctx context.Context, name string) ([]string
 	return strings.Fields(skill.Tools), nil
 }
 
+func WithBindData(key string, value string) AgentBindDataProvider {
+	return func(m *map[string]any) {
+		(*m)[key] = value
+	}
+}
+
 func (f *AgentFactory) BuildFromConfig(
 	ctx context.Context,
 	cfg *Config,
+	bindDataProviders ...AgentBindDataProvider,
 ) (*Agent, error) {
-	return f.buildFromConfigInternal(ctx, cfg)
+	return f.buildFromConfigInternal(ctx, cfg, bindDataProviders...)
 }
 
 // buildFromConfigInternal is the internal implementation that accepts bind data providers
@@ -223,7 +226,12 @@ func (f *AgentFactory) buildFromConfigInternal(
 	}
 	f.mu.RUnlock()
 
-	agent := newAgent(llm, toolRegistry, WithMaxIterations(cfg.MaxIterations), WithContextLength(contextLength))
+	agent := newAgent(
+		llm,
+		toolRegistry,
+		WithMaxIterations(cfg.MaxIterations),
+		WithContextLength(contextLength),
+	)
 	return agent, nil
 }
 

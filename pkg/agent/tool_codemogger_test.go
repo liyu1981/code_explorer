@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/libsql"
 )
 
 func TestCodemoggerTools(t *testing.T) {
@@ -18,7 +21,17 @@ func TestCodemoggerTools(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	dbPath := filepath.Join(dir, "test.db")
-	idx, err := codemogger.NewCodeIndex(dbPath)
+	cfg := config.DefaultConfig()
+	config.Set(cfg)
+	if err := db.Migrate(dbPath); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("OpenLibsqlDb: %v", err)
+	}
+	store := db.NewStore(sqlDB, dbPath)
+	idx, err := codemogger.NewCodeIndex(cfg, dbPath, store)
 	if err != nil {
 		t.Fatalf("NewCodeIndex: %v", err)
 	}
@@ -27,7 +40,7 @@ func TestCodemoggerTools(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ListFilesTool", func(t *testing.T) {
-		tool := NewListFilesTool()
+		tool := NewCodeMoggerListFilesTool()
 		state := map[string]any{"index": idx}
 		if err := tool.Bind(ctx, &state); err != nil {
 			t.Fatalf("Bind failed: %v", err)
@@ -53,7 +66,7 @@ func TestCodemoggerTools(t *testing.T) {
 	})
 
 	t.Run("SearchTool", func(t *testing.T) {
-		tool := NewSearchTool()
+		tool := NewCodeMoggerSearchTool()
 		state := map[string]any{"index": idx}
 		if err := tool.Bind(ctx, &state); err != nil {
 			t.Fatalf("Bind failed: %v", err)

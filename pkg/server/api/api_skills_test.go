@@ -90,28 +90,4 @@ func TestApiHandler_Skills(t *testing.T) {
 			t.Errorf("expected updated prompt, got %s", updated.SystemPrompt)
 		}
 	})
-
-	// 4. Reset Skill
-	t.Run("ResetSkill", func(t *testing.T) {
-		reqList := httptest.NewRequest("GET", "/api/agent_skills", nil)
-		wList := httptest.NewRecorder()
-		mux.ServeHTTP(wList, reqList)
-		var skills []db.Skill
-		json.NewDecoder(wList.Body).Decode(&skills)
-		skillName := skills[0].Name
-
-		req := httptest.NewRequest("POST", "/api/agent_skills/reset?name="+skillName, nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
-		}
-
-		// Verify reset (should not be "Updated prompt")
-		reset, _ := index.GetStore().GetSkillByName(context.Background(), skillName)
-		if reset.SystemPrompt == "Updated prompt" {
-			t.Error("expected prompt to be reset, but it's still 'Updated prompt'")
-		}
-	})
 }

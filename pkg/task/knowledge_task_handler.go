@@ -98,10 +98,14 @@ func HandleKnowledgeWikiBuildTask(ctx context.Context, idx *codemogger.CodeIndex
 	}
 
 	// 3. Build Agent
-	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
-		MaxIterations: 20,
-		SkillName:     "knowledge-base-builder",
-	})
+	ag, err := agentFactory.BuildFromConfig(
+		ctx,
+		&agent.Config{
+			MaxIterations: 20,
+			SkillName:     "knowledge-base-builder",
+		},
+		agent.WithBindData("baseDir", cb.RootPath),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to build analyze agent: %w", err)
 	}

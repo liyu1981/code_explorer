@@ -12,6 +12,8 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
 	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/libsql"
 )
 
 func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
@@ -21,8 +23,17 @@ func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 	}
 
 	dbPath := filepath.Join(tmpDir, "test.db")
-	config.Set(config.DefaultConfig())
-	idx, err := codemogger.NewCodeIndex(dbPath)
+	cfg := config.DefaultConfig()
+	config.Set(cfg)
+	if err := db.Migrate(dbPath); err != nil {
+		t.Fatalf("Failed to migrate db: %v", err)
+	}
+	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open db: %v", err)
+	}
+	store := db.NewStore(sqlDB, dbPath)
+	idx, err := codemogger.NewCodeIndex(cfg, dbPath, store)
 	if err != nil {
 		t.Fatalf("Failed to create index: %v", err)
 	}

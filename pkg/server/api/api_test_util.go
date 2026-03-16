@@ -24,6 +24,11 @@ func setupTestHandler(t *testing.T) (*ApiHandler, *codemogger.CodeIndex, func())
 	cfg := config.DefaultConfig()
 	config.Set(cfg)
 
+	if err := db.Migrate(dbPath); err != nil {
+		os.RemoveAll(tmpDir)
+		t.Fatal(err)
+	}
+
 	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
 	if err != nil {
 		os.RemoveAll(tmpDir)

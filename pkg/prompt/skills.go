@@ -147,8 +147,7 @@ func SyncBuiltinSkills(ctx context.Context, store *db.Store) error {
 			Tags:         tags,
 			Tools:        tools,
 		}); err != nil {
-			log.Info().Err(err).Str("name", name).Msg("Error: failed to seed skill")
-			fmt.Errorf("Error: failed to seed skill")
+			log.Fatal().Err(err).Str("name", name).Msg("Error: failed to seed skill")
 		}
 		log.Info().Str("name", name).Msg("Seeded built-in skill")
 	}
