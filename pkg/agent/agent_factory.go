@@ -84,7 +84,7 @@ func (f *AgentFactory) BuildTestAgent(llm LLM, opts ...AgentOption) *Agent {
 
 func (f *AgentFactory) InitTools() {
 	f.registerTool(NewListAgentSkillsTool())
-	log.Debug().Msg("Registering tool list_agent_skills")
+	log.Debug().Msg("Registering tool list_agent_prompts")
 	f.registerTool(NewSaveKnowledgeTool())
 	log.Debug().Msg("Registering tool save_knowledge")
 	f.registerTool(NewQueueTaskTool())
@@ -124,7 +124,7 @@ func (f *AgentFactory) GetSkillPrompt(ctx context.Context, name string) (string,
 	if f.store == nil {
 		return "", fmt.Errorf("store not initialized in AgentFactory")
 	}
-	skill, err := f.store.GetSkillByName(ctx, name)
+	skill, err := f.store.GetPromptByName(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +138,7 @@ func (f *AgentFactory) GetSkillTools(ctx context.Context, name string) ([]string
 	if f.store == nil {
 		return nil, fmt.Errorf("store not initialized in AgentFactory")
 	}
-	skill, err := f.store.GetSkillByName(ctx, name)
+	skill, err := f.store.GetPromptByName(ctx, name)
 	if err != nil {
 		return nil, err
 	}

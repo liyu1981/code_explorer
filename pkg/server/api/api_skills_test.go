@@ -18,9 +18,9 @@ func TestApiHandler_Skills(t *testing.T) {
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
-	// 1. List Agent Skills (should have built-ins seeded by NewHandler)
-	t.Run("ListAgentSkills", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/agent_skills", nil)
+	// 1. List Agent Prompts (should have built-ins seeded by NewHandler)
+	t.Run("ListAgentPrompts", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/agent_prompts", nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -28,27 +28,27 @@ func TestApiHandler_Skills(t *testing.T) {
 			t.Errorf("expected status 200, got %d", w.Code)
 		}
 
-		var skills []db.Skill
-		if err := json.NewDecoder(w.Body).Decode(&skills); err != nil {
+		var prompts []db.Prompt
+		if err := json.NewDecoder(w.Body).Decode(&prompts); err != nil {
 			t.Fatal(err)
 		}
 
-		if len(skills) == 0 {
-			t.Error("expected seeded skills, got none")
+		if len(prompts) == 0 {
+			t.Error("expected seeded prompts, got none")
 		}
 	})
 
-	// 2. Get Skill
-	t.Run("GetSkill", func(t *testing.T) {
-		// Get first skill name
-		reqList := httptest.NewRequest("GET", "/api/agent_skills", nil)
+	// 2. Get Prompt
+	t.Run("GetPrompt", func(t *testing.T) {
+		// Get first prompt name
+		reqList := httptest.NewRequest("GET", "/api/agent_prompts", nil)
 		wList := httptest.NewRecorder()
 		mux.ServeHTTP(wList, reqList)
-		var skills []db.Skill
-		json.NewDecoder(wList.Body).Decode(&skills)
-		skillName := skills[0].Name
+		var prompts []db.Prompt
+		json.NewDecoder(wList.Body).Decode(&prompts)
+		promptName := prompts[0].Name
 
-		req := httptest.NewRequest("GET", "/api/agent_skills/get?name="+skillName, nil)
+		req := httptest.NewRequest("GET", "/api/agent_prompts/get?name="+promptName, nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -56,27 +56,27 @@ func TestApiHandler_Skills(t *testing.T) {
 			t.Errorf("expected status 200, got %d", w.Code)
 		}
 
-		var skill db.Skill
-		if err := json.NewDecoder(w.Body).Decode(&skill); err != nil {
+		var prompt db.Prompt
+		if err := json.NewDecoder(w.Body).Decode(&prompt); err != nil {
 			t.Fatal(err)
 		}
-		if skill.Name != skillName {
-			t.Errorf("expected skill name %s, got %s", skillName, skill.Name)
+		if prompt.Name != promptName {
+			t.Errorf("expected prompt name %s, got %s", promptName, prompt.Name)
 		}
 	})
 
-	// 3. Update Skill
-	t.Run("UpdateSkill", func(t *testing.T) {
-		reqList := httptest.NewRequest("GET", "/api/agent_skills", nil)
+	// 3. Update Prompt
+	t.Run("UpdatePrompt", func(t *testing.T) {
+		reqList := httptest.NewRequest("GET", "/api/agent_prompts", nil)
 		wList := httptest.NewRecorder()
 		mux.ServeHTTP(wList, reqList)
-		var skills []db.Skill
-		json.NewDecoder(wList.Body).Decode(&skills)
-		skill := skills[0]
+		var prompts []db.Prompt
+		json.NewDecoder(wList.Body).Decode(&prompts)
+		prompt := prompts[0]
 
-		skill.SystemPrompt = "Updated prompt"
-		body, _ := json.Marshal(skill)
-		req := httptest.NewRequest("PUT", "/api/agent_skills", strings.NewReader(string(body)))
+		prompt.SystemPrompt = "Updated prompt"
+		body, _ := json.Marshal(prompt)
+		req := httptest.NewRequest("PUT", "/api/agent_prompts", strings.NewReader(string(body)))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -85,7 +85,7 @@ func TestApiHandler_Skills(t *testing.T) {
 		}
 
 		// Verify update
-		updated, _ := index.GetStore().GetSkillByName(context.Background(), skill.Name)
+		updated, _ := index.GetStore().GetPromptByName(context.Background(), prompt.Name)
 		if updated.SystemPrompt != "Updated prompt" {
 			t.Errorf("expected updated prompt, got %s", updated.SystemPrompt)
 		}

@@ -49,7 +49,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 	}
 
 	if config.Index != nil {
-		prompt.SyncBuiltinSkills(context.Background(), store)
+		prompt.SyncBuiltinPrompts(context.Background(), store)
 
 		numWorkers := runtime.NumCPU() - 1
 		isDev := false
@@ -134,10 +134,10 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/knowledge/build", h.handleBuildKnowledge)
 
 	// Agent Skills
-	mux.HandleFunc("GET /api/agent_skills", h.handleListSkills)
-	mux.HandleFunc("GET /api/agent_skills/get", h.handleGetSkill)
-	mux.HandleFunc("PUT /api/agent_skills", h.handleUpdateSkill)
-	mux.HandleFunc("DELETE /api/agent_skills", h.handleDeleteSkill)
+	mux.HandleFunc("GET /api/agent_prompts", h.handleListSkills)
+	mux.HandleFunc("GET /api/agent_prompts/get", h.handleGetSkill)
+	mux.HandleFunc("PUT /api/agent_prompts", h.handleUpdateSkill)
+	mux.HandleFunc("DELETE /api/agent_prompts", h.handleDeleteSkill)
 }
 
 // handleHealth returns the health status of the API

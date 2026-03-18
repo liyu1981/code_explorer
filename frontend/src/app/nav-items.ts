@@ -25,9 +25,9 @@ export const navItems: NavItem[] = [
     icon: GitGraph,
   },
   {
-    id: "skills",
-    label: "Agent Skills",
-    path: "/skills",
+    id: "agent_prompts",
+    label: "Agent Prompts",
+    path: "/agent_prompts",
     icon: Bot,
     position: "bottom",
   },

@@ -5,6 +5,7 @@ interface Skill {
   id: string;
   name: string;
   system_prompt: string;
+  user_prompt_tpl: string;
   tags: string;
   tools: string;
   updated_at: string;
@@ -28,7 +29,7 @@ export function SkillList({
     <div className="w-80 border-r border-border/40 bg-muted/5 flex flex-col">
       <div className="p-4 border-b border-border/20 overflow-auto">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 mb-4">
-          Available Skills
+          Available Prompts
         </h3>
         <div className="space-y-1">
           {skills.map((skill) => (

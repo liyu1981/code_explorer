@@ -19,7 +19,7 @@ func NewListAgentSkillsTool() Tool {
 }
 
 func (t *ListAgentSkillsTool) Name() string {
-	return "list_agent_skills"
+	return "list_agent_prompts"
 }
 
 func (t *ListAgentSkillsTool) Description() string {
@@ -43,9 +43,9 @@ func (t *ListAgentSkillsTool) Execute(ctx context.Context, input json.RawMessage
 		return "", fmt.Errorf("store is nil")
 	}
 
-	skills, err := t.store.ListAgentSkills(ctx)
+	skills, err := t.store.ListAgentPrompts(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to list agent skills: %w", err)
+		return "", fmt.Errorf("failed to list agent prompts: %w", err)
 	}
 
 	type SkillInfo struct {

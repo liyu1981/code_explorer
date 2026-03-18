@@ -19,3 +19,4 @@ You can use tool `get_tree` to get the full tree of target codebase.
 You can also read files with tool `read_file`.
 
 You will start with codebase tree structure and readme file content, and only read necessary minimal amount of other files to finish the report.
+%%%%

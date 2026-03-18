@@ -94,13 +94,13 @@ func TestAgentFactory_BuildFromConfig_WithSkillTools(t *testing.T) {
 
 	ctx := context.Background()
 
-	skill := &db.Skill{
-		Name:         "test-skill",
+	prompt := &db.Prompt{
+		Name:         "test-prompt",
 		SystemPrompt: "test prompt",
 		Tools:        "tool1 tool2",
 	}
-	if err := store.CreateSkill(ctx, skill); err != nil {
-		t.Fatalf("create skill: %v", err)
+	if err := store.CreatePrompt(ctx, prompt); err != nil {
+		t.Fatalf("create prompt: %v", err)
 	}
 
 	factory := NewAgentFactoryForTest(store, map[string]any{
@@ -114,7 +114,7 @@ func TestAgentFactory_BuildFromConfig_WithSkillTools(t *testing.T) {
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
 		MaxIterations: 10,
-		SkillName:     "test-skill",
+		SkillName:     "test-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -148,13 +148,13 @@ func TestAgentFactory_BuildFromConfig_SkillWithTools_PreservesToolsOnUpdate(t *t
 
 	ctx := context.Background()
 
-	skill := &db.Skill{
-		Name:         "updatable-skill",
+	prompt := &db.Prompt{
+		Name:         "updatable-prompt",
 		SystemPrompt: "initial prompt",
 		Tools:        "toolA toolB",
 	}
-	if err := store.CreateSkill(ctx, skill); err != nil {
-		t.Fatalf("create skill: %v", err)
+	if err := store.CreatePrompt(ctx, prompt); err != nil {
+		t.Fatalf("create prompt: %v", err)
 	}
 
 	factory := NewAgentFactoryForTest(store, map[string]any{
@@ -169,7 +169,7 @@ func TestAgentFactory_BuildFromConfig_SkillWithTools_PreservesToolsOnUpdate(t *t
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
 		MaxIterations: 10,
-		SkillName:     "updatable-skill",
+		SkillName:     "updatable-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -202,13 +202,13 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 
 	ctx := context.Background()
 
-	skill := &db.Skill{
-		Name:         "empty-tools-skill",
+	prompt := &db.Prompt{
+		Name:         "empty-tools-prompt",
 		SystemPrompt: "test prompt",
 		Tools:        "",
 	}
-	if err := store.CreateSkill(ctx, skill); err != nil {
-		t.Fatalf("create skill: %v", err)
+	if err := store.CreatePrompt(ctx, prompt); err != nil {
+		t.Fatalf("create prompt: %v", err)
 	}
 
 	factory := NewAgentFactoryForTest(store, map[string]any{
@@ -221,7 +221,7 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
 		MaxIterations: 10,
-		SkillName:     "empty-tools-skill",
+		SkillName:     "empty-tools-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

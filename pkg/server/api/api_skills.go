@@ -9,15 +9,15 @@ import (
 )
 
 func (h *ApiHandler) handleListSkills(w http.ResponseWriter, r *http.Request) {
-	skills, err := h.index.GetStore().ListAgentSkills(r.Context())
+	skills, err := h.index.GetStore().ListAgentPrompts(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list skills", err)
+		writeError(w, http.StatusInternalServerError, "failed to list prompts", err)
 		return
 	}
 
-	builtinNames, err := prompt.GetBuiltinSkillNames()
+	builtinNames, err := prompt.GetBuiltinPromptNames()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get builtin skills", err)
+		writeError(w, http.StatusInternalServerError, "failed to get builtin prompts", err)
 		return
 	}
 
@@ -37,19 +37,19 @@ func (h *ApiHandler) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	skill, err := h.index.GetStore().GetSkillByName(r.Context(), name)
+	skill, err := h.index.GetStore().GetPromptByName(r.Context(), name)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get skill", err)
+		writeError(w, http.StatusInternalServerError, "failed to get prompt", err)
 		return
 	}
 	if skill == nil {
-		writeError(w, http.StatusNotFound, "skill not found", nil)
+		writeError(w, http.StatusNotFound, "prompt not found", nil)
 		return
 	}
 
-	builtinNames, err := prompt.GetBuiltinSkillNames()
+	builtinNames, err := prompt.GetBuiltinPromptNames()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get builtin skills", err)
+		writeError(w, http.StatusInternalServerError, "failed to get builtin prompts", err)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *ApiHandler) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ApiHandler) handleUpdateSkill(w http.ResponseWriter, r *http.Request) {
-	var skill db.Skill
+	var skill db.Prompt
 	if err := json.NewDecoder(r.Body).Decode(&skill); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body", err)
 		return
@@ -72,8 +72,8 @@ func (h *ApiHandler) handleUpdateSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.index.GetStore().UpdateSkill(r.Context(), &skill); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update skill", err)
+	if err := h.index.GetStore().UpdatePrompt(r.Context(), &skill); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update prompt", err)
 		return
 	}
 
@@ -87,31 +87,31 @@ func (h *ApiHandler) handleDeleteSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	skill, err := h.index.GetStore().GetSkillByID(r.Context(), id)
+	skill, err := h.index.GetStore().GetPromptByID(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get skill", err)
+		writeError(w, http.StatusInternalServerError, "failed to get prompt", err)
 		return
 	}
 	if skill == nil {
-		writeError(w, http.StatusNotFound, "skill not found", nil)
+		writeError(w, http.StatusNotFound, "prompt not found", nil)
 		return
 	}
 
-	builtinNames, err := prompt.GetBuiltinSkillNames()
+	builtinNames, err := prompt.GetBuiltinPromptNames()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get builtin skills", err)
+		writeError(w, http.StatusInternalServerError, "failed to get builtin prompts", err)
 		return
 	}
 
 	if builtinNames[skill.Name] {
-		writeError(w, http.StatusForbidden, "cannot delete built-in skill", nil)
+		writeError(w, http.StatusForbidden, "cannot delete built-in prompt", nil)
 		return
 	}
 
-	if err := h.index.GetStore().DeleteSkill(r.Context(), id); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to delete skill", err)
+	if err := h.index.GetStore().DeletePrompt(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete prompt", err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "skill deleted"})
+	writeJSON(w, http.StatusOK, map[string]string{"message": "prompt deleted"})
 }

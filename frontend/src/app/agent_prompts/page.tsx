@@ -10,10 +10,11 @@ import { LoadingState } from "../_components/loading-state";
 import { SkillEditor } from "./_components/skill-editor";
 import { SkillList } from "./_components/skill-list";
 
-interface Skill {
+interface Prompt {
   id: string;
   name: string;
   system_prompt: string;
+  user_prompt_tpl: string;
   tags: string;
   tools: string;
   updated_at: string;
@@ -21,9 +22,9 @@ interface Skill {
 }
 
 export default function SkillsSettingsPage() {
-  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skills, setSkills] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<Prompt | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -36,14 +37,14 @@ export default function SkillsSettingsPage() {
 
   const fetchSkills = async () => {
     try {
-      const resp = await api.get("/api/agent_skills");
+      const resp = await api.get("/api/agent_prompts");
       const data = resp.data;
       setSkills(data || []);
       if (data.length > 0 && !selectedSkill) {
         setSelectedSkill(data[0]);
       }
     } catch (e) {
-      console.error("Failed to fetch skills", e);
+      console.error("Failed to fetch prompts", e);
     } finally {
       setLoading(false);
     }
@@ -54,14 +55,14 @@ export default function SkillsSettingsPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const resp = await api.put("/api/agent_skills", selectedSkill);
+      const resp = await api.put("/api/agent_prompts", selectedSkill);
       if (resp.status === 200) {
-        setMessage({ type: "success", text: "Skill updated successfully" });
+        setMessage({ type: "success", text: "Prompt updated successfully" });
         setSkills((current) =>
           current.map((s) => (s.id === selectedSkill.id ? selectedSkill : s)),
         );
       } else {
-        setMessage({ type: "error", text: "Failed to update skill" });
+        setMessage({ type: "error", text: "Failed to update prompt" });
       }
     } catch (e) {
       setMessage({ type: "error", text: "An error occurred while saving" });
@@ -71,17 +72,17 @@ export default function SkillsSettingsPage() {
   };
 
   const handleDelete = async (skillId: string) => {
-    if (!confirm("Are you sure you want to delete this skill?")) return;
+    if (!confirm("Are you sure you want to delete this prompt?")) return;
     try {
-      const resp = await api.delete(`/api/agent_skills?id=${skillId}`);
+      const resp = await api.delete(`/api/agent_prompts?id=${skillId}`);
       if (resp.status === 200) {
         setSkills((current) => current.filter((s) => s.id !== skillId));
         if (selectedSkill?.id === skillId) {
           setSelectedSkill(null);
         }
-        setMessage({ type: "success", text: "Skill deleted successfully" });
+        setMessage({ type: "success", text: "Prompt deleted successfully" });
       } else {
-        setMessage({ type: "error", text: "Failed to delete skill" });
+        setMessage({ type: "error", text: "Failed to delete prompt" });
       }
     } catch (e) {
       setMessage({ type: "error", text: "An error occurred while deleting" });
@@ -96,7 +97,7 @@ export default function SkillsSettingsPage() {
       selectedSkill.tags !== originalSkill.tags ||
       selectedSkill.tools !== originalSkill.tools);
 
-  const handleSkillChange = (updates: Partial<Skill>) => {
+  const handleSkillChange = (updates: Partial<Prompt>) => {
     if (!selectedSkill) return;
     setSelectedSkill({ ...selectedSkill, ...updates });
   };
@@ -123,7 +124,7 @@ export default function SkillsSettingsPage() {
             <div className="flex items-center gap-3">
               <Wand2 className="h-5 w-5 text-primary" />
               <span className="text-xl font-bold tracking-tight text-primary">
-                Agent Skills
+                Agent Prompts
               </span>
             </div>
           </div>
@@ -152,7 +153,7 @@ export default function SkillsSettingsPage() {
           />
         ) : (
           <div className="flex-1 flex items-center justify-center bg-background/50 text-muted-foreground font-medium">
-            Select a skill to edit
+            Select a prompt to edit
           </div>
         )}
       </div>

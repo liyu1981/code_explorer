@@ -5,6 +5,7 @@ interface Skill {
   id: string;
   name: string;
   system_prompt: string;
+  user_prompt_tpl: string;
   tags: string;
   tools: string;
   updated_at: string;
@@ -36,7 +37,7 @@ export function SkillEditor({
               {selectedSkill.name}
             </h2>
             <p className="text-xs text-muted-foreground font-medium">
-              Configure how the agent behaves when using this skill.
+              Configure how the agent behaves when using this prompt.
             </p>
           </div>
           <button
@@ -104,6 +105,18 @@ export function SkillEditor({
               onChange={(e) => onChange({ system_prompt: e.target.value })}
               className="flex-1 w-full bg-card border border-border rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono text-sm resize-none"
               placeholder="System instructions for the agent..."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              User Prompt Template
+            </label>
+            <textarea
+              value={selectedSkill.user_prompt_tpl}
+              onChange={(e) => onChange({ user_prompt_tpl: e.target.value })}
+              className="w-full h-32 bg-card border border-border rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-primary/10 transition-all font-mono text-sm resize-none"
+              placeholder="User prompt template with {placeholders}..."
             />
           </div>
         </div>

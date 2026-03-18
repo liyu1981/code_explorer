@@ -37,7 +37,7 @@ func HandleKnowledgeWikiPlanTask(ctx context.Context, idx *codemogger.CodeIndex,
 	}
 
 	// 1. Get Skill
-	skill, err := idx.GetStore().GetSkillByName(ctx, "knowledge-base-planner")
+	skill, err := idx.GetStore().GetPromptByName(ctx, "knowledge-base-planner")
 	if err != nil {
 		return fmt.Errorf("failed to get skill knowledge-base-planner: %w", err)
 	}
