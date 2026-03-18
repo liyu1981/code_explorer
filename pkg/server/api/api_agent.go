@@ -179,7 +179,10 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Run agent in a goroutine or directly
 	// For streaming, we should run it and let it write to sw
-	_, err = ag.RunLoop(r.Context(), req.Query, turnID, finalSw)
+	_, err = ag.RunLoop(r.Context(), "", req.Query, nil, &agent.StreamUpdate{
+		TurnID: turnID,
+		Stream: finalSw,
+	})
 	if err != nil {
 		// In a stream, we might have already started sending data.
 		// Errors should ideally be sent as events.

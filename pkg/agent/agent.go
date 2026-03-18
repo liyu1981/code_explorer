@@ -170,40 +170,45 @@ func (a *Agent) SetSystemPrompt(prompt string) {
 	}
 }
 
-type AgentPipelineStep struct {
-	SystemPrompt   string
-	UserInput      string
-	ResponseFormat *ResponseFormat
+type StreamUpdate struct {
+	TurnID string
+	Stream protocol.IStreamWriter
 }
 
-func (a *Agent) RunPipeline(ctx context.Context, steps []AgentPipelineStep, turnID string, stream protocol.IStreamWriter) (string, error) {
-	var lastOutput string
-	var err error
-
-	for _, step := range steps {
-		a.SetSystemPrompt(step.SystemPrompt)
-		// Temporarily override response format for this step
-		oldRf := a.responseFormat
-		a.responseFormat = step.ResponseFormat
-		lastOutput, err = a.run(ctx, step.UserInput, turnID, stream, 1)
-		a.responseFormat = oldRf
-		if err != nil {
-			return "", err
-		}
-	}
-	return lastOutput, nil
+func (a *Agent) RunOnce(ctx context.Context, systemPrompt, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate) (string, error) {
+	a.responseFormat = responseFormat
+	a.SetSystemPrompt(systemPrompt)
+	return a.run(ctx, userInput, streamUpdate, 1)
 }
 
-func (a *Agent) RunLoop(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter, maxIterations ...int) (string, error) {
+func (a *Agent) RunLoop(ctx context.Context, systemPrompt, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate, maxIterations ...int) (string, error) {
+	a.responseFormat = responseFormat
+	a.SetSystemPrompt(systemPrompt)
 	iterations := a.maxIterations
 	if len(maxIterations) > 0 {
 		iterations = maxIterations[0]
 	}
-	return a.run(ctx, input, turnID, stream, iterations)
+	return a.run(ctx, userInput, streamUpdate, iterations)
 }
 
-func (a *Agent) run(ctx context.Context, input string, turnID string, stream protocol.IStreamWriter, maxIterations int) (string, error) {
-	log.Info().Str("input", input).Str("turn", turnID).Int("max_iterations", maxIterations).Msg("Agent starting run")
+func (a *Agent) run(
+	ctx context.Context,
+	input string,
+	stream *StreamUpdate,
+	maxIterations int,
+) (string, error) {
+	var turnID string
+	if stream != nil {
+		turnID = stream.TurnID
+	}
+
+	log.Info().
+		Str("input", input).
+		Str("turn", turnID).
+		Int("max_iterations", maxIterations).
+		Bool("stream", stream != nil).
+		Msg("Agent starting run")
+
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
 
 	if turnID != "" {
@@ -218,6 +223,11 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 		// Check context length
 		currentLength := a.MeasureContextLength()
 		if a.contextLength > 0 && currentLength > a.contextLength {
+			log.Error().
+				Int("iteration", i).
+				Int("current_length", currentLength).
+				Int("context_length", a.contextLength).
+				Msg("Context length exceeded")
 			return "", fmt.Errorf("context length exceeded: current %d, limit %d", currentLength, a.contextLength)
 		}
 
@@ -228,17 +238,17 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 		// Use stable step ID for thinking in each turn
 		thinkingStepID := fmt.Sprintf("turn-%s-thinking", turnID)
 		if stream != nil {
-			stream.SendStepUpdate(thinkingStepID, "Thinking and reasoning", protocol.StepActive)
+			stream.Stream.SendStepUpdate(thinkingStepID, "Thinking and reasoning", protocol.StepActive)
 		}
 
 		if stream != nil {
-			response, toolCalls, err = a.llm.GenerateStream(ctx, a.messages, tools, a.responseFormat, stream)
+			response, toolCalls, err = a.llm.GenerateStream(ctx, a.messages, tools, a.responseFormat, stream.Stream)
 		} else {
 			response, toolCalls, err = a.llm.Generate(ctx, a.messages, tools, a.responseFormat)
 		}
 
 		if stream != nil {
-			stream.SendStepUpdate(thinkingStepID, "Thinking and reasoning", protocol.StepCompleted)
+			stream.Stream.SendStepUpdate(thinkingStepID, "Thinking and reasoning", protocol.StepCompleted)
 		}
 
 		if err != nil {
@@ -264,8 +274,8 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 			// but still allow multiple tools to be shown.
 			toolStepID := fmt.Sprintf("turn-%s-tool-%s", turnID, tc.Name)
 			if stream != nil {
-				stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepActive)
-				stream.SendToolCall(tc.Name, tc.Input)
+				stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepActive)
+				stream.Stream.SendToolCall(tc.Name, tc.Input)
 			}
 
 			tool, ok := a.tools.Get(tc.Name)
@@ -277,8 +287,8 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 					ToolCallID: tc.ID,
 				})
 				if stream != nil {
-					stream.SendToolResponse(tc.Name, msg)
-					stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
+					stream.Stream.SendToolResponse(tc.Name, msg)
+					stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
 				}
 				continue
 			}
@@ -291,13 +301,13 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 					ToolCallID: tc.ID,
 				})
 				if stream != nil {
-					stream.SendToolResponse(tc.Name, msg)
-					stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
+					stream.Stream.SendToolResponse(tc.Name, msg)
+					stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
 				}
 				continue
 			}
 
-			output, err := tool.Execute(ctx, tc.Input, stream)
+			output, err := tool.Execute(ctx, tc.Input, stream.Stream)
 			if err != nil {
 				log.Error().Err(err).Str("tool", tc.Name).Msg("Tool execution failed")
 				a.messages = append(a.messages, Message{
@@ -306,7 +316,7 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 					ToolCallID: tc.ID,
 				})
 				if stream != nil {
-					stream.SendToolResponse(tc.Name, err.Error())
+					stream.Stream.SendToolResponse(tc.Name, err.Error())
 				}
 			} else {
 				log.Debug().Str("tool", tc.Name).Str("output", output).Msg("Tool execution successful")
@@ -319,19 +329,20 @@ func (a *Agent) run(ctx context.Context, input string, turnID string, stream pro
 					// Try to parse output as JSON to send structured response
 					var structured any
 					if json.Unmarshal([]byte(output), &structured) == nil {
-						stream.SendToolResponse(tc.Name, structured)
+						stream.Stream.SendToolResponse(tc.Name, structured)
 					} else {
-						stream.SendToolResponse(tc.Name, output)
+						stream.Stream.SendToolResponse(tc.Name, output)
 					}
 				}
 			}
 
 			if stream != nil {
-				stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
+				stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
 			}
 		}
 	}
 
+	log.Error().Int("maxIterations", maxIterations).Msg("Max iterations reached")
 	return "", fmt.Errorf("max iterations (%d) reached", maxIterations)
 }
 

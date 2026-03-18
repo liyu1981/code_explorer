@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 )
 
@@ -69,7 +70,8 @@ func TestTaskStore(t *testing.T) {
 		t.Fatalf("update progress: %v", err)
 	}
 	tasks, _, _ = store.GetTasks(ctx, 1, 0)
-	if tasks[0].Progress != 50 || tasks[0].Message.String != "halfway done" {
+	msg := strings.TrimSuffix(tasks[0].Message.String, "\n")
+	if tasks[0].Progress != 50 || msg != "halfway done" {
 		t.Errorf("expected progress 50 and message, got %d, %s", tasks[0].Progress, tasks[0].Message.String)
 	}
 

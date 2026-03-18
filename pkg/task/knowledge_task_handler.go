@@ -67,7 +67,7 @@ func HandleKnowledgeWikiPlanTask(ctx context.Context, idx *codemogger.CodeIndex,
 	updateProgress(10, "Planner starting analysis...")
 	input := fmt.Sprintf("CodebaseID: %s\n\nAnalyze the codebase at %s and generate wiki building tasks", payload.CodebaseID, cb.RootPath)
 	var finalResult string
-	finalResult, err = ag.RunLoop(ctx, input, task.ID, nil)
+	finalResult, err = ag.RunLoop(ctx, "", input, nil, nil)
 	if err != nil {
 		return fmt.Errorf("orchestrator execution failed: %w", err)
 	}
@@ -124,7 +124,7 @@ func HandleKnowledgeWikiBuildTask(ctx context.Context, idx *codemogger.CodeIndex
 	// 4. Run Agent
 	input := fmt.Sprintf("Codebase ID: %s\n\nBuild the wiki page with topic: \"%s\" in markdown with goal: %s\n", payload.CodebaseID, payload.Topic, payload.Goal)
 
-	output, err := ag.RunLoop(ctx, input, task.ID, nil)
+	output, err := ag.RunLoop(ctx, "", input, nil, nil)
 	if err != nil {
 		return fmt.Errorf("wiki build agent execution failed: %w", err)
 	}

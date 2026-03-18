@@ -145,7 +145,7 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, id string, status TaskStat
 
 func (s *Store) UpdateTaskProgress(ctx context.Context, id string, progress int, message string) error {
 	_, err := s.ExecWrite(ctx, `
-		UPDATE tasks SET progress = ?, message = ? || char(10) || COALESCE(message, ''), updated_at = CURRENT_TIMESTAMP WHERE id = ?
+		UPDATE tasks SET progress = ?, message = COALESCE(message, '') || ? || char(10), updated_at = CURRENT_TIMESTAMP WHERE id = ?
 	`, progress, message, id)
 	return err
 }

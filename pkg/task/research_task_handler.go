@@ -75,11 +75,7 @@ func HandleSummarizeTopicTask(
 
 	userInput := fmt.Sprintf("Generate a concise title (strictly maximum 5 words) for this research.\n\nQuery: %s\n\nPartial Report: %s", firstQuery, firstReport)
 
-	title, err := ag.RunPipeline(ctx, []agent.AgentPipelineStep{
-		{
-			UserInput: userInput,
-		},
-	}, task.ID, nil)
+	title, err := ag.RunOnce(ctx, "", userInput, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to generate title: %w", err)

@@ -51,6 +51,7 @@ func TestGetTreeTool(t *testing.T) {
 
 	// parseTreeLines extracts the entry names (stripping tree connector prefixes)
 	// from a tree-formatted output string.
+	const treePrefixLast3Grams = "── "
 	parseTreeLines := func(res string) []string {
 		var names []string
 		for _, line := range strings.Split(res, "\n") {
@@ -60,11 +61,11 @@ func TestGetTreeTool(t *testing.T) {
 			}
 			// Strip connector prefix: "├── ", "└── ", and any leading "│   " / "    " padding
 			// Find the last occurrence of "── " which marks the start of the name
-			idx := strings.LastIndex(line, "── ")
+			idx := strings.LastIndex(line, treePrefixLast3Grams)
 			if idx == -1 {
 				continue
 			}
-			names = append(names, line[idx+3:])
+			names = append(names, line[idx+len(treePrefixLast3Grams):])
 		}
 		return names
 	}
