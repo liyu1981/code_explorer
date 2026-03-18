@@ -25,7 +25,6 @@ type CodeIndex struct {
 }
 
 func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeIndex, error) {
-	var emb embed.Embedder
 	embCfg := cfg.CodeMogger.Embedder
 
 	// Handle inheritance from System LLM
@@ -42,37 +41,7 @@ func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeInde
 		}
 	}
 
-	switch embCfg.Type {
-	case "openai":
-		model := embCfg.OpenAI.Model
-		if model == "" {
-			model = embCfg.Model
-		}
-		if model == "" {
-			model = "text-embedding-3-small"
-		}
-		emb = embed.NewOpenAIEmbedder(
-			embCfg.OpenAI.APIBase,
-			model,
-			embCfg.OpenAI.APIKey,
-			1536,
-		)
-	default:
-		apiBase := embCfg.OpenAI.APIBase
-		if apiBase == "" {
-			apiBase = "http://localhost:11434/v1"
-		}
-		model := embCfg.Model
-		if model == "" {
-			model = "all-minilm:l6-v2"
-		}
-		emb = embed.NewOpenAIEmbedder(
-			apiBase,
-			model,
-			embCfg.OpenAI.APIKey,
-			384,
-		)
-	}
+	emb := embed.NewEmbedderFromConfig(embCfg)
 
 	return &CodeIndex{
 		store:          store,

@@ -5,38 +5,47 @@ import (
 	"encoding/json"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
+	"github.com/liyu1981/code_explorer/pkg/db"
 )
 
 const MaxContextLength = 100000
 
 type Summarizer struct {
-	llm            agent.LLM
-	responseFormat *agent.ResponseFormat
-	promptBuilder  *PromptBuilder
+	store           *db.Store
+	agentPromptName string
+	responseFormat  *agent.ResponseFormat
 }
 
-func NewSummarizer(llm agent.LLM, promptBuilder *PromptBuilder) (*Summarizer, error) {
+func NewSummarizer(agentPromptName string, store *db.Store) (*Summarizer, error) {
 	rf, err := agent.ResponseFormatFromStruct[FileSummaryResponse]("file_summary")
 	if err != nil {
 		return nil, err
 	}
-
 	return &Summarizer{
-		llm:            llm,
-		responseFormat: rf,
-		promptBuilder:  promptBuilder,
+		store:           store,
+		agentPromptName: agentPromptName,
+		responseFormat:  rf,
 	}, nil
 }
 
-func (s *Summarizer) SummarizeFile(ctx context.Context, language string, content string, definitions []Definition) (*NodeSummary, error) {
-	prompt := s.promptBuilder.BuildFilePrompt(language, content, definitions)
+func (s *Summarizer) SummarizeFile(
+	ctx context.Context,
+	language string,
+	content string,
+	definitions []Definition,
+) (*NodeSummary, error) {
+	af := agent.GetAgentFactory()
 
-	messages := []agent.Message{
-		{Role: "system", Content: s.promptBuilder.SystemPrompt},
-		{Role: "user", Content: prompt},
+	a, err := af.BuildFromConfig(ctx, &agent.Config{
+		AgentPromptName: s.agentPromptName,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	response, _, err := s.llm.Generate(ctx, messages, nil, s.responseFormat)
+	prompt := BuildFileSummerizerPrompt(a.UserPromptTpl, language, content, definitions)
+
+	response, err := a.RunOnce(ctx, prompt, s.responseFormat, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -57,15 +66,22 @@ func (s *Summarizer) SummarizeFile(ctx context.Context, language string, content
 	}, nil
 }
 
-func (s *Summarizer) SummarizeDirectory(ctx context.Context, dirPath string, childrenSummaries []NodeSummary) (*NodeSummary, error) {
-	prompt := s.promptBuilder.BuildDirectoryPrompt(dirPath, childrenSummaries)
-
-	messages := []agent.Message{
-		{Role: "system", Content: s.promptBuilder.SystemPrompt},
-		{Role: "user", Content: prompt},
+func (s *Summarizer) SummarizeDirectory(
+	ctx context.Context,
+	dirPath string,
+	childrenSummaries []NodeSummary,
+) (*NodeSummary, error) {
+	af := agent.GetAgentFactory()
+	a, err := af.BuildFromConfig(ctx, &agent.Config{
+		AgentPromptName: s.agentPromptName,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	response, _, err := s.llm.Generate(ctx, messages, nil, s.responseFormat)
+	prompt := BuildDirectorySummerizerPrompt(a.UserPromptTpl, dirPath, childrenSummaries)
+
+	response, err := a.RunOnce(ctx, prompt, s.responseFormat, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +102,11 @@ func (s *Summarizer) SummarizeDirectory(ctx context.Context, dirPath string, chi
 	}, nil
 }
 
-func (s *Summarizer) SummarizeDirectoryBatch(ctx context.Context, dir string, childrenSummaries []NodeSummary) (NodeSummary, error) {
+func (s *Summarizer) SummarizeDirectoryBatch(
+	ctx context.Context,
+	dir string,
+	childrenSummaries []NodeSummary,
+) (NodeSummary, error) {
 	if totalLength(childrenSummaries) < MaxContextLength {
 		summary, err := s.summarizeDirectorySingle(ctx, dir, childrenSummaries)
 		if err != nil {
@@ -111,7 +131,11 @@ func (s *Summarizer) SummarizeDirectoryBatch(ctx context.Context, dir string, ch
 	return intermediate[0], nil
 }
 
-func (s *Summarizer) summarizeDirectorySingle(ctx context.Context, dir string, childrenSummaries []NodeSummary) (*NodeSummary, error) {
+func (s *Summarizer) summarizeDirectorySingle(
+	ctx context.Context,
+	dir string,
+	childrenSummaries []NodeSummary,
+) (*NodeSummary, error) {
 	return s.SummarizeDirectory(ctx, dir, childrenSummaries)
 }
 

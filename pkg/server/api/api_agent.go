@@ -131,8 +131,8 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	log.Info().Str("query", req.Query).Str("session", req.SessionID).Str("skill", req.SkillName).Msg("Handling agent research request")
 
 	agentCfg := &agent.Config{
-		MaxIterations: 10,
-		SkillName:     req.SkillName,
+		MaxIterations:   10,
+		AgentPromptName: req.SkillName,
 	}
 
 	ag, err := h.agentFactory.BuildFromConfig(r.Context(), agentCfg)
@@ -143,7 +143,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	}
 
 	if req.SkillName != "" {
-		skillPrompt, err := h.agentFactory.GetSkillPrompt(r.Context(), req.SkillName)
+		skillPrompt, err := h.agentFactory.GetAgentPromptSystemPrompt(r.Context(), req.SkillName)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to get skill prompt")
 			writeError(w, http.StatusInternalServerError, "Failed to get skill prompt", err)
@@ -179,7 +179,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Run agent in a goroutine or directly
 	// For streaming, we should run it and let it write to sw
-	_, err = ag.RunLoop(r.Context(), "", req.Query, nil, &agent.StreamUpdate{
+	_, err = ag.RunLoop(r.Context(), req.Query, nil, &agent.StreamUpdate{
 		TurnID: turnID,
 		Stream: finalSw,
 	})

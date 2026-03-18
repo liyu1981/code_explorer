@@ -17,7 +17,7 @@ type AgentFactoryInterface interface {
 		cfg *Config,
 		bindDataProviders ...AgentBindDataProvider,
 	) (*Agent, error)
-	GetSkillPrompt(ctx context.Context, name string) (string, error)
+	GetAgentPromptSystemPrompt(ctx context.Context, name string) (string, error)
 }
 
 var (
@@ -79,7 +79,7 @@ func (f *AgentFactory) BuildTestAgent(llm LLM, opts ...AgentOption) *Agent {
 	// Register core tools
 	f.InitTools()
 
-	return newAgent(llm, toolRegistry, opts...)
+	return newAgent(llm, "", "", toolRegistry, opts...)
 }
 
 func (f *AgentFactory) InitTools() {
@@ -120,35 +120,49 @@ func (f *AgentFactory) ToolRegistry() *ToolRegistry {
 	return f.toolRegistry
 }
 
-func (f *AgentFactory) GetSkillPrompt(ctx context.Context, name string) (string, error) {
+func (f *AgentFactory) GetAgentPromptSystemPrompt(ctx context.Context, name string) (string, error) {
 	if f.store == nil {
 		return "", fmt.Errorf("store not initialized in AgentFactory")
 	}
-	skill, err := f.store.GetPromptByName(ctx, name)
+	p, err := f.store.GetPromptByName(ctx, name)
 	if err != nil {
 		return "", err
 	}
-	if skill == nil {
-		return "", fmt.Errorf("skill %s not found", name)
+	if p == nil {
+		return "", fmt.Errorf("agent prompt %s not found", name)
 	}
-	return skill.SystemPrompt, nil
+	return p.SystemPrompt, nil
 }
 
-func (f *AgentFactory) GetSkillTools(ctx context.Context, name string) ([]string, error) {
+func (f *AgentFactory) GetAgentUserPromptTpl(ctx context.Context, name string) (string, error) {
+	if f.store == nil {
+		return "", fmt.Errorf("store not initialized in AgentFactory")
+	}
+	p, err := f.store.GetPromptByName(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	if p == nil {
+		return "", fmt.Errorf("agent prompt %s not found", name)
+	}
+	return p.UserPromptTpl, nil
+}
+
+func (f *AgentFactory) GetAgentPromptTools(ctx context.Context, name string) ([]string, error) {
 	if f.store == nil {
 		return nil, fmt.Errorf("store not initialized in AgentFactory")
 	}
-	skill, err := f.store.GetPromptByName(ctx, name)
+	p, err := f.store.GetPromptByName(ctx, name)
 	if err != nil {
 		return nil, err
 	}
-	if skill == nil {
-		return nil, fmt.Errorf("skill %s not found", name)
+	if p == nil {
+		return nil, fmt.Errorf("agent prompt %s not found", name)
 	}
-	if skill.Tools == "" {
+	if p.Tools == "" {
 		return nil, nil
 	}
-	return strings.Fields(skill.Tools), nil
+	return strings.Fields(p.Tools), nil
 }
 
 func WithBindData(key string, value any) AgentBindDataProvider {
@@ -158,15 +172,6 @@ func WithBindData(key string, value any) AgentBindDataProvider {
 }
 
 func (f *AgentFactory) BuildFromConfig(
-	ctx context.Context,
-	cfg *Config,
-	bindDataProviders ...AgentBindDataProvider,
-) (*Agent, error) {
-	return f.buildFromConfigInternal(ctx, cfg, bindDataProviders...)
-}
-
-// buildFromConfigInternal is the internal implementation that accepts bind data providers
-func (f *AgentFactory) buildFromConfigInternal(
 	ctx context.Context,
 	cfg *Config,
 	bindDataProviders ...AgentBindDataProvider,
@@ -199,17 +204,26 @@ func (f *AgentFactory) buildFromConfigInternal(
 	}
 	log.Debug().Interface("bindData", bindData).Msg("bind data prepared")
 
-	f.mu.RLock()
-	toolRegistry := NewToolRegistry()
+	systemPrompt, err := f.GetAgentPromptSystemPrompt(ctx, cfg.AgentPromptName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent prompt system prompt: %w", err)
+	}
 
-	if cfg.SkillName != "" && f.store != nil {
-		skillTools, err := f.GetSkillTools(ctx, cfg.SkillName)
+	userPromptTpl, err := f.GetAgentUserPromptTpl(ctx, cfg.AgentPromptName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent prompt user prompt template: %w", err)
+	}
+
+	toolRegistry := NewToolRegistry()
+	f.mu.RLock()
+	if cfg.AgentPromptName != "" && f.store != nil {
+		promptTools, err := f.GetAgentPromptTools(ctx, cfg.AgentPromptName)
 		if err != nil {
 			f.mu.RUnlock()
 			return nil, fmt.Errorf("failed to get skill tools: %w", err)
 		}
-		if len(skillTools) > 0 {
-			for _, toolName := range skillTools {
+		if len(promptTools) > 0 {
+			for _, toolName := range promptTools {
 				tool, ok := f.toolRegistry.Get(toolName)
 				if !ok {
 					f.mu.RUnlock()
@@ -228,6 +242,8 @@ func (f *AgentFactory) buildFromConfigInternal(
 
 	agent := newAgent(
 		llm,
+		systemPrompt,
+		userPromptTpl,
 		toolRegistry,
 		WithMaxIterations(cfg.MaxIterations),
 		WithContextLength(contextLength),

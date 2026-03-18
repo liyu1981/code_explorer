@@ -3,37 +3,48 @@ package codesummer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/util"
 	"github.com/rs/zerolog/log"
 )
 
 type Codesummer struct {
-	db         *db.Store
-	summarizer *Summarizer
-	embedder   *CodesummerEmbedder
-	classifier *Classifier
-	extractor  *Extractor
+	db             *db.Store
+	fileSummarizer *Summarizer
+	dirSummarizer  *Summarizer
+	embedder       embed.Embedder
+	classifier     *Classifier
+	extractor      *Extractor
 }
 
 func NewCodesummer(
 	dbStore *db.Store,
-	summarizer *Summarizer,
-	embedder *CodesummerEmbedder,
-) *Codesummer {
-	return &Codesummer{
-		db:         dbStore,
-		summarizer: summarizer,
-		embedder:   embedder,
-		classifier: NewClassifier(),
-		extractor:  NewExtractor(),
+) (*Codesummer, error) {
+	fileSummerizer, err := NewSummarizer("codesummer-file-summarizer", dbStore)
+	if err != nil {
+		return nil, err
 	}
+	dirSummerizer, err := NewSummarizer("codesummer-directory-summarizer", dbStore)
+	if err != nil {
+		return nil, err
+	}
+	emb := embed.NewEmbedderFromConfig(config.Get().CodeMogger.Embedder)
+	return &Codesummer{
+		db:             dbStore,
+		fileSummarizer: fileSummerizer,
+		dirSummarizer:  dirSummerizer,
+		embedder:       emb,
+		classifier:     NewClassifier(),
+		extractor:      NewExtractor(),
+	}, nil
 }
 
 func Summary(ctx context.Context, dbStore *db.Store, codebaseID string) error {
@@ -45,33 +56,43 @@ func Summary(ctx context.Context, dbStore *db.Store, codebaseID string) error {
 		return nil
 	}
 
-	llm := agent.NewHTTPClientLLM(
-		os.Getenv("LLM_MODEL"),
-		os.Getenv("LLM_BASE_URL"),
-		os.Getenv("LLM_API_KEY"),
-	)
-
-	promptBuilder, err := NewPromptBuilder(ctx, dbStore)
+	cs, err := NewCodesummer(dbStore)
 	if err != nil {
 		return err
 	}
-
-	emb := embed.NewOpenAIEmbedder(
-		os.Getenv("LLM_BASE_URL"),
-		os.Getenv("EMBED_MODEL"),
-		os.Getenv("LLM_API_KEY"),
-		1536,
-	)
-
-	summer, err := NewSummarizer(llm, promptBuilder)
-	if err != nil {
-		return err
-	}
-
-	codesummerEmbedder := NewCodesummerEmbedder(emb)
-
-	cs := NewCodesummer(dbStore, summer, codesummerEmbedder)
 	return cs.processCodebase(ctx, codebase.RootPath, codebase.ID)
+}
+
+func buildLLMFromConfig(cfg map[string]any) (agent.LLM, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("llm config is required")
+	}
+
+	llmType, _ := cfg["type"].(string)
+	switch llmType {
+	case "openai":
+		baseURL, _ := cfg["base_url"].(string)
+		if baseURL == "" {
+			baseURL = "http://localhost:11434/v1"
+		}
+		model, _ := cfg["model"].(string)
+		if model == "" {
+			model = "qwen3.5:4b"
+		}
+		apiKey := os.Getenv("LLM_API_KEY")
+		if ak, ok := cfg["api_key"].(string); ok {
+			apiKey = ak
+		}
+		return agent.NewHTTPClientLLM(model, baseURL, apiKey), nil
+
+	default:
+		if model, ok := cfg["model"].(string); ok && model != "" {
+			baseURL, _ := cfg["base_url"].(string)
+			apiKey, _ := cfg["api_key"].(string)
+			return agent.NewHTTPClientLLM(model, baseURL, apiKey), nil
+		}
+		return nil, fmt.Errorf("unknown llm type: %s", llmType)
+	}
 }
 
 func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codebaseID string) error {
@@ -89,10 +110,50 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 		return err
 	}
 
+	files, dirs, err := c.indexCodebase(ctx, codesummerID, codebase.RootPath)
+	if err != nil {
+		return err
+	}
+
+	allPaths := make([]string, 0, len(files)+len(dirs))
+	for path := range files {
+		allPaths = append(allPaths, path)
+	}
+	for path := range dirs {
+		allPaths = append(allPaths, path)
+	}
+
+	_, err = c.db.CodesummerRemoveStalePaths(ctx, codesummerID, allPaths)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to remove stale paths")
+	}
+
+	summaries, err := c.summarizeFiles(ctx, codesummerID, files)
+	if err != nil {
+		return err
+	}
+
+	if err := c.summarizeDirectories(ctx, codesummerID, dirs, summaries); err != nil {
+		return err
+	}
+
+	if err := c.generateEmbeddings(ctx, codesummerID, summaries); err != nil {
+		return err
+	}
+
+	log.Info().Int("files", len(files)).Int("dirs", len(dirs)).Msg("codesummer summary completed")
+	return nil
+}
+
+func (c *Codesummer) indexCodebase(
+	ctx context.Context,
+	codesummerID string,
+	rootPath string,
+) (map[string]*NodeInfo, map[string]*NodeInfo, error) {
 	files := make(map[string]*NodeInfo)
 	dirs := make(map[string]*NodeInfo)
 
-	walker := util.StartFileWalker(codebase.RootPath, false)
+	walker := util.StartFileWalker(rootPath, false)
 	for f := range walker {
 		nodeType, language, err := c.classifier.Classify(f.Location)
 		if err != nil {
@@ -100,7 +161,7 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 			continue
 		}
 
-		relPath, err := filepath.Rel(codebase.RootPath, f.Location)
+		relPath, err := filepath.Rel(rootPath, f.Location)
 		if err != nil {
 			continue
 		}
@@ -119,7 +180,7 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 			}
 			var relChildren []string
 			for _, child := range children {
-				relChild, err := filepath.Rel(codebase.RootPath, child)
+				relChild, err := filepath.Rel(rootPath, child)
 				if err != nil {
 					continue
 				}
@@ -164,23 +225,18 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 		}
 	}
 
-	allPaths := make([]string, 0, len(files)+len(dirs))
-	for path := range files {
-		allPaths = append(allPaths, path)
-	}
-	for path := range dirs {
-		allPaths = append(allPaths, path)
-	}
+	return files, dirs, nil
+}
 
-	_, err = c.db.CodesummerRemoveStalePaths(ctx, codesummerID, allPaths)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to remove stale paths")
-	}
-
+func (c *Codesummer) summarizeFiles(
+	ctx context.Context,
+	codesummerID string,
+	files map[string]*NodeInfo,
+) (map[string]*NodeSummary, error) {
 	summaries := make(map[string]*NodeSummary)
 
 	for path, file := range files {
-		summary, err := c.summarizer.SummarizeFile(ctx, file.Language, file.Content, file.Definitions)
+		summary, err := c.fileSummarizer.SummarizeFile(ctx, file.Language, file.Content, file.Definitions)
 		if err != nil {
 			log.Error().Err(err).Str("path", path).Msg("failed to summarize file")
 			continue
@@ -211,6 +267,15 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 		}
 	}
 
+	return summaries, nil
+}
+
+func (c *Codesummer) summarizeDirectories(
+	ctx context.Context,
+	codesummerID string,
+	dirs map[string]*NodeInfo,
+	summaries map[string]*NodeSummary,
+) error {
 	dirPaths := make([]string, 0, len(dirs))
 	for path := range dirs {
 		dirPaths = append(dirPaths, path)
@@ -226,7 +291,7 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 			}
 		}
 
-		summary, err := c.summarizer.SummarizeDirectoryBatch(ctx, dirPath, childrenSummaries)
+		summary, err := c.dirSummarizer.SummarizeDirectoryBatch(ctx, dirPath, childrenSummaries)
 		if err != nil {
 			log.Error().Err(err).Str("path", dirPath).Msg("failed to summarize directory")
 			continue
@@ -256,6 +321,14 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 		}
 	}
 
+	return nil
+}
+
+func (c *Codesummer) generateEmbeddings(
+	ctx context.Context,
+	codesummerID string,
+	summaries map[string]*NodeSummary,
+) error {
 	var embeddingsToGenerate []struct {
 		NodePath string
 		Text     string
@@ -271,38 +344,41 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 		}{path, textToEmbed})
 	}
 
-	if len(embeddingsToGenerate) > 0 {
-		texts := make([]string, len(embeddingsToGenerate))
-		for i, e := range embeddingsToGenerate {
-			texts[i] = e.Text
-		}
-
-		embeddings, err := c.embedder.EmbedText(texts)
-		if err != nil {
-			log.Error().Err(err).Msg("failed to generate embeddings")
-		} else {
-			var embeddingItems []struct {
-				CodesummerID string
-				NodePath     string
-				Embedding    []float32
-				ModelName    string
-			}
-			for i, e := range embeddingsToGenerate {
-				embeddingItems = append(embeddingItems, struct {
-					CodesummerID string
-					NodePath     string
-					Embedding    []float32
-					ModelName    string
-				}{codesummerID, e.NodePath, embeddings[i], c.embedder.Model()})
-			}
-			err = c.db.CodesummerUpsertEmbeddings(ctx, embeddingItems)
-			if err != nil {
-				log.Error().Err(err).Msg("failed to upsert embeddings")
-			}
-		}
+	if len(embeddingsToGenerate) == 0 {
+		return nil
 	}
 
-	log.Info().Int("files", len(files)).Int("dirs", len(dirs)).Msg("codesummer summary completed")
+	texts := make([]string, len(embeddingsToGenerate))
+	for i, e := range embeddingsToGenerate {
+		texts[i] = e.Text
+	}
+
+	embeddings, err := c.embedder.Embed(texts)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to generate embeddings")
+		return err
+	}
+
+	var embeddingItems []struct {
+		CodesummerID string
+		NodePath     string
+		Embedding    []float32
+		ModelName    string
+	}
+	for i, e := range embeddingsToGenerate {
+		embeddingItems = append(embeddingItems, struct {
+			CodesummerID string
+			NodePath     string
+			Embedding    []float32
+			ModelName    string
+		}{codesummerID, e.NodePath, embeddings[i], c.embedder.Model()})
+	}
+	err = c.db.CodesummerUpsertEmbeddings(ctx, embeddingItems)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to upsert embeddings")
+		return err
+	}
+
 	return nil
 }
 

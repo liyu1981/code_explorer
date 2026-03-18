@@ -110,7 +110,7 @@ func TestAgentContextLimit(t *testing.T) {
 	factory := NewAgentFactoryForTest(nil, nil)
 	ag := factory.BuildTestAgent(mockLLM, WithContextLength(limit))
 
-	_, err := ag.RunLoop(context.Background(), "", "This input is definitely longer than 10 characters", nil, nil)
+	_, err := ag.RunLoop(context.Background(), "This input is definitely longer than 10 characters", nil, nil)
 	if err == nil {
 		t.Fatal("expected error due to context limit, but got nil")
 	}

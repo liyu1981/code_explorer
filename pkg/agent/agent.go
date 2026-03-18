@@ -86,6 +86,8 @@ type LLM interface {
 type Agent struct {
 	llm            LLM
 	tools          *ToolRegistry
+	SystemPrompt   string
+	UserPromptTpl  string
 	messages       []Message
 	maxIterations  int
 	contextLength  int
@@ -118,10 +120,12 @@ func WithResponseFormat(rf *ResponseFormat) AgentOption {
 	}
 }
 
-func newAgent(llm LLM, tools *ToolRegistry, opts ...AgentOption) *Agent {
+func newAgent(llm LLM, systemPrompt string, userPromptTpl string, tools *ToolRegistry, opts ...AgentOption) *Agent {
 	a := &Agent{
 		llm:           llm,
 		tools:         tools,
+		SystemPrompt:  systemPrompt,
+		UserPromptTpl: userPromptTpl,
 		messages:      make([]Message, 0),
 		maxIterations: 10,
 		contextLength: 262144, // Default to 256k
@@ -175,15 +179,13 @@ type StreamUpdate struct {
 	Stream protocol.IStreamWriter
 }
 
-func (a *Agent) RunOnce(ctx context.Context, systemPrompt, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate) (string, error) {
+func (a *Agent) RunOnce(ctx context.Context, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate) (string, error) {
 	a.responseFormat = responseFormat
-	a.SetSystemPrompt(systemPrompt)
 	return a.run(ctx, userInput, streamUpdate, 1)
 }
 
-func (a *Agent) RunLoop(ctx context.Context, systemPrompt, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate, maxIterations ...int) (string, error) {
+func (a *Agent) RunLoop(ctx context.Context, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate, maxIterations ...int) (string, error) {
 	a.responseFormat = responseFormat
-	a.SetSystemPrompt(systemPrompt)
 	iterations := a.maxIterations
 	if len(maxIterations) > 0 {
 		iterations = maxIterations[0]

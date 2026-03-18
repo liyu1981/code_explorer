@@ -54,7 +54,7 @@ func TestAgentFactory_Tools(t *testing.T) {
 func TestAgentFactory_GetSkillPrompt_StoreNil(t *testing.T) {
 	factory := NewAgentFactoryForTest(nil, nil)
 
-	_, err := factory.GetSkillPrompt(context.Background(), "test-skill")
+	_, err := factory.GetAgentPromptSystemPrompt(context.Background(), "test-skill")
 	if err == nil {
 		t.Error("expected error when store is nil")
 	}
@@ -63,21 +63,36 @@ func TestAgentFactory_GetSkillPrompt_StoreNil(t *testing.T) {
 func TestAgentFactory_GetSkillTools_StoreNil(t *testing.T) {
 	factory := NewAgentFactoryForTest(nil, nil)
 
-	_, err := factory.GetSkillTools(context.Background(), "test-skill")
+	_, err := factory.GetAgentPromptTools(context.Background(), "test-skill")
 	if err == nil {
 		t.Error("expected error when store is nil")
 	}
 }
 
 func TestAgentFactory_BuildFromConfig_LLMNil(t *testing.T) {
-	factory := NewAgentFactoryForTest(nil, map[string]any{
+	store, cleanup := db.SetupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	prompt := &db.Prompt{
+		Name:          "test-prompt",
+		SystemPrompt:  "test prompt",
+		UserPromptTpl: "test user prompt",
+	}
+	if err := store.CreatePrompt(ctx, prompt); err != nil {
+		t.Fatalf("create prompt: %v", err)
+	}
+
+	factory := NewAgentFactoryForTest(store, map[string]any{
 		"type":      "mock",
 		"model":     "test-model",
 		"responses": []any{"response 1"},
 	})
 
 	agent, err := factory.BuildFromConfig(context.Background(), &Config{
-		MaxIterations: 10,
+		MaxIterations:   10,
+		AgentPromptName: "test-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -113,8 +128,8 @@ func TestAgentFactory_BuildFromConfig_WithSkillTools(t *testing.T) {
 	factory.registerTool(&testMockTool{name: "tool2"})
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
-		MaxIterations: 10,
-		SkillName:     "test-prompt",
+		MaxIterations:   10,
+		AgentPromptName: "test-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -168,8 +183,8 @@ func TestAgentFactory_BuildFromConfig_SkillWithTools_PreservesToolsOnUpdate(t *t
 	factory.registerTool(&testMockTool{name: "toolC"})
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
-		MaxIterations: 10,
-		SkillName:     "updatable-prompt",
+		MaxIterations:   10,
+		AgentPromptName: "updatable-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -220,8 +235,8 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 	factory.registerTool(&testMockTool{name: "tool1"})
 
 	agent, err := factory.BuildFromConfig(ctx, &Config{
-		MaxIterations: 10,
-		SkillName:     "empty-tools-prompt",
+		MaxIterations:   10,
+		AgentPromptName: "empty-tools-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -233,15 +248,30 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 }
 
 func TestAgentFactory_BuildFromConfig_ContextLength(t *testing.T) {
-	factory := NewAgentFactoryForTest(nil, map[string]any{
+	store, cleanup := db.SetupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	prompt := &db.Prompt{
+		Name:          "test-prompt",
+		SystemPrompt:  "test prompt",
+		UserPromptTpl: "test user prompt",
+	}
+	if err := store.CreatePrompt(ctx, prompt); err != nil {
+		t.Fatalf("create prompt: %v", err)
+	}
+
+	factory := NewAgentFactoryForTest(store, map[string]any{
 		"type":      "mock",
 		"model":     "test-model",
 		"responses": []any{"response 1"},
 	})
 
 	agent, err := factory.BuildFromConfig(context.Background(), &Config{
-		MaxIterations: 10,
-		ContextLength: 100000,
+		MaxIterations:   10,
+		ContextLength:   100000,
+		AgentPromptName: "test-prompt",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

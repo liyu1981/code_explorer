@@ -66,8 +66,8 @@ func HandleSummarizeTopicTask(
 
 	// Build Agent using the skill
 	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
-		MaxIterations: 1,
-		SkillName:     "concise-topic-summarizer",
+		MaxIterations:   1,
+		AgentPromptName: "concise-topic-summarizer",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to build agent: %w", err)
@@ -75,7 +75,7 @@ func HandleSummarizeTopicTask(
 
 	userInput := fmt.Sprintf("Generate a concise title (strictly maximum 5 words) for this research.\n\nQuery: %s\n\nPartial Report: %s", firstQuery, firstReport)
 
-	title, err := ag.RunOnce(ctx, "", userInput, nil, nil)
+	title, err := ag.RunOnce(ctx, userInput, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to generate title: %w", err)

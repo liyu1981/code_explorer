@@ -6,11 +6,11 @@ import (
 )
 
 type Config struct {
-	LLM           map[string]any `json:"llm"`
-	Tools         []string       `json:"tools"`
-	MaxIterations int            `json:"max_iterations"`
-	ContextLength int            `json:"context_length"`
-	SkillName     string         `json:"skill_name"`
+	LLM             map[string]any `json:"llm"`
+	Tools           []string       `json:"tools"`
+	MaxIterations   int            `json:"max_iterations"`
+	ContextLength   int            `json:"context_length"`
+	AgentPromptName string         `json:"agent_prompt_name"`
 }
 
 func LoadConfigFromFile(path string) (*Config, error) {

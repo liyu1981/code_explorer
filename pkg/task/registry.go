@@ -18,14 +18,6 @@ func RegisterQueueHandlers(
 		return index.HandleIndexTask(ctx, task, updateProgress)
 	})
 
-	m.RegisterHandler("knowledge-wiki-plan", func(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
-		return HandleKnowledgeWikiPlanTask(ctx, index, taskItem, m, agentFactory, updateProgress)
-	})
-
-	m.RegisterHandler("knownledge-wiki-build", func(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
-		return HandleKnowledgeWikiBuildTask(ctx, index, taskItem, agentFactory, updateProgress)
-	})
-
 	m.RegisterHandler("summarize-topic", func(ctx context.Context, taskItem *db.Task, updateProgress func(progress int, message string)) error {
 		return HandleSummarizeTopicTask(ctx, index, taskItem, agentFactory, updateProgress, func(sessionId string, title string) {
 			publishFn("research", map[string]any{
