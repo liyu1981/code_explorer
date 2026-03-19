@@ -3,12 +3,9 @@ package codesummer
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
@@ -60,51 +57,10 @@ func Summary(ctx context.Context, dbStore *db.Store, codebaseID string) error {
 	if err != nil {
 		return err
 	}
-	return cs.processCodebase(ctx, codebase.RootPath, codebase.ID)
+	return cs.processCodebase(ctx, codebase)
 }
 
-func buildLLMFromConfig(cfg map[string]any) (agent.LLM, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("llm config is required")
-	}
-
-	llmType, _ := cfg["type"].(string)
-	switch llmType {
-	case "openai":
-		baseURL, _ := cfg["base_url"].(string)
-		if baseURL == "" {
-			baseURL = "http://localhost:11434/v1"
-		}
-		model, _ := cfg["model"].(string)
-		if model == "" {
-			model = "qwen3.5:4b"
-		}
-		apiKey := os.Getenv("LLM_API_KEY")
-		if ak, ok := cfg["api_key"].(string); ok {
-			apiKey = ak
-		}
-		return agent.NewHTTPClientLLM(model, baseURL, apiKey), nil
-
-	default:
-		if model, ok := cfg["model"].(string); ok && model != "" {
-			baseURL, _ := cfg["base_url"].(string)
-			apiKey, _ := cfg["api_key"].(string)
-			return agent.NewHTTPClientLLM(model, baseURL, apiKey), nil
-		}
-		return nil, fmt.Errorf("unknown llm type: %s", llmType)
-	}
-}
-
-func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codebaseID string) error {
-	codebase, err := c.db.GetCodebaseByID(ctx, codebaseID)
-	if err != nil {
-		return err
-	}
-	if codebase == nil {
-		log.Error().Str("codebaseID", codebaseID).Msg("codebase not found")
-		return nil
-	}
-
+func (c *Codesummer) processCodebase(ctx context.Context, codebase *db.Codebase) error {
 	codesummerID, err := c.db.CodesummerGetOrCreateCodebase(ctx, codebase.ID)
 	if err != nil {
 		return err
@@ -127,6 +83,8 @@ func (c *Codesummer) processCodebase(ctx context.Context, rootPath string, codeb
 	if err != nil {
 		log.Error().Err(err).Msg("failed to remove stale paths")
 	}
+
+	log.Debug().Int("files", len(files)).Int("dirs", len(dirs)).Msg("codesummer scanning completed")
 
 	summaries, err := c.summarizeFiles(ctx, codesummerID, files)
 	if err != nil {
@@ -236,6 +194,7 @@ func (c *Codesummer) summarizeFiles(
 	summaries := make(map[string]*NodeSummary)
 
 	for path, file := range files {
+		log.Debug().Interface("file", file).Msg("started summarizing file")
 		summary, err := c.fileSummarizer.SummarizeFile(ctx, file.Language, file.Content, file.Definitions)
 		if err != nil {
 			log.Error().Err(err).Str("path", path).Msg("failed to summarize file")
@@ -265,6 +224,7 @@ func (c *Codesummer) summarizeFiles(
 		if err != nil {
 			log.Error().Err(err).Str("path", path).Msg("failed to upsert summary")
 		}
+		log.Debug().Str("path", file.Path).Interface("summary", summary).Msg("finished summarizing file")
 	}
 
 	return summaries, nil
@@ -290,6 +250,8 @@ func (c *Codesummer) summarizeDirectories(
 				childrenSummaries = append(childrenSummaries, *childSummary)
 			}
 		}
+
+		log.Debug().Interface("dir", dir).Msg("started summarizing directory")
 
 		summary, err := c.dirSummarizer.SummarizeDirectoryBatch(ctx, dirPath, childrenSummaries)
 		if err != nil {
@@ -319,6 +281,8 @@ func (c *Codesummer) summarizeDirectories(
 		if err != nil {
 			log.Error().Err(err).Str("path", dirPath).Msg("failed to upsert summary")
 		}
+
+		log.Debug().Str("dir_path", dir.Path).Interface("summary", summary).Msg("finished summarizing directory")
 	}
 
 	return nil
@@ -329,6 +293,7 @@ func (c *Codesummer) generateEmbeddings(
 	codesummerID string,
 	summaries map[string]*NodeSummary,
 ) error {
+	log.Debug().Int("summaries_count", len(summaries)).Msg("started generating embeddings")
 	var embeddingsToGenerate []struct {
 		NodePath string
 		Text     string
@@ -378,6 +343,8 @@ func (c *Codesummer) generateEmbeddings(
 		log.Error().Err(err).Msg("failed to upsert embeddings")
 		return err
 	}
+
+	log.Debug().Msg("finished generating embeddings")
 
 	return nil
 }

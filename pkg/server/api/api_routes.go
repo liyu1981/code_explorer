@@ -125,13 +125,8 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/saved_reports", h.handleSaveSavedReport)
 	mux.HandleFunc("DELETE /api/saved_reports/{id}", h.handleDeleteSavedReport)
 
-	// Knowledge Base
-	mux.HandleFunc("GET /api/knowledge", h.handleListKnowledgePages)
-	mux.HandleFunc("GET /api/knowledge/get", h.handleGetKnowledgePage)
-	mux.HandleFunc("POST /api/knowledge", h.handleCreateKnowledgePage)
-	mux.HandleFunc("PUT /api/knowledge", h.handleUpdateKnowledgePage)
-	mux.HandleFunc("DELETE /api/knowledge", h.handleDeleteKnowledgePage)
-	mux.HandleFunc("POST /api/knowledge/build", h.handleBuildKnowledge)
+	// Code Summer
+	mux.HandleFunc("POST /api/codesummer/{id}", h.handleCreateCodesummer)
 
 	// Agent Skills
 	mux.HandleFunc("GET /api/agent_prompts", h.handleListSkills)
@@ -169,4 +164,25 @@ func writeError(w http.ResponseWriter, status int, message string, err error) {
 		details = err.Error()
 	}
 	writeJSON(w, status, map[string]any{"error": message, "details": details})
+}
+
+func (h *ApiHandler) handleCreateCodesummer(w http.ResponseWriter, r *http.Request) {
+	codebaseID := r.PathValue("id")
+	if codebaseID == "" {
+		writeError(w, http.StatusBadRequest, "codebase id is required", nil)
+		return
+	}
+
+	taskID, err := h.taskManager.Submit(r.Context(), "codesummer", map[string]string{
+		"codebaseId": codebaseID,
+	}, 3)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to submit codesummer task", err)
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status": "codesummer_queued",
+		"taskId": taskID,
+	})
 }
