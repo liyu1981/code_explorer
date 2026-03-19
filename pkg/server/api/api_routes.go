@@ -127,6 +127,7 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Code Summer
 	mux.HandleFunc("POST /api/codesummer/{id}", h.handleCreateCodesummer)
+	mux.HandleFunc("GET /api/codesummer/summaries", h.handleListCodesummerSummaries)
 
 	// Agent Skills
 	mux.HandleFunc("GET /api/agent_prompts", h.handleListSkills)

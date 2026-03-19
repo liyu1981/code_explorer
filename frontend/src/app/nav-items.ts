@@ -5,6 +5,7 @@ import {
   Bookmark,
   Activity,
   Bot,
+  Sun,
 } from "lucide-react";
 
 export const navTitle = "Code Explorer";
@@ -23,6 +24,12 @@ export const navItems: NavItem[] = [
     label: "Codebases",
     path: "/codebase",
     icon: GitGraph,
+  },
+  {
+    id: "codesummer",
+    label: "Code Summer",
+    path: "/codesummer",
+    icon: Sun,
   },
   {
     id: "agent_prompts",
