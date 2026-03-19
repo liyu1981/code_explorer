@@ -179,12 +179,23 @@ type StreamUpdate struct {
 	Stream protocol.IStreamWriter
 }
 
-func (a *Agent) RunOnce(ctx context.Context, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate) (string, error) {
+func (a *Agent) RunOnce(
+	ctx context.Context,
+	userInput string,
+	responseFormat *ResponseFormat,
+	streamUpdate *StreamUpdate,
+) (string, error) {
 	a.responseFormat = responseFormat
 	return a.run(ctx, userInput, streamUpdate, 1)
 }
 
-func (a *Agent) RunLoop(ctx context.Context, userInput string, responseFormat *ResponseFormat, streamUpdate *StreamUpdate, maxIterations ...int) (string, error) {
+func (a *Agent) RunLoop(
+	ctx context.Context,
+	userInput string,
+	responseFormat *ResponseFormat,
+	streamUpdate *StreamUpdate,
+	maxIterations ...int,
+) (string, error) {
 	a.responseFormat = responseFormat
 	iterations := a.maxIterations
 	if len(maxIterations) > 0 {
@@ -218,6 +229,7 @@ func (a *Agent) run(
 	}
 
 	tools := a.tools.MarshalToolsForLLM()
+	log.Debug().Interface("tools", tools).Msg("Agent Found Tools")
 
 	for i := 0; i < maxIterations; i++ {
 		log.Debug().Int("iteration", i).Msg("Agent iteration start")
@@ -309,7 +321,12 @@ func (a *Agent) run(
 				continue
 			}
 
-			output, err := tool.Execute(ctx, tc.Input, stream.Stream)
+			log.Debug().Interface("tool", tool).Interface("tc.Input", tc.Input).Msg("try exec tool")
+			var tcStream protocol.IStreamWriter
+			if stream != nil {
+				tcStream = stream.Stream
+			}
+			output, err := tool.Execute(ctx, tc.Input, tcStream)
 			if err != nil {
 				log.Error().Err(err).Str("tool", tc.Name).Msg("Tool execution failed")
 				a.messages = append(a.messages, Message{
