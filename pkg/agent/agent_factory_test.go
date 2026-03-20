@@ -90,7 +90,7 @@ func TestAgentFactory_BuildFromConfig_LLMNil(t *testing.T) {
 		"responses": []any{"response 1"},
 	})
 
-	agent, err := factory.BuildFromConfig(context.Background(), &Config{
+	agent, err := factory.BuildFromConfig(context.Background(), &AgentConfig{
 		MaxIterations:   10,
 		AgentPromptName: "test-prompt",
 	})
@@ -127,7 +127,7 @@ func TestAgentFactory_BuildFromConfig_WithSkillTools(t *testing.T) {
 	factory.registerTool(&testMockTool{name: "tool1"})
 	factory.registerTool(&testMockTool{name: "tool2"})
 
-	agent, err := factory.BuildFromConfig(ctx, &Config{
+	agent, err := factory.BuildFromConfig(ctx, &AgentConfig{
 		MaxIterations:   10,
 		AgentPromptName: "test-prompt",
 	})
@@ -182,7 +182,7 @@ func TestAgentFactory_BuildFromConfig_SkillWithTools_PreservesToolsOnUpdate(t *t
 	factory.registerTool(&testMockTool{name: "toolB"})
 	factory.registerTool(&testMockTool{name: "toolC"})
 
-	agent, err := factory.BuildFromConfig(ctx, &Config{
+	agent, err := factory.BuildFromConfig(ctx, &AgentConfig{
 		MaxIterations:   10,
 		AgentPromptName: "updatable-prompt",
 	})
@@ -234,7 +234,7 @@ func TestAgentFactory_BuildFromConfig_SkillWithEmptyTools(t *testing.T) {
 
 	factory.registerTool(&testMockTool{name: "tool1"})
 
-	agent, err := factory.BuildFromConfig(ctx, &Config{
+	agent, err := factory.BuildFromConfig(ctx, &AgentConfig{
 		MaxIterations:   10,
 		AgentPromptName: "empty-tools-prompt",
 	})
@@ -268,7 +268,7 @@ func TestAgentFactory_BuildFromConfig_ContextLength(t *testing.T) {
 		"responses": []any{"response 1"},
 	})
 
-	agent, err := factory.BuildFromConfig(context.Background(), &Config{
+	agent, err := factory.BuildFromConfig(context.Background(), &AgentConfig{
 		MaxIterations:   10,
 		ContextLength:   100000,
 		AgentPromptName: "test-prompt",

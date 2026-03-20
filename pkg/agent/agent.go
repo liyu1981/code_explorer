@@ -92,6 +92,7 @@ type Agent struct {
 	maxIterations  int
 	contextLength  int
 	responseFormat *ResponseFormat
+	nothink        bool
 }
 
 type AgentOption func(*Agent)
@@ -117,6 +118,12 @@ func WithMessages(msgs []Message) AgentOption {
 func WithResponseFormat(rf *ResponseFormat) AgentOption {
 	return func(a *Agent) {
 		a.responseFormat = rf
+	}
+}
+
+func WithNoThink(noThink bool) AgentOption {
+	return func(a *Agent) {
+		a.nothink = noThink
 	}
 }
 

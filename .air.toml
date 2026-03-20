@@ -5,7 +5,7 @@ include_ext = ["go", "html", "js", "sql", "md", "json"]
 include_dir = ["pkg", "cmd", "configs", "."]
 exclude_dir = ["frontend", "tmp", ".git", "node_modules"]
 send_interrupt = true
-kill_delay = "500ms"
+rerun_delay = 1000000
 
 [run]
 cmd = "APP_ENV=development ./tmp/ce"

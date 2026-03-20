@@ -65,7 +65,7 @@ func HandleSummarizeTopicTask(
 	updateProgress(40, "Generating summary...")
 
 	// Build Agent using the skill
-	ag, err := agentFactory.BuildFromConfig(ctx, &agent.Config{
+	ag, err := agentFactory.BuildFromConfig(ctx, &agent.AgentConfig{
 		MaxIterations:   1,
 		AgentPromptName: "concise-topic-summarizer",
 	})

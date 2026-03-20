@@ -1,14 +1,15 @@
-package codemogger
+package task
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
+	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
 )
 
-func (c *CodeIndex) HandleIndexTask(ctx context.Context, task *db.Task, updateProgress func(progress int, message string)) error {
+func HandleCodeMoggerIndexTask(ctx context.Context, c *codemogger.CodeIndex, task *db.Task, updateProgress func(progress int, message string)) error {
 	var payload struct {
 		Dir   string   `json:"dir"`
 		Langs []string `json:"langs"`
@@ -17,7 +18,7 @@ func (c *CodeIndex) HandleIndexTask(ctx context.Context, task *db.Task, updatePr
 		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	opts := &IndexOptions{
+	opts := &codemogger.IndexOptions{
 		Languages: payload.Langs,
 		Progress: func(current, total int, stage string) {
 			progress := 0

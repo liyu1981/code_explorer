@@ -19,7 +19,7 @@ func RegisterQueueHandlers(
 		task *db.Task,
 		updateProgress func(progress int, message string),
 	) error {
-		return index.HandleIndexTask(ctx, task, updateProgress)
+		return HandleCodeMoggerIndexTask(ctx, index, task, updateProgress)
 	})
 
 	m.RegisterHandler("summarize-topic", func(

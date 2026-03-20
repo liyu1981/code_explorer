@@ -27,9 +27,7 @@ type CodeIndex struct {
 func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeIndex, error) {
 	embCfg := cfg.CodeMogger.Embedder
 
-	// Handle inheritance from System LLM
 	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
-		// Do not inherit 'model' for embedder as it's usually different from LLM model
 		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
 			embCfg.Type = t
 		}
@@ -38,6 +36,9 @@ func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeInde
 		}
 		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
 			embCfg.OpenAI.APIKey = key
+		}
+		if model, ok := cfg.System.LLM["model"].(string); ok && model != "" {
+			embCfg.OpenAI.Model = model
 		}
 	}
 
@@ -411,9 +412,7 @@ func (c *CodeIndex) ReloadConfig() error {
 	var emb embed.Embedder
 	embCfg := cfg.CodeMogger.Embedder
 
-	// Handle inheritance from System LLM
 	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
-		// Do not inherit 'model' for embedder as it's usually different from LLM model
 		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
 			embCfg.Type = t
 		}
@@ -422,6 +421,9 @@ func (c *CodeIndex) ReloadConfig() error {
 		}
 		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
 			embCfg.OpenAI.APIKey = key
+		}
+		if model, ok := cfg.System.LLM["model"].(string); ok && model != "" {
+			embCfg.OpenAI.Model = model
 		}
 	}
 

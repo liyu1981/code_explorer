@@ -11,10 +11,19 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type AgentConfig struct {
+	LLM             map[string]any `json:"llm"`
+	Tools           []string       `json:"tools"`
+	MaxIterations   int            `json:"max_iterations"`
+	ContextLength   int            `json:"context_length"`
+	AgentPromptName string         `json:"agent_prompt_name"`
+	NoThink         bool           `json:"no_think"`
+}
+
 type AgentFactoryInterface interface {
 	BuildFromConfig(
 		ctx context.Context,
-		cfg *Config,
+		cfg *AgentConfig,
 		bindDataProviders ...AgentBindDataProvider,
 	) (*Agent, error)
 	GetAgentPromptSystemPrompt(ctx context.Context, name string) (string, error)
@@ -173,12 +182,15 @@ func WithBindData(key string, value any) AgentBindDataProvider {
 
 func (f *AgentFactory) BuildFromConfig(
 	ctx context.Context,
-	cfg *Config,
+	cfg *AgentConfig,
 	bindDataProviders ...AgentBindDataProvider,
 ) (*Agent, error) {
 	llmCfg := cfg.LLM
 	if llmCfg == nil {
 		llmCfg = f.defaultLLM
+	}
+	if cfg.NoThink {
+		llmCfg["no_think"] = true
 	}
 
 	llm, err := f.buildLLM(llmCfg)
@@ -257,6 +269,7 @@ func (f *AgentFactory) buildLLM(cfg map[string]any) (LLM, error) {
 	}
 
 	llmType, _ := cfg["type"].(string)
+	var llm LLM
 	switch llmType {
 	case "openai":
 		baseURL, _ := cfg["base_url"].(string)
@@ -271,7 +284,11 @@ func (f *AgentFactory) buildLLM(cfg map[string]any) (LLM, error) {
 		if ak, ok := cfg["api_key"].(string); ok {
 			apiKey = ak
 		}
-		return NewHTTPClientLLM(model, baseURL, apiKey), nil
+		httpLLMClient := NewHTTPClientLLM(model, baseURL, apiKey)
+		if cfg["no_think"].(bool) {
+			httpLLMClient.SetNoThink(true)
+		}
+		llm = httpLLMClient
 
 	case "mock":
 		model, _ := cfg["model"].(string)
@@ -280,7 +297,7 @@ func (f *AgentFactory) buildLLM(cfg map[string]any) (LLM, error) {
 		for i, r := range responses {
 			respStrs[i], _ = r.(string)
 		}
-		return NewMockLLM(model, respStrs, nil), nil
+		llm = NewMockLLM(model, respStrs, nil)
 
 	default:
 		// Fallback for when type is not specified but it looks like an OpenAI-compatible config
@@ -291,4 +308,6 @@ func (f *AgentFactory) buildLLM(cfg map[string]any) (LLM, error) {
 		}
 		return nil, fmt.Errorf("unknown llm type: %s", llmType)
 	}
+
+	return llm, nil
 }

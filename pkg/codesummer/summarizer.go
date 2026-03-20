@@ -36,7 +36,7 @@ func (s *Summarizer) SummarizeFile(
 ) (*NodeSummary, error) {
 	af := agent.GetAgentFactory()
 
-	a, err := af.BuildFromConfig(ctx, &agent.Config{
+	a, err := af.BuildFromConfig(ctx, &agent.AgentConfig{
 		AgentPromptName: s.agentPromptName,
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *Summarizer) SummarizeDirectory(
 	childrenSummaries []NodeSummary,
 ) (*NodeSummary, error) {
 	af := agent.GetAgentFactory()
-	a, err := af.BuildFromConfig(ctx, &agent.Config{
+	a, err := af.BuildFromConfig(ctx, &agent.AgentConfig{
 		AgentPromptName: s.agentPromptName,
 	})
 	if err != nil {
