@@ -140,6 +140,7 @@ func newAgent(llm LLM, systemPrompt string, userPromptTpl string, tools *ToolReg
 	for _, opt := range opts {
 		opt(a)
 	}
+	log.Debug().Interface("agent", a).Msg("new agent")
 	return a
 }
 
@@ -228,6 +229,8 @@ func (a *Agent) run(
 		Int("max_iterations", maxIterations).
 		Bool("stream", stream != nil).
 		Msg("Agent starting run")
+
+	a.SetSystemPrompt(a.SystemPrompt)
 
 	a.messages = append(a.messages, Message{Role: "user", Content: input})
 

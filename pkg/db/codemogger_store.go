@@ -418,3 +418,46 @@ func (s *Store) CodemoggerGetMetadataByCodebase(ctx context.Context, codebaseID 
 	}
 	return &m, nil
 }
+
+func (s *Store) CodemoggerDeleteCodebase(ctx context.Context, codebaseID string) error {
+	return s.Transaction(ctx, func(tx *sql.Tx) error {
+		var metadataID string
+		err := tx.QueryRowContext(ctx,
+			"SELECT id FROM codemogger_codebases WHERE codebase_id = ?",
+			codebaseID,
+		).Scan(&metadataID)
+
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.ExecContext(ctx,
+			"DELETE FROM codemogger_chunks WHERE codebase_id = ?",
+			metadataID,
+		)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.ExecContext(ctx,
+			"DELETE FROM codemogger_indexed_files WHERE codebase_id = ?",
+			metadataID,
+		)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.ExecContext(ctx,
+			"DELETE FROM codemogger_codebases WHERE codebase_id = ?",
+			codebaseID,
+		)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}

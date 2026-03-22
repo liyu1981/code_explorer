@@ -81,7 +81,7 @@ func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stre
 
 func TestAgentIntegration(t *testing.T) {
 	baseURL := "http://localhost:20003/v1"
-	model := "qwen3.5:4b"
+	model := "unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
 
 	registry := NewToolRegistry()
 	registry.Register(&echoTool{})

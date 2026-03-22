@@ -96,6 +96,7 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/codebases", h.handleListSystemCodebases)
 	mux.HandleFunc("GET /api/codemogger/codebases", h.handleListCodebases)
 	mux.HandleFunc("GET /api/codemogger/status", h.handleGetCodemoggerStatus)
+	mux.HandleFunc("DELETE /api/codemogger/codebases", h.handleDeleteCodemoggerCodebase)
 
 	// Files
 	mux.HandleFunc("GET /api/codemogger/files", h.handleListFiles)
