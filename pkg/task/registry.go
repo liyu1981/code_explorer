@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 
-	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
 )
@@ -11,7 +10,6 @@ import (
 func RegisterQueueHandlers(
 	m *Manager,
 	index *codemogger.CodeIndex,
-	agentFactory agent.AgentFactoryInterface,
 	publishFn func(topic string, payload any),
 ) {
 	m.RegisterHandler("codemogger-index", func(
@@ -28,7 +26,7 @@ func RegisterQueueHandlers(
 		updateProgress func(progress int, message string),
 	) error {
 		return HandleSummarizeTopicTask(
-			ctx, index, taskItem, agentFactory, updateProgress,
+			ctx, index, taskItem, updateProgress,
 			func(sessionId string, title string) {
 				publishFn("research", map[string]any{
 					"type":      "research.session.updated",

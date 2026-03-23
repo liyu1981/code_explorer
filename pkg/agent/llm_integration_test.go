@@ -9,11 +9,9 @@ import (
 )
 
 func TestLLMIntegration(t *testing.T) {
-	baseURL := "http://localhost:20003/v1"
-	model := "unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
-	apiKey := ""
+	baseURL, model, apiKey := GetIntegrationTestParams()
 
-	llm := NewHTTPClientLLM(model, baseURL, apiKey)
+	llm := newHTTPClientLLM(model, baseURL, apiKey)
 
 	t.Run("Simple Text Generation", func(t *testing.T) {
 		messages := []Message{
@@ -111,11 +109,9 @@ func TestLLMIntegration(t *testing.T) {
 }
 
 func TestLLMNoThinkIntegration(t *testing.T) {
-	baseURL := "http://localhost:20003/v1"
-	model := "unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
-	apiKey := ""
+	baseURL, model, apiKey := GetIntegrationTestParams()
 
-	llmNoThink := NewHTTPClientLLM(model, baseURL, apiKey)
+	llmNoThink := newHTTPClientLLM(model, baseURL, apiKey)
 	llmNoThink.SetNoThink(true)
 
 	messages := []Message{

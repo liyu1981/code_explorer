@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/liyu1981/code_explorer/pkg/util"
 	"github.com/rs/zerolog/log"
@@ -187,17 +189,7 @@ type StreamUpdate struct {
 	Stream protocol.IStreamWriter
 }
 
-func (a *Agent) RunOnce(
-	ctx context.Context,
-	userInput string,
-	responseFormat *ResponseFormat,
-	streamUpdate *StreamUpdate,
-) (string, error) {
-	a.responseFormat = responseFormat
-	return a.run(ctx, userInput, streamUpdate, 1)
-}
-
-func (a *Agent) RunLoop(
+func (a *Agent) Run(
 	ctx context.Context,
 	userInput string,
 	responseFormat *ResponseFormat,
@@ -377,4 +369,156 @@ func (a *Agent) run(
 
 func (a *Agent) Messages() []Message {
 	return a.messages
+}
+
+type AgentBindDataProvider func(m *map[string]any)
+
+func WithBindData(key string, value any) AgentBindDataProvider {
+	return func(m *map[string]any) {
+		(*m)[key] = value
+	}
+}
+
+type AgentConfig struct {
+	LLM             map[string]any `json:"llm"`
+	Tools           []string       `json:"tools"`
+	MaxIterations   int            `json:"max_iterations"`
+	ContextLength   int            `json:"context_length"`
+	AgentPromptName string         `json:"agent_prompt_name"`
+	NoThink         bool           `json:"no_think"`
+}
+
+func GetAgentPromptSystemPrompt(ctx context.Context, name string) (string, error) {
+	store := db.GetStore()
+	if store == nil {
+		return "", fmt.Errorf("store not initialized before calling GetAgentPromptSystemPrompt")
+	}
+
+	p, err := store.GetPromptByName(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	if p == nil {
+		return "", fmt.Errorf("agent prompt %s not found", name)
+	}
+
+	return p.SystemPrompt, nil
+}
+
+func GetAgentUserPromptTpl(ctx context.Context, name string) (string, error) {
+	store := db.GetStore()
+	if store == nil {
+		return "", fmt.Errorf("store not initialized before calling GetAgentUserPromptTpl")
+	}
+
+	p, err := store.GetPromptByName(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	if p == nil {
+		return "", fmt.Errorf("agent prompt %s not found", name)
+	}
+
+	return p.UserPromptTpl, nil
+}
+
+func GetAgentPromptTools(ctx context.Context, name string) ([]string, error) {
+	store := db.GetStore()
+	if store == nil {
+		return nil, fmt.Errorf("store not initialized before calling GetAgentPromptTools")
+	}
+
+	p, err := store.GetPromptByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return nil, fmt.Errorf("agent prompt %s not found", name)
+	}
+	if p.Tools == "" {
+		return nil, nil
+	}
+
+	return strings.Fields(p.Tools), nil
+}
+
+func NewAgentFromConfig(
+	ctx context.Context,
+	cfg *AgentConfig,
+	bindDataProviders ...AgentBindDataProvider,
+) (*Agent, error) {
+	llmCfg := cfg.LLM
+	if llmCfg == nil {
+		log.Error().Msg("LLM config is nil")
+		return nil, fmt.Errorf("llm config is nil")
+	}
+
+	if cfg.NoThink {
+		llmCfg["no_think"] = true
+	}
+
+	llm, err := BuildLLM(llmCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build LLM: %w", err)
+	}
+
+	contextLength := cfg.ContextLength
+	if contextLength <= 0 {
+		if cl, ok := llmCfg["context_length"].(int); ok {
+			contextLength = cl
+		} else if cl, ok := llmCfg["context_length"].(float64); ok {
+			contextLength = int(cl)
+		} else {
+			contextLength = 262144
+		}
+	}
+
+	bindData := &map[string]any{}
+	for _, bindDataProvider := range bindDataProviders {
+		bindDataProvider(bindData)
+	}
+	log.Debug().Interface("bindData", bindData).Msg("bind data prepared")
+
+	systemPrompt, err := GetAgentPromptSystemPrompt(ctx, cfg.AgentPromptName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent prompt system prompt: %w", err)
+	}
+
+	userPromptTpl, err := GetAgentUserPromptTpl(ctx, cfg.AgentPromptName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent prompt user prompt template: %w", err)
+	}
+
+	toolRegistry := NewToolRegistry()
+	globalRegistry := GetGlobalToolRegistry()
+
+	if cfg.AgentPromptName != "" {
+		promptTools, err := GetAgentPromptTools(ctx, cfg.AgentPromptName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get skill tools: %w", err)
+		}
+		if len(promptTools) > 0 {
+			for _, toolName := range promptTools {
+				tool, ok := globalRegistry.Get(toolName)
+				if !ok {
+					return nil, fmt.Errorf("tool %s not found in registry", toolName)
+				}
+				boundTool := tool.Clone()
+				if err := boundTool.Bind(ctx, bindData); err != nil {
+					return nil, fmt.Errorf("failed to bind tool %s: %w", toolName, err)
+				}
+				toolRegistry.Register(boundTool)
+			}
+		}
+	}
+
+	agent := newAgent(
+		llm,
+		systemPrompt,
+		userPromptTpl,
+		toolRegistry,
+		WithMaxIterations(cfg.MaxIterations),
+		WithContextLength(contextLength),
+	)
+	return agent, nil
 }

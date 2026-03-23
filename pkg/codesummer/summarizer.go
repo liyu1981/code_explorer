@@ -34,9 +34,8 @@ func (s *Summarizer) SummarizeFile(
 	content string,
 	definitions []Definition,
 ) (*NodeSummary, error) {
-	af := agent.GetAgentFactory()
 
-	a, err := af.BuildFromConfig(ctx, &agent.AgentConfig{
+	a, err := agent.NewAgentFromConfig(ctx, &agent.AgentConfig{
 		AgentPromptName: s.agentPromptName,
 	})
 	if err != nil {
@@ -45,7 +44,7 @@ func (s *Summarizer) SummarizeFile(
 
 	prompt := BuildFileSummerizerPrompt(a.UserPromptTpl, language, content, definitions)
 
-	response, err := a.RunOnce(ctx, prompt, s.responseFormat, nil)
+	response, err := a.Run(ctx, prompt, s.responseFormat, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +70,7 @@ func (s *Summarizer) SummarizeDirectory(
 	dirPath string,
 	childrenSummaries []NodeSummary,
 ) (*NodeSummary, error) {
-	af := agent.GetAgentFactory()
-	a, err := af.BuildFromConfig(ctx, &agent.AgentConfig{
+	a, err := agent.NewAgentFromConfig(ctx, &agent.AgentConfig{
 		AgentPromptName: s.agentPromptName,
 	})
 	if err != nil {
@@ -81,7 +79,7 @@ func (s *Summarizer) SummarizeDirectory(
 
 	prompt := BuildDirectorySummerizerPrompt(a.UserPromptTpl, dirPath, childrenSummaries)
 
-	response, err := a.RunOnce(ctx, prompt, s.responseFormat, nil)
+	response, err := a.Run(ctx, prompt, s.responseFormat, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -70,10 +70,8 @@ func main() {
 	}
 	defer idx.Close()
 
-	// init agent factory
-	if err := agent.InitAgentFactory(store, getSystemLLMConfig()); err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize agent factory")
-	}
+	// init global agent tool registry
+	agent.GetGlobalToolRegistry()
 
 	// init httpSrv
 	port := os.Getenv("PORT")

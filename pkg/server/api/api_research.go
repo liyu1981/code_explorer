@@ -135,7 +135,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		NoThink:         true,
 	}
 
-	ag, err := h.agentFactory.BuildFromConfig(
+	ag, err := agent.NewAgentFromConfig(
 		r.Context(),
 		agentCfg,
 		agent.WithBindData("index", h.index),
@@ -173,7 +173,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Run agent in a goroutine or directly
 	// For streaming, we should run it and let it write to sw
-	_, err = ag.RunLoop(r.Context(), req.Query, nil, &agent.StreamUpdate{
+	_, err = ag.Run(r.Context(), req.Query, nil, &agent.StreamUpdate{
 		TurnID: turnID,
 		Stream: finalSw,
 	})

@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
@@ -18,10 +17,9 @@ import (
 
 // ApiHandler represents the API handler
 type ApiHandler struct {
-	index        *codemogger.CodeIndex
-	hub          *WsHub
-	agentFactory *agent.AgentFactory
-	taskManager  *task.Manager
+	index       *codemogger.CodeIndex
+	hub         *WsHub
+	taskManager *task.Manager
 }
 
 // ApiConfig holds the API handler configuration
@@ -36,16 +34,9 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		store = config.Index.GetStore()
 	}
 
-	if err := agent.InitAgentFactory(store, GetSystemLLMConfig()); err != nil {
-		panic("failed to initialize agent factory: " + err.Error())
-	}
-
-	factory := agent.GetAgentFactory()
-
 	h := &ApiHandler{
-		index:        config.Index,
-		hub:          NewWsHub(),
-		agentFactory: factory,
+		index: config.Index,
+		hub:   NewWsHub(),
 	}
 
 	if config.Index != nil {
@@ -63,7 +54,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		}
 
 		h.taskManager = task.NewManager(store, numWorkers, h.Publish)
-		task.RegisterQueueHandlers(h.taskManager, config.Index, factory, h.Publish)
+		task.RegisterQueueHandlers(h.taskManager, config.Index, h.Publish)
 
 		h.taskManager.StartWorkers(context.Background(), isDev)
 	}

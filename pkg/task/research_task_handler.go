@@ -16,7 +16,6 @@ func HandleSummarizeTopicTask(
 	ctx context.Context,
 	idx *codemogger.CodeIndex,
 	task *db.Task,
-	agentFactory agent.AgentFactoryInterface,
 	updateProgress func(progress int, message string),
 	notifyUpdated func(sessionId string, title string),
 ) error {
@@ -65,7 +64,7 @@ func HandleSummarizeTopicTask(
 	updateProgress(40, "Generating summary...")
 
 	// Build Agent using the skill
-	ag, err := agentFactory.BuildFromConfig(ctx, &agent.AgentConfig{
+	ag, err := agent.NewAgentFromConfig(ctx, &agent.AgentConfig{
 		MaxIterations:   1,
 		AgentPromptName: "concise-topic-summarizer",
 	})
@@ -75,7 +74,7 @@ func HandleSummarizeTopicTask(
 
 	userInput := fmt.Sprintf("Generate a concise title (strictly maximum 5 words) for this research.\n\nQuery: %s\n\nPartial Report: %s", firstQuery, firstReport)
 
-	title, err := ag.RunOnce(ctx, userInput, nil, nil)
+	title, err := ag.Run(ctx, userInput, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to generate title: %w", err)

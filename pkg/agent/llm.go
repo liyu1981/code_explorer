@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
@@ -21,7 +22,7 @@ type HTTPClientLLM struct {
 	httpClient *http.Client
 }
 
-func NewHTTPClientLLM(model, baseURL, apiKey string) *HTTPClientLLM {
+func newHTTPClientLLM(model, baseURL, apiKey string) *HTTPClientLLM {
 	return &HTTPClientLLM{
 		model:      model,
 		baseURL:    baseURL,
@@ -245,4 +246,53 @@ func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, 
 	}
 
 	return fullContent, toolCalls, nil
+}
+
+func BuildLLM(cfg map[string]any) (LLM, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("llm config is required")
+	}
+
+	llmType, _ := cfg["type"].(string)
+	var llm LLM
+	switch llmType {
+	case "openai":
+		baseURL, _ := cfg["base_url"].(string)
+		if baseURL == "" {
+			baseURL = "http://localhost:11434/v1"
+		}
+		model, _ := cfg["model"].(string)
+		if model == "" {
+			model = "qwen3.5:4b"
+		}
+		apiKey := os.Getenv("LLM_API_KEY")
+		if ak, ok := cfg["api_key"].(string); ok {
+			apiKey = ak
+		}
+		httpLLMClient := newHTTPClientLLM(model, baseURL, apiKey)
+		if cfg["no_think"].(bool) {
+			httpLLMClient.SetNoThink(true)
+		}
+		llm = httpLLMClient
+
+	case "mock":
+		model, _ := cfg["model"].(string)
+		responses, _ := cfg["responses"].([]any)
+		respStrs := make([]string, len(responses))
+		for i, r := range responses {
+			respStrs[i], _ = r.(string)
+		}
+		llm = NewMockLLM(model, respStrs, nil)
+
+	default:
+		// Fallback for when type is not specified but it looks like an OpenAI-compatible config
+		if model, ok := cfg["model"].(string); ok && model != "" {
+			baseURL, _ := cfg["base_url"].(string)
+			apiKey, _ := cfg["api_key"].(string)
+			return newHTTPClientLLM(model, baseURL, apiKey), nil
+		}
+		return nil, fmt.Errorf("unknown llm type: %s", llmType)
+	}
+
+	return llm, nil
 }

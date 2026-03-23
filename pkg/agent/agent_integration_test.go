@@ -80,21 +80,22 @@ func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stre
 }
 
 func TestAgentIntegration(t *testing.T) {
-	baseURL := "http://localhost:20003/v1"
-	model := "unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
+	baseURL, model, _ := GetIntegrationTestParams()
+
+	InitGlobalToolRegistry()
 
 	registry := NewToolRegistry()
 	registry.Register(&echoTool{})
 	registry.Register(&calculateTool{})
 
-	llm := NewHTTPClientLLM(model, baseURL, "")
+	llm := newHTTPClientLLM(model, baseURL, "")
 	agentInstance := newAgent(llm, "", "", registry, WithMaxIterations(5))
 
 	ctx := context.Background()
 
 	t.Run("Basic Echo", func(t *testing.T) {
 		prompt := "Please echo the message 'Hello Integration Test' using the echo tool."
-		result, err := agentInstance.RunLoop(ctx, prompt, nil, nil, 5)
+		result, err := agentInstance.Run(ctx, prompt, nil, nil)
 		if err != nil {
 			t.Fatalf("Agent run failed: %v", err)
 		}
@@ -103,7 +104,7 @@ func TestAgentIntegration(t *testing.T) {
 
 	t.Run("Multi-step Calculation", func(t *testing.T) {
 		prompt := "Calculate (12 + 34) * 2 using the calculate tool."
-		result, err := agentInstance.RunLoop(ctx, prompt, nil, nil, 5)
+		result, err := agentInstance.Run(ctx, prompt, nil, nil)
 		if err != nil {
 			t.Fatalf("Agent run failed: %v", err)
 		}
