@@ -28,3 +28,6 @@ func (w *mockStreamWriter) SendSourceAdded(source protocol.SourceMaterial) error
 func (w *mockStreamWriter) SendResourceMaterial(resource protocol.SourceMaterial) error { return nil }
 func (w *mockStreamWriter) SendToolCall(tool string, params any) error                  { return nil }
 func (w *mockStreamWriter) SendToolResponse(tool string, response any) error            { return nil }
+func (w *mockStreamWriter) SendTryRunStart(turnID string, try int64) error              { return nil }
+func (w *mockStreamWriter) SendTryRunEnd(turnID string, try int64) error                { return nil }
+func (w *mockStreamWriter) SendTryRunFailed(turnID string, try int64) error             { return nil }

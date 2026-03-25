@@ -20,6 +20,9 @@ type IStreamWriter interface {
 	SendResourceMaterial(resource SourceMaterial) error
 	SendToolCall(tool string, params any) error
 	SendToolResponse(tool string, response any) error
+	SendTryRunStart(turnID string, try int64) error
+	SendTryRunEnd(turnID string, try int64) error
+	SendTryRunFailed(turnID string, try int64) error
 }
 
 // StreamWriter handles writing the research stream to an io.Writer.
@@ -157,5 +160,29 @@ func (s *StreamWriter) SendToolResponse(tool string, response any) error {
 		Object:   "tool.call.response",
 		Tool:     tool,
 		Response: response,
+	})
+}
+
+func (s *StreamWriter) SendTryRunStart(turnID string, tryID int64) error {
+	return s.WriteCEEvent(CEEvent{
+		Object: "llm.try.run.start",
+		ID:     turnID,
+		TryID:  tryID,
+	})
+}
+
+func (s *StreamWriter) SendTryRunEnd(turnID string, tryID int64) error {
+	return s.WriteCEEvent(CEEvent{
+		Object: "llm.try.run.end",
+		ID:     turnID,
+		TryID:  tryID,
+	})
+}
+
+func (s *StreamWriter) SendTryRunFailed(turnID string, tryID int64) error {
+	return s.WriteCEEvent(CEEvent{
+		Object: "llm.try.run.failed",
+		ID:     turnID,
+		TryID:  tryID,
 	})
 }

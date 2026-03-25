@@ -92,6 +92,7 @@ type Agent struct {
 	UserPromptTpl  string
 	messages       []Message
 	maxIterations  int
+	maxRetry       int
 	contextLength  int
 	responseFormat *ResponseFormat
 	nothink        bool
@@ -102,6 +103,12 @@ type AgentOption func(*Agent)
 func WithMaxIterations(n int) AgentOption {
 	return func(a *Agent) {
 		a.maxIterations = n
+	}
+}
+
+func WithMaxRetry(n int) AgentOption {
+	return func(a *Agent) {
+		a.maxRetry = n
 	}
 }
 
@@ -136,7 +143,8 @@ func newAgent(llm LLM, systemPrompt string, userPromptTpl string, tools *ToolReg
 		SystemPrompt:  systemPrompt,
 		UserPromptTpl: userPromptTpl,
 		messages:      make([]Message, 0),
-		maxIterations: 10,
+		maxIterations: 5,      // Default to 5 iterations
+		maxRetry:      3,      // Default to 3 retries
 		contextLength: 262144, // Default to 256k
 	}
 	for _, opt := range opts {
@@ -173,7 +181,7 @@ func (a *Agent) MeasureContextLength() int {
 	return total
 }
 
-func (a *Agent) SetSystemPrompt(prompt string) {
+func (a *Agent) ensureSystemPrompt(prompt string) {
 	// If the first message is a system prompt, update it
 	if len(a.messages) > 0 && a.messages[0].Role == "system" {
 		a.messages[0].Content = prompt
@@ -219,12 +227,13 @@ func (a *Agent) run(
 		Str("input", input).
 		Str("turn", turnID).
 		Int("max_iterations", maxIterations).
+		Int("max_retry", a.maxRetry).
 		Bool("stream", stream != nil).
 		Msg("Agent starting run")
 
-	a.SetSystemPrompt(a.SystemPrompt)
+	a.ensureSystemPrompt(strings.TrimSpace(a.SystemPrompt))
 
-	a.messages = append(a.messages, Message{Role: "user", Content: input})
+	a.messages = append(a.messages, Message{Role: "user", Content: strings.TrimSpace(input)})
 
 	if turnID != "" {
 		ctx = util.WithInitiatorID(ctx, turnID)
@@ -247,9 +256,37 @@ func (a *Agent) run(
 			return "", fmt.Errorf("context length exceeded: current %d, limit %d", currentLength, a.contextLength)
 		}
 
+		result, stop, err := a.tryRun(ctx, turnID, tools, stream)
+		if err != nil {
+			log.Error().Err(err).Msg("Agent run failed")
+			return "", err
+		}
+
+		if stop {
+			log.Debug().Str("result", result).Msg("Agent iteration stop")
+			return result, nil
+		}
+	}
+
+	log.Error().Int("maxIterations", maxIterations).Msg("Max iterations reached")
+	return "", fmt.Errorf("max iterations (%d) reached", maxIterations)
+}
+
+func (a *Agent) tryRun(
+	ctx context.Context,
+	turnID string,
+	tools []map[string]any,
+	stream *StreamUpdate,
+) (string, bool, error) {
+
+	for i := 0; i < a.maxRetry; i++ {
 		var response string
 		var toolCalls []ToolCall
 		var err error
+
+		if stream != nil {
+			stream.Stream.SendTryRunStart(turnID, int64(i))
+		}
 
 		// Use stable step ID for thinking in each turn
 		thinkingStepID := fmt.Sprintf("turn-%s-thinking", turnID)
@@ -268,8 +305,18 @@ func (a *Agent) run(
 		}
 
 		if err != nil {
-			log.Error().Err(err).Int("iteration", i).Msg("LLM generation failed")
-			return "", fmt.Errorf("llm generation failed: %w", err)
+			log.Error().Err(err).Int("i", i).Msg("try LLM generation failed")
+			return "", true, fmt.Errorf("llm generation failed: %w", err)
+		}
+
+		var invalidType int
+		if invalidType, err = a.validateLLMResponse(response, toolCalls); err != nil {
+			log.Error().Int("try", i).Int("invalid_type", invalidType).Err(err).Msg("Invalid LLM response, will retry")
+			a.tryEnforceLLMResponse(invalidType)
+			if stream != nil {
+				stream.Stream.SendTryRunFailed(turnID, int64(i))
+			}
+			continue
 		}
 
 		log.Debug().Int("tool_calls", len(toolCalls)).Msg("LLM response received")
@@ -281,90 +328,142 @@ func (a *Agent) run(
 
 		if len(toolCalls) == 0 {
 			log.Info().Msg("Agent finished without tool calls")
-			return response, nil
+			if stream != nil {
+				stream.Stream.SendTryRunEnd(turnID, int64(i))
+			}
+			return response, true, nil
 		}
 
 		for _, tc := range toolCalls {
-			log.Info().Str("tool", tc.Name).RawJSON("input", tc.Input).Msg("Executing tool")
-			// Use tool name as part of the ID to keep tool execution steps somewhat stable,
-			// but still allow multiple tools to be shown.
-			toolStepID := fmt.Sprintf("turn-%s-tool-%s", turnID, tc.Name)
-			if stream != nil {
-				stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepActive)
-				stream.Stream.SendToolCall(tc.Name, tc.Input)
-			}
+			a.executeTool(ctx, tc, turnID, stream)
+		}
+		if stream != nil {
+			stream.Stream.SendTryRunEnd(turnID, int64(i))
+		}
+		return response, false, nil
+	}
 
-			tool, ok := a.tools.Get(tc.Name)
-			if !ok {
-				msg := fmt.Sprintf("Error: tool %s not found", tc.Name)
-				a.messages = append(a.messages, Message{
-					Role:       "tool",
-					Content:    msg,
-					ToolCallID: tc.ID,
-				})
-				if stream != nil {
-					stream.Stream.SendToolResponse(tc.Name, msg)
-					stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
-				}
-				continue
-			}
+	log.Error().Int("maxRetry", a.maxRetry).Msg("LLM generation failed with max retry")
+	if stream != nil {
+		stream.Stream.SendTryRunFailed(turnID, int64(a.maxRetry))
+	}
+	return "", true, fmt.Errorf("llm generation failed after max retry")
+}
 
-			if len(tc.Input) == 0 {
-				msg := "Error: tool was called without any arguments."
-				a.messages = append(a.messages, Message{
-					Role:       "tool",
-					Content:    msg,
-					ToolCallID: tc.ID,
-				})
-				if stream != nil {
-					stream.Stream.SendToolResponse(tc.Name, msg)
-					stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
-				}
-				continue
-			}
+func (a *Agent) executeTool(ctx context.Context, tc ToolCall, turnID string, stream *StreamUpdate) {
+	log.Info().Str("tool", tc.Name).RawJSON("input", tc.Input).Msg("Executing tool")
+	// Use tool name as part of the ID to keep tool execution steps somewhat stable,
+	// but still allow multiple tools to be shown.
+	toolStepID := fmt.Sprintf("turn-%s-tool-%s", turnID, tc.Name)
+	if stream != nil {
+		stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepActive)
+		stream.Stream.SendToolCall(tc.Name, tc.Input)
+	}
 
-			log.Debug().Interface("tool", tool).Interface("tc.Input", tc.Input).Msg("try exec tool")
-			var tcStream protocol.IStreamWriter
-			if stream != nil {
-				tcStream = stream.Stream
-			}
-			output, err := tool.Execute(ctx, tc.Input, tcStream)
-			if err != nil {
-				log.Error().Err(err).Str("tool", tc.Name).Msg("Tool execution failed")
-				a.messages = append(a.messages, Message{
-					Role:       "tool",
-					Content:    err.Error(),
-					ToolCallID: tc.ID,
-				})
-				if stream != nil {
-					stream.Stream.SendToolResponse(tc.Name, err.Error())
-				}
+	tool, ok := a.tools.Get(tc.Name)
+	if !ok {
+		msg := fmt.Sprintf("Error: tool %s not found", tc.Name)
+		a.messages = append(a.messages, Message{
+			Role:       "tool",
+			Content:    msg,
+			ToolCallID: tc.ID,
+		})
+		if stream != nil {
+			stream.Stream.SendToolResponse(tc.Name, msg)
+			stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
+		}
+		return
+	}
+
+	if len(tc.Input) == 0 {
+		msg := "Error: tool was called without any arguments."
+		a.messages = append(a.messages, Message{
+			Role:       "tool",
+			Content:    msg,
+			ToolCallID: tc.ID,
+		})
+		if stream != nil {
+			stream.Stream.SendToolResponse(tc.Name, msg)
+			stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
+		}
+		return
+	}
+
+	log.Debug().Interface("tool", tool).Interface("tc.Input", tc.Input).Msg("try exec tool")
+	var tcStream protocol.IStreamWriter
+	if stream != nil {
+		tcStream = stream.Stream
+	}
+	output, err := tool.Execute(ctx, tc.Input, tcStream)
+	if err != nil {
+		log.Error().Err(err).Str("tool", tc.Name).Msg("Tool execution failed")
+		a.messages = append(a.messages, Message{
+			Role:       "tool",
+			Content:    err.Error(),
+			ToolCallID: tc.ID,
+		})
+		if stream != nil {
+			stream.Stream.SendToolResponse(tc.Name, err.Error())
+		}
+	} else {
+		log.Debug().Str("tool", tc.Name).Str("output", output).Msg("Tool execution successful")
+		a.messages = append(a.messages, Message{
+			Role:       "tool",
+			Content:    output,
+			ToolCallID: tc.ID,
+		})
+		if stream != nil {
+			// Try to parse output as JSON to send structured response
+			var structured any
+			if json.Unmarshal([]byte(output), &structured) == nil {
+				stream.Stream.SendToolResponse(tc.Name, structured)
 			} else {
-				log.Debug().Str("tool", tc.Name).Str("output", output).Msg("Tool execution successful")
-				a.messages = append(a.messages, Message{
-					Role:       "tool",
-					Content:    output,
-					ToolCallID: tc.ID,
-				})
-				if stream != nil {
-					// Try to parse output as JSON to send structured response
-					var structured any
-					if json.Unmarshal([]byte(output), &structured) == nil {
-						stream.Stream.SendToolResponse(tc.Name, structured)
-					} else {
-						stream.Stream.SendToolResponse(tc.Name, output)
-					}
-				}
-			}
-
-			if stream != nil {
-				stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
+				stream.Stream.SendToolResponse(tc.Name, output)
 			}
 		}
 	}
 
-	log.Error().Int("maxIterations", maxIterations).Msg("Max iterations reached")
-	return "", fmt.Errorf("max iterations (%d) reached", maxIterations)
+	if stream != nil {
+		stream.Stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing tool: %s", tc.Name), protocol.StepCompleted)
+	}
+}
+
+const (
+	InvalidTypeNone                 = 0
+	InvalidTypeAllEmpty             = 1
+	InvalidTypeResponseWithToolCall = 2
+)
+
+func (a *Agent) validateLLMResponse(response string, toolCalls []ToolCall) (int, error) {
+	if len(response) == 0 && len(toolCalls) == 0 {
+		return InvalidTypeAllEmpty, fmt.Errorf("both response and toolCalls are empty")
+	}
+
+	if len(response) != 0 && len(toolCalls) > 0 {
+		return InvalidTypeResponseWithToolCall, fmt.Errorf("response is not empty with toolCalls")
+	}
+
+	// TODO: more cases?
+
+	return InvalidTypeNone, nil
+}
+
+func (a *Agent) tryEnforceLLMResponse(invalidType int) {
+	if invalidType == InvalidTypeAllEmpty {
+		a.messages = append(a.messages, Message{
+			Role:    "system",
+			Content: "You must respond with either a non-empty string, or a empty response with at least one tool call.",
+		})
+		return
+	}
+
+	if invalidType == InvalidTypeResponseWithToolCall {
+		a.messages = append(a.messages, Message{
+			Role:    "system",
+			Content: "You must respond with either a non-empty string, or a empty response with at least one tool call.",
+		})
+		return
+	}
 }
 
 func (a *Agent) Messages() []Message {
