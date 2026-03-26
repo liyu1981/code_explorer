@@ -13,6 +13,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	DEFAULT_MAX_ITERATIONS = 5
+	DEFAULT_MAX_RETRY      = 3
+	DEFAULT_CONTEXT_LENGTH = 262144 / 2
+)
+
 type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content"`
@@ -143,9 +149,9 @@ func newAgent(llm LLM, systemPrompt string, userPromptTpl string, tools *ToolReg
 		SystemPrompt:  systemPrompt,
 		UserPromptTpl: userPromptTpl,
 		messages:      make([]Message, 0),
-		maxIterations: 5,      // Default to 5 iterations
-		maxRetry:      3,      // Default to 3 retries
-		contextLength: 262144, // Default to 256k
+		maxIterations: DEFAULT_MAX_ITERATIONS,
+		maxRetry:      DEFAULT_MAX_RETRY,
+		contextLength: DEFAULT_CONTEXT_LENGTH,
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -482,6 +488,7 @@ type AgentConfig struct {
 	LLM             map[string]any `json:"llm"`
 	Tools           []string       `json:"tools"`
 	MaxIterations   int            `json:"max_iterations"`
+	MaxRetry        int            `json:"max_retry"`
 	ContextLength   int            `json:"context_length"`
 	AgentPromptName string         `json:"agent_prompt_name"`
 	NoThink         bool           `json:"no_think"`
@@ -572,6 +579,16 @@ func NewAgentFromConfig(
 		}
 	}
 
+	maxIterations := cfg.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = DEFAULT_MAX_ITERATIONS
+	}
+
+	maxRetry := cfg.MaxRetry
+	if maxRetry <= 0 {
+		maxRetry = DEFAULT_MAX_RETRY
+	}
+
 	bindData := &map[string]any{}
 	for _, bindDataProvider := range bindDataProviders {
 		bindDataProvider(bindData)
@@ -616,7 +633,8 @@ func NewAgentFromConfig(
 		systemPrompt,
 		userPromptTpl,
 		toolRegistry,
-		WithMaxIterations(cfg.MaxIterations),
+		WithMaxIterations(maxIterations),
+		WithMaxRetry(maxRetry),
 		WithContextLength(contextLength),
 	)
 	return agent, nil

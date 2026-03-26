@@ -12,7 +12,7 @@ import {
 import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
 import type { ResearchTurn } from "../../_jotai/research-store";
-import { SourceCard } from "./source-card";
+import { SourceCard, SourceGroupCard, groupSourcesByPath } from "./source-card";
 
 interface ResearchReportProps {
   turns: ResearchTurn[];
@@ -182,9 +182,19 @@ export function ResearchReport({
                   Source Material
                 </h3>
                 <div className="grid grid-cols-1 gap-4">
-                  {turn.sources.map((s) => (
-                    <SourceCard key={s.id} source={s} />
-                  ))}
+                  {turn.sources.length > 0 ? (
+                    groupSourcesByPath(turn.sources).map((group) => (
+                      <SourceGroupCard
+                        key={group.path}
+                        group={group}
+                        showLineNumbers
+                      />
+                    ))
+                  ) : (
+                    <div className="text-xs text-muted-foreground/40 italic px-1">
+                      No source materials
+                    </div>
+                  )}
                 </div>
               </div>
             </aside>

@@ -53,8 +53,11 @@ interface CodesummerResponse {
 }
 
 export default function CodesummerPage() {
-  const [selectedCodebase, setSelectedCodebase] = useState<Codebase | null>(null);
-  const [selectedSummary, setSelectedSummary] = useState<CodesummerSummary | null>(null);
+  const [selectedCodebase, setSelectedCodebase] = useState<Codebase | null>(
+    null,
+  );
+  const [selectedSummary, setSelectedSummary] =
+    useState<CodesummerSummary | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
 
   const { data: codebases } = useSWR<Codebase[]>(
@@ -62,16 +65,23 @@ export default function CodesummerPage() {
     fetcher,
   );
 
-  const { data: summaryData, error: summaryError, isLoading: summaryLoading } = useSWR<CodesummerResponse>(
-    selectedCodebase ? `/api/codesummer/summaries?codebase_id=${selectedCodebase.id}` : null,
+  const {
+    data: summaryData,
+    error: summaryError,
+    isLoading: summaryLoading,
+  } = useSWR<CodesummerResponse>(
+    selectedCodebase
+      ? `/api/codesummer/summaries?codebase_id=${selectedCodebase.id}`
+      : null,
     fetcher,
     { refreshInterval: 10000 },
   );
 
   const summaries = summaryData?.summaries || [];
-  const filteredSummaries = filterType === "all"
-    ? summaries
-    : summaries.filter(s => s.nodeType === filterType);
+  const filteredSummaries =
+    filterType === "all"
+      ? summaries
+      : summaries.filter((s) => s.nodeType === filterType);
 
   const getNodeIcon = (nodeType: string) => {
     switch (nodeType) {
@@ -85,10 +95,14 @@ export default function CodesummerPage() {
   };
 
   const getNodeTypeBadge = (nodeType: string) => {
-    const classes = nodeType === "directory"
-      ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-      : "bg-primary/10 text-primary border-primary/20";
-    return cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border", classes);
+    const classes =
+      nodeType === "directory"
+        ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+        : "bg-primary/10 text-primary border-primary/20";
+    return cn(
+      "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+      classes,
+    );
   };
 
   const formatDate = (timestamp: number) => {
@@ -97,7 +111,9 @@ export default function CodesummerPage() {
   };
 
   const isSimpleArray = (data: any): data is string[] => {
-    return Array.isArray(data) && data.length > 0 && typeof data[0] === "string";
+    return (
+      Array.isArray(data) && data.length > 0 && typeof data[0] === "string"
+    );
   };
 
   const renderArray = (data: any[]) => {
@@ -107,7 +123,10 @@ export default function CodesummerPage() {
     return (
       <div className="space-y-2">
         {data.map((item, idx) => (
-          <div key={idx} className="bg-background/50 rounded-lg p-3 border border-border/30">
+          <div
+            key={idx}
+            className="bg-background/50 rounded-lg p-3 border border-border/30"
+          >
             {typeof item === "object" && item !== null ? (
               <div className="space-y-1">
                 {Object.entries(item).map(([key, value]) => (
@@ -116,13 +135,17 @@ export default function CodesummerPage() {
                       {key}:
                     </span>
                     <span className="text-xs font-mono text-foreground break-all">
-                      {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                      {typeof value === "object"
+                        ? JSON.stringify(value)
+                        : String(value)}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <span className="text-sm font-mono text-foreground">{String(item)}</span>
+              <span className="text-sm font-mono text-foreground">
+                {String(item)}
+              </span>
             )}
           </div>
         ))}
@@ -218,11 +241,14 @@ export default function CodesummerPage() {
                   {selectedCodebase.name}
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  {summaryData?.total || 0} summaries • Indexed: {formatDate(summaryData?.indexedAt || 0)}
+                  {summaryData?.total || 0} summaries • Indexed:{" "}
+                  {formatDate(summaryData?.indexedAt || 0)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground mr-2">Filter:</span>
+                <span className="text-xs text-muted-foreground mr-2">
+                  Filter:
+                </span>
                 {["all", "file", "directory"].map((type) => (
                   <button
                     key={type}
@@ -231,7 +257,7 @@ export default function CodesummerPage() {
                       "px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors",
                       filterType === type
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
                     {type}
@@ -309,7 +335,10 @@ export default function CodesummerPage() {
         )}
       </div>
 
-      <Dialog.Root open={!!selectedSummary} onOpenChange={() => setSelectedSummary(null)}>
+      <Dialog.Root
+        open={!!selectedSummary}
+        onOpenChange={() => setSelectedSummary(null)}
+      >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50" />
           <Dialog.Content className="fixed inset-4 md:inset-10 lg:inset-20 bg-card border border-border shadow-2xl rounded-3xl z-50 flex flex-col overflow-hidden">
@@ -352,53 +381,73 @@ export default function CodesummerPage() {
                     </div>
                   </div>
 
-                  {selectedSummary.definitions && selectedSummary.definitions.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                        <Hash className="h-4 w-4" />
-                        Definitions ({Array.isArray(selectedSummary.definitions) ? selectedSummary.definitions.length : 0})
-                      </h3>
-                      <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
-                        {renderData(selectedSummary.definitions)}
+                  {selectedSummary.definitions &&
+                    selectedSummary.definitions.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                          <Hash className="h-4 w-4" />
+                          Definitions (
+                          {Array.isArray(selectedSummary.definitions)
+                            ? selectedSummary.definitions.length
+                            : 0}
+                          )
+                        </h3>
+                        <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
+                          {renderData(selectedSummary.definitions)}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {selectedSummary.dependencies && selectedSummary.dependencies.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                        <GitBranch className="h-4 w-4" />
-                        Dependencies ({Array.isArray(selectedSummary.dependencies) ? selectedSummary.dependencies.length : 0})
-                      </h3>
-                      <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
-                        {renderData(selectedSummary.dependencies)}
+                  {selectedSummary.dependencies &&
+                    selectedSummary.dependencies.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                          <GitBranch className="h-4 w-4" />
+                          Dependencies (
+                          {Array.isArray(selectedSummary.dependencies)
+                            ? selectedSummary.dependencies.length
+                            : 0}
+                          )
+                        </h3>
+                        <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
+                          {renderData(selectedSummary.dependencies)}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {selectedSummary.dataManipulated && selectedSummary.dataManipulated.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                        <Database className="h-4 w-4" />
-                        Data Manipulated ({Array.isArray(selectedSummary.dataManipulated) ? selectedSummary.dataManipulated.length : 0})
-                      </h3>
-                      <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
-                        {renderData(selectedSummary.dataManipulated)}
+                  {selectedSummary.dataManipulated &&
+                    selectedSummary.dataManipulated.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                          <Database className="h-4 w-4" />
+                          Data Manipulated (
+                          {Array.isArray(selectedSummary.dataManipulated)
+                            ? selectedSummary.dataManipulated.length
+                            : 0}
+                          )
+                        </h3>
+                        <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
+                          {renderData(selectedSummary.dataManipulated)}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {selectedSummary.dataFlow && selectedSummary.dataFlow.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                        <ArrowRightLeft className="h-4 w-4" />
-                        Data Flow ({Array.isArray(selectedSummary.dataFlow) ? selectedSummary.dataFlow.length : 0})
-                      </h3>
-                      <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
-                        {renderData(selectedSummary.dataFlow)}
+                  {selectedSummary.dataFlow &&
+                    selectedSummary.dataFlow.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                          <ArrowRightLeft className="h-4 w-4" />
+                          Data Flow (
+                          {Array.isArray(selectedSummary.dataFlow)
+                            ? selectedSummary.dataFlow.length
+                            : 0}
+                          )
+                        </h3>
+                        <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
+                          {renderData(selectedSummary.dataFlow)}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               )}
             </div>

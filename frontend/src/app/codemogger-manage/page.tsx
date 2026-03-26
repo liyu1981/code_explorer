@@ -34,14 +34,18 @@ interface CodebaseInfo {
 }
 
 export default function CodebaseManagementPage() {
-  const [selectedCodebase, setSelectedCodebase] = useState<CodebaseInfo | null>(null);
+  const [selectedCodebase, setSelectedCodebase] = useState<CodebaseInfo | null>(
+    null,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState(false);
 
-  const { data: codebases, error, isLoading, mutate } = useSWR<CodebaseInfo[]>(
-    "/api/codemogger/codebases",
-    fetcher,
-  );
+  const {
+    data: codebases,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR<CodebaseInfo[]>("/api/codemogger/codebases", fetcher);
 
   const formatDate = (timestamp: number) => {
     if (!timestamp) return "Never";
@@ -57,7 +61,9 @@ export default function CodebaseManagementPage() {
 
     setIsDeleting(true);
     try {
-      await api.delete(`/api/codemogger/codebases?codebase_id=${selectedCodebase.id}`);
+      await api.delete(
+        `/api/codemogger/codebases?codebase_id=${selectedCodebase.id}`,
+      );
       setDeleteSuccess(true);
       mutate();
       setTimeout(() => {
@@ -71,7 +77,7 @@ export default function CodebaseManagementPage() {
     }
   };
 
-  const indexedCodebases = codebases?.filter(cb => cb.indexedAt > 0) || [];
+  const indexedCodebases = codebases?.filter((cb) => cb.indexedAt > 0) || [];
 
   return (
     <AppContainer>
@@ -131,7 +137,9 @@ export default function CodebaseManagementPage() {
                           <FileCode className="h-5 w-5 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-foreground">{cb.name}</h3>
+                          <h3 className="font-bold text-foreground">
+                            {cb.name}
+                          </h3>
                           <p className="text-xs text-muted-foreground font-mono truncate max-w-md">
                             {cb.rootPath}
                           </p>
@@ -156,7 +164,9 @@ export default function CodebaseManagementPage() {
                     <FileCode className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-foreground">{selectedCodebase.name}</h3>
+                    <h3 className="text-lg font-bold text-foreground">
+                      {selectedCodebase.name}
+                    </h3>
                     <p className="text-sm text-muted-foreground font-mono">
                       {selectedCodebase.rootPath}
                     </p>
@@ -219,14 +229,17 @@ export default function CodebaseManagementPage() {
                       Delete Codemogger Entries
                     </Dialog.Title>
                     <Dialog.Description className="text-sm text-muted-foreground mt-2">
-                      This will delete all indexed files, chunks, and embeddings for this codebase.
-                      The codebase registry entry will be kept. You can reindex later.
+                      This will delete all indexed files, chunks, and embeddings
+                      for this codebase. The codebase registry entry will be
+                      kept. You can reindex later.
                     </Dialog.Description>
 
                     <div className="bg-muted/30 rounded-xl p-4 mt-4 border border-border">
                       <div className="flex items-center gap-2 text-sm">
                         <Folder className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-mono truncate">{selectedCodebase.rootPath}</span>
+                        <span className="font-mono truncate">
+                          {selectedCodebase.rootPath}
+                        </span>
                       </div>
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                         <span>{selectedCodebase.fileCount} files</span>

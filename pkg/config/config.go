@@ -50,7 +50,6 @@ type OpenAIConfig struct {
 var (
 	instance *Config
 	mu       sync.RWMutex
-	once     sync.Once
 	path     string
 )
 

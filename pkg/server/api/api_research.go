@@ -130,7 +130,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
 
 	agentCfg := &agent.AgentConfig{
-		MaxIterations:   10,
+		LLM:             config.Get().System.LLM,
 		AgentPromptName: "general-researcher",
 		NoThink:         true,
 	}
