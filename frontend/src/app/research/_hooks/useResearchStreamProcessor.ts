@@ -131,7 +131,9 @@ export function createStreamingCallbacks(
   const appendThoughtProcess = (delta: string) => {
     setSessions((current) =>
       current.map((s) =>
-        s.id === sessionId ? { ...s, thoughtProcess: s.thoughtProcess + delta } : s,
+        s.id === sessionId
+          ? { ...s, thoughtProcess: s.thoughtProcess + delta }
+          : s,
       ),
     );
   };
@@ -213,7 +215,9 @@ export function createStreamingCallbacks(
   return createSourceDedupCallbacks(baseCallbacks, sourceKeysRef);
 }
 
-export function createRehydrationCallbacks(session: ResearchSession): CEStreamCallbacks {
+export function createRehydrationCallbacks(
+  session: ResearchSession,
+): CEStreamCallbacks {
   const sourceKeysRef = { current: new Set<string>() };
 
   const appendReport = (turnID: string, content: string) => {
@@ -228,7 +232,11 @@ export function createRehydrationCallbacks(session: ResearchSession): CEStreamCa
   const updateStep = (step: { id: string; label: string; status: string }) => {
     const idx = session.steps.findIndex((s) => s.id === step.id);
     if (idx > -1) {
-      session.steps[idx] = { ...session.steps[idx], ...step, status: step.status as any };
+      session.steps[idx] = {
+        ...session.steps[idx],
+        ...step,
+        status: step.status as any,
+      };
     } else {
       session.steps.push({ ...step, status: step.status as any });
     }

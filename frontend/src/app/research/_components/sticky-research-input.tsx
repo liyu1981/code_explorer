@@ -19,7 +19,7 @@ export function StickyResearchInput({
     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background to-transparent pt-20 pb-8 px-6 z-20 pointer-events-none">
       <div className="max-w-6xl mx-auto pointer-events-auto">
         <ResearchInput
-          onSearch={onSearch}
+          onResearch={onSearch}
           isCompact
           suggestions={suggestions}
         />
