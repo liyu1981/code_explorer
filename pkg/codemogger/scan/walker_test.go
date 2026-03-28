@@ -48,11 +48,11 @@ func TestScanDirectory(t *testing.T) {
 		t.Errorf("ScanDirectory returned errors: %v", errors)
 	}
 
-	// Define expected files (absolute paths)
+	// Define expected files (relative paths)
 	expectedFiles := map[string]string{
-		filepath.Join(tempDir, "main.go"):       filesToCreate["main.go"],
-		filepath.Join(tempDir, "utils.py"):      filesToCreate["utils.py"],
-		filepath.Join(tempDir, "sub/helper.go"): filesToCreate["sub/helper.go"],
+		"main.go":       filesToCreate["main.go"],
+		"utils.py":      filesToCreate["utils.py"],
+		"sub/helper.go": filesToCreate["sub/helper.go"],
 	}
 
 	// Verify scanned files
@@ -62,22 +62,22 @@ func TestScanDirectory(t *testing.T) {
 
 	foundMap := make(map[string]bool)
 	for _, f := range scannedFiles {
-		content, ok := expectedFiles[f.AbsPath]
+		content, ok := expectedFiles[f.RelPath]
 		if !ok {
-			t.Errorf("Unexpected file found: %s", f.AbsPath)
+			t.Errorf("Unexpected file found: %s", f.RelPath)
 			continue
 		}
-		foundMap[f.AbsPath] = true
+		foundMap[f.RelPath] = true
 
 		// Check content
 		if f.Content != content {
-			t.Errorf("Content mismatch for %s", f.AbsPath)
+			t.Errorf("Content mismatch for %s", f.RelPath)
 		}
 
 		// Check hash
 		expectedHash := fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 		if f.Hash != expectedHash {
-			t.Errorf("Hash mismatch for %s: expected %s, got %s", f.AbsPath, expectedHash, f.Hash)
+			t.Errorf("Hash mismatch for %s: expected %s, got %s", f.RelPath, expectedHash, f.Hash)
 		}
 	}
 
@@ -102,7 +102,7 @@ func TestScanDirectoryLanguageFilter(t *testing.T) {
 	scannedFiles, _ := ScanDirectory(tempDir, []string{"go"})
 	if len(scannedFiles) != 1 {
 		t.Errorf("Expected 1 file (Go), got %d", len(scannedFiles))
-	} else if filepath.Base(scannedFiles[0].AbsPath) != "main.go" {
-		t.Errorf("Expected main.go, got %s", filepath.Base(scannedFiles[0].AbsPath))
+	} else if filepath.Base(scannedFiles[0].RelPath) != "main.go" {
+		t.Errorf("Expected main.go, got %s", filepath.Base(scannedFiles[0].RelPath))
 	}
 }

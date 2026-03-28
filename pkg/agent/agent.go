@@ -248,8 +248,27 @@ func (a *Agent) run(
 	tools := a.tools.MarshalToolsForLLM()
 	log.Debug().Interface("tools", tools).Msg("Agent Found Tools")
 
+	// 	if len(tools) > 0 {
+	// 		a.messages = ensureEnforceMessage(
+	// 			EMDSystem,
+	// 			a.messages,
+	// 			fmt.Sprintf(`You may call tools at most %v times.
+	// If you already have enough information, DO NOT call tools again. Return the final answer instead.
+	// If a tool does not return useful data, do not retry more than once.`, a.maxIterations-1),
+	// 		)
+	// 	}
+
 	for i := 0; i < maxIterations; i++ {
 		log.Debug().Int("iteration", i).Msg("Agent iteration start")
+
+		// if i+1 == maxIterations {
+		// 	// this is the last iteration, enforce no tools called
+		// 	a.messages = ensureEnforceMessage(
+		// 		EMDUser,
+		// 		a.messages,
+		// 		"You have reached the maximum number of tool calls. Provide the best possible final answer now.",
+		// 	)
+		// }
 
 		// Check context length
 		currentLength := a.MeasureContextLength()
@@ -456,24 +475,63 @@ func (a *Agent) validateLLMResponse(response string, toolCalls []ToolCall) (int,
 
 func (a *Agent) tryEnforceLLMResponse(invalidType int) {
 	if invalidType == InvalidTypeAllEmpty {
-		a.messages = append(a.messages, Message{
-			Role:    "system",
-			Content: "You must respond with either a non-empty string, or a empty response with at least one tool call.",
-		})
+		a.messages = ensureEnforceMessage(
+			EMDUser,
+			a.messages,
+			"You must respond with either a non-empty string, or a empty response with at least one tool call.",
+		)
 		return
 	}
 
 	if invalidType == InvalidTypeResponseWithToolCall {
-		a.messages = append(a.messages, Message{
-			Role:    "system",
-			Content: "You must respond with either a non-empty string, or a empty response with at least one tool call.",
-		})
+		a.messages = ensureEnforceMessage(
+			EMDUser,
+			a.messages,
+			"You must respond with either a non-empty string, or a empty response with at least one tool call.",
+		)
 		return
 	}
 }
 
 func (a *Agent) Messages() []Message {
 	return a.messages
+}
+
+type EnforceMesssageDest int
+
+const (
+	EMDUser EnforceMesssageDest = iota
+	EMDSystem
+)
+
+func ensureEnforceMessage(dest EnforceMesssageDest, messages []Message, enforcer string) []Message {
+	if !((dest == EMDSystem) || (dest == EMDUser)) {
+		log.Warn().Int("dest", int(dest)).Msg("Unknown EnforceMesssageDest, skip")
+		return messages
+	}
+
+	destRole := "user"
+	if dest == EMDSystem {
+		destRole = "system"
+	}
+
+	// Search for the last Role=destRole message
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == destRole {
+			// Check if enforcer is already in the message
+			if !strings.Contains(messages[i].Content, enforcer) {
+				messages[i].Content += "\n" + enforcer
+			}
+			return messages
+		}
+	}
+
+	// No destRole message found, append a new one
+	messages = append(messages, Message{
+		Role:    destRole,
+		Content: enforcer,
+	})
+	return messages
 }
 
 type AgentBindDataProvider func(m *map[string]any)

@@ -14,6 +14,7 @@ import (
 
 type ScannedFile struct {
 	AbsPath string
+	RelPath string
 	Content string
 	Hash    string
 }
@@ -69,13 +70,19 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 			}
 		}
 
-		// Use absolute path
+		// Get both absolute and relative paths
 		absPath, err := filepath.Abs(f.Location)
 		if err != nil {
 			absPath = f.Location
 		}
+		relPath, err := filepath.Rel(rootDir, f.Location)
+		if err != nil {
+			log.Warn().Str("file", f.Location).Err(err).Msg("Failed to get relative path")
+			errors = append(errors, f.Location+": "+err.Error())
+			continue
+		}
 
-		log.Trace().Str("file", absPath).Msg("Processing file")
+		log.Trace().Str("file", relPath).Msg("Processing file")
 		content, err := os.ReadFile(f.Location)
 		if err != nil {
 			log.Warn().Str("file", f.Location).Err(err).Msg("Failed to read file")
@@ -87,6 +94,7 @@ func ScanDirectory(rootDir string, languages []string) ([]ScannedFile, []string)
 
 		files = append(files, ScannedFile{
 			AbsPath: absPath,
+			RelPath: relPath,
 			Content: string(content),
 			Hash:    hash,
 		})

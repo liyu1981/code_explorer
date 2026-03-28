@@ -94,10 +94,10 @@ func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (
 
 	log.Info().Msg("Checking file hashes...")
 	for i, file := range files {
-		activeFiles[file.AbsPath] = true
-		storedHash, err := c.store.CodemoggerGetFileHash(ctx, metadataID, file.AbsPath)
+		activeFiles[file.RelPath] = true
+		storedHash, err := c.store.CodemoggerGetFileHash(ctx, metadataID, file.RelPath)
 		if err != nil {
-			log.Warn().Str("file", file.AbsPath).Err(err).Msg("Failed to get file hash")
+			log.Warn().Str("file", file.RelPath).Err(err).Msg("Failed to get file hash")
 			continue
 		}
 		if storedHash == file.Hash {
@@ -119,12 +119,12 @@ func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (
 
 	log.Info().Msg("Chunking files...")
 	for i, file := range filesToProcess {
-		langConfig := chunk.DetectLanguage(file.AbsPath)
+		langConfig := chunk.DetectLanguage(file.RelPath)
 		if langConfig == nil {
 			continue
 		}
 
-		chunks := chunk.ChunkFile(file.AbsPath, file.Content, file.Hash, langConfig)
+		chunks := chunk.ChunkFile(file.RelPath, file.Content, file.Hash, langConfig)
 		if len(chunks) > 0 {
 			dbChunks := make([]db.CodeChunk, len(chunks))
 			for j, chk := range chunks {
@@ -146,7 +146,7 @@ func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (
 				FileHash string
 				Chunks   []db.CodeChunk
 			}{
-				FilePath: file.AbsPath,
+				FilePath: file.RelPath,
 				FileHash: file.Hash,
 				Chunks:   dbChunks,
 			})

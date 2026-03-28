@@ -135,10 +135,26 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		NoThink:         true,
 	}
 
+	codebaseBaseDir := ""
+	if req.SessionID != "" {
+		session, err := h.index.GetStore().GetResearchSession(r.Context(), req.SessionID)
+		if err != nil {
+			log.Warn().Err(err).Str("session", req.SessionID).Msg("Failed to get session for codebase basedir")
+		} else if session != nil && session.CodebaseID != "" {
+			codebase, err := h.index.GetStore().GetCodebaseByID(r.Context(), session.CodebaseID)
+			if err != nil {
+				log.Warn().Err(err).Str("codebase", session.CodebaseID).Msg("Failed to get codebase for basedir")
+			} else if codebase != nil {
+				codebaseBaseDir = codebase.RootPath
+			}
+		}
+	}
+
 	ag, err := agent.NewAgentFromConfig(
 		r.Context(),
 		agentCfg,
 		agent.WithBindData("index", h.index),
+		agent.WithBindData("baseDir", codebaseBaseDir),
 	)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to build agent")
