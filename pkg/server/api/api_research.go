@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/rs/zerolog/log"
 )
@@ -129,7 +129,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
 
-	agentCfg := &agent.AgentConfig{
+	agentCfg := &llm.AgentConfig{
 		LLM:             config.Get().System.LLM,
 		AgentPromptName: "general-researcher",
 		NoThink:         true,
@@ -150,11 +150,11 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	ag, err := agent.NewAgentFromConfig(
+	ag, err := llm.NewAgentFromConfig(
 		r.Context(),
 		agentCfg,
-		agent.WithBindData("index", h.index),
-		agent.WithBindData("baseDir", codebaseBaseDir),
+		llm.WithBindData("index", h.index),
+		llm.WithBindData("baseDir", codebaseBaseDir),
 	)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to build agent")
@@ -189,7 +189,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	// Run agent in a goroutine or directly
 	// For streaming, we should run it and let it write to sw
-	_, err = ag.Run(r.Context(), req.Query, nil, &agent.StreamUpdate{
+	_, err = ag.Run(r.Context(), req.Query, nil, &llm.StreamUpdate{
 		TurnID: turnID,
 		Stream: finalSw,
 	})

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
 
@@ -64,7 +64,7 @@ func HandleSummarizeTopicTask(
 	updateProgress(40, "Generating summary...")
 
 	// Build Agent using the skill
-	ag, err := agent.NewAgentFromConfig(ctx, &agent.AgentConfig{
+	ag, err := llm.NewAgentFromConfig(ctx, &llm.AgentConfig{
 		MaxIterations:   1,
 		AgentPromptName: "concise-topic-summarizer",
 	})

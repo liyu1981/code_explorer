@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/llm"
 )
 
 const MaxContextLength = 100000
@@ -13,11 +13,11 @@ const MaxContextLength = 100000
 type Summarizer struct {
 	store           *db.Store
 	agentPromptName string
-	responseFormat  *agent.ResponseFormat
+	responseFormat  *llm.ResponseFormat
 }
 
 func NewSummarizer(agentPromptName string, store *db.Store) (*Summarizer, error) {
-	rf, err := agent.ResponseFormatFromStruct[FileSummaryResponse]("file_summary")
+	rf, err := llm.ResponseFormatFromStruct[FileSummaryResponse]("file_summary")
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (s *Summarizer) SummarizeFile(
 	definitions []Definition,
 ) (*NodeSummary, error) {
 
-	a, err := agent.NewAgentFromConfig(ctx, &agent.AgentConfig{
+	a, err := llm.NewAgentFromConfig(ctx, &llm.AgentConfig{
 		AgentPromptName: s.agentPromptName,
 	})
 	if err != nil {
@@ -70,7 +70,7 @@ func (s *Summarizer) SummarizeDirectory(
 	dirPath string,
 	childrenSummaries []NodeSummary,
 ) (*NodeSummary, error) {
-	a, err := agent.NewAgentFromConfig(ctx, &agent.AgentConfig{
+	a, err := llm.NewAgentFromConfig(ctx, &llm.AgentConfig{
 		AgentPromptName: s.agentPromptName,
 	})
 	if err != nil {
