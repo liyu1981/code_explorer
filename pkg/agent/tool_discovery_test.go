@@ -7,17 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
-
-type mockStreamWriter struct {
-	protocol.IStreamWriter
-}
-
-func (m *mockStreamWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
 
 func TestGetTreeTool(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "discovery-test-*")

@@ -12,7 +12,7 @@
     "max_reports_per_codebase": 10
   },
   "codemogger": {
-    "inherit_system_llm": true,
+    "inherit_system_llm": false,
     "embedder": {
       "type": "local",
       "model": "all-minilm:l6-v2"

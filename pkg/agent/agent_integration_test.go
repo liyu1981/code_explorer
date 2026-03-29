@@ -13,8 +13,10 @@ import (
 
 type echoTool struct{}
 
-func (t *echoTool) Name() string        { return "echo" }
-func (t *echoTool) Description() string { return "Echoes the input back" }
+func (t *echoTool) Name() string                                          { return "echo" }
+func (t *echoTool) Description() string                                   { return "Echoes the input back" }
+func (t *echoTool) Clone() Tool                                           { return &echoTool{} }
+func (t *echoTool) Bind(ctx context.Context, state *map[string]any) error { return nil }
 func (t *echoTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -36,8 +38,10 @@ func (t *echoTool) Execute(ctx context.Context, input json.RawMessage, stream pr
 
 type calculateTool struct{}
 
-func (t *calculateTool) Name() string        { return "calculate" }
-func (t *calculateTool) Description() string { return "Performs basic arithmetic" }
+func (t *calculateTool) Name() string                                          { return "calculate" }
+func (t *calculateTool) Description() string                                   { return "Performs basic arithmetic" }
+func (t *calculateTool) Clone() Tool                                           { return &calculateTool{} }
+func (t *calculateTool) Bind(ctx context.Context, state *map[string]any) error { return nil }
 func (t *calculateTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -76,29 +80,23 @@ func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stre
 }
 
 func TestAgentIntegration(t *testing.T) {
-	config := LoadEnvConfig()
-	if config.endpoint == "" {
-		config.endpoint = "http://localhost:20003/v1/chat/completions"
-	}
-	if config.model == "" {
-		config.model = "qwen3.5:4b" // Default to a common local model
-	}
+	baseURL, model, apiKey, noThink := GetIntegrationTestParams()
+
+	InitGlobalToolRegistry()
 
 	registry := NewToolRegistry()
 	registry.Register(&echoTool{})
 	registry.Register(&calculateTool{})
 
-	llm := NewHTTPClientLLM(config.model, config.endpoint, config.apiKey)
-	factory := NewAgentFactoryForTest(nil, nil)
-	factory.RegisterTool(&echoTool{})
-	factory.RegisterTool(&calculateTool{})
-	agentInstance := factory.BuildTestAgent(llm, WithMaxIterations(5))
+	llm := newHTTPClientLLM(model, baseURL, apiKey)
+	llm.SetNoThink(noThink)
+	agentInstance := newAgent(llm, "", "", registry, WithMaxIterations(5))
 
 	ctx := context.Background()
 
 	t.Run("Basic Echo", func(t *testing.T) {
 		prompt := "Please echo the message 'Hello Integration Test' using the echo tool."
-		result, err := agentInstance.RunLoop(ctx, "", prompt, nil, nil)
+		result, err := agentInstance.Run(ctx, prompt, nil, nil)
 		if err != nil {
 			t.Fatalf("Agent run failed: %v", err)
 		}
@@ -107,7 +105,7 @@ func TestAgentIntegration(t *testing.T) {
 
 	t.Run("Multi-step Calculation", func(t *testing.T) {
 		prompt := "Calculate (12 + 34) * 2 using the calculate tool."
-		result, err := agentInstance.RunLoop(ctx, "", prompt, nil, nil)
+		result, err := agentInstance.Run(ctx, prompt, nil, nil)
 		if err != nil {
 			t.Fatalf("Agent run failed: %v", err)
 		}

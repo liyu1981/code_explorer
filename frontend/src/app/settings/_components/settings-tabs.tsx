@@ -29,6 +29,7 @@ export function SettingsTabs({
         const isActive = activeTab === tab.id;
         return (
           <button
+            type="button"
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={cn(
@@ -76,11 +77,11 @@ export function SettingsTabs({
       </Link>
 
       <Link
-        href="/skills"
+        href="/agent_prompts"
         className="flex items-center gap-3 p-4 rounded-2xl hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all group"
       >
         <Wand2 className="h-5 w-5 text-muted-foreground/60 group-hover:text-primary transition-colors" />
-        <span className="font-bold tracking-tight">Agent Skills</span>
+        <span className="font-bold tracking-tight">Agent Prompts</span>
         <ChevronRight className="h-4 w-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
       </Link>
 

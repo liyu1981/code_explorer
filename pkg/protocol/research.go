@@ -69,4 +69,5 @@ type CEEvent struct {
 	Resource  *SourceMaterial `json:"resource,omitempty"`  // For resource materials
 	Query     string          `json:"query,omitempty"`     // For turn started
 	Timestamp int64           `json:"timestamp,omitempty"` // For turn started
+	TryID     int64           `json:"tryId,omitempty"`     // For llm try run events
 }

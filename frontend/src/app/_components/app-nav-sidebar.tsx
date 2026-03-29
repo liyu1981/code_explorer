@@ -610,7 +610,7 @@ function SidebarContent() {
     (item) => (item as any).position !== "bottom",
   );
   const manageItems = navItems.filter((item) =>
-    ["skills", "tasks", "saved_reports", "sessions"].includes(item.id),
+    ["agent_prompts", "tasks", "saved_reports", "sessions"].includes(item.id),
   );
   const settingsItem = navItems.find((item) => item.id === "settings");
 

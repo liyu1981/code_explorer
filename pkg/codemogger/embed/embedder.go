@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/liyu1981/code_explorer/pkg/config"
 )
 
 type Embedder interface {
@@ -35,6 +37,42 @@ func NewOpenAIEmbedder(apiBase, model, apiKey string, dim int) *OpenAIEmbedder {
 			Timeout: 60 * time.Second,
 		},
 	}
+}
+
+func NewEmbedderFromConfig(embCfg config.EmbedderConfig) Embedder {
+	var emb Embedder
+	switch embCfg.Type {
+	case "openai":
+		model := embCfg.OpenAI.Model
+		if model == "" {
+			model = embCfg.Model
+		}
+		if model == "" {
+			model = "text-embedding-3-small"
+		}
+		emb = NewOpenAIEmbedder(
+			embCfg.OpenAI.APIBase,
+			model,
+			embCfg.OpenAI.APIKey,
+			1536,
+		)
+	default:
+		apiBase := embCfg.OpenAI.APIBase
+		if apiBase == "" {
+			apiBase = "http://localhost:11434/v1"
+		}
+		model := embCfg.Model
+		if model == "" {
+			model = "all-minilm:l6-v2"
+		}
+		emb = NewOpenAIEmbedder(
+			apiBase,
+			model,
+			embCfg.OpenAI.APIKey,
+			384,
+		)
+	}
+	return emb
 }
 
 type openAIEmbeddingRequest struct {

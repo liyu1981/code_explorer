@@ -6,13 +6,13 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface ResearchInputProps {
-  onSearch: (query: string, deepSearch: boolean) => void;
+  onResearch: (query: string, deepSearch: boolean) => void;
   isCompact?: boolean;
   suggestions?: string[];
 }
 
 export function ResearchInput({
-  onSearch,
+  onResearch,
   isCompact,
   suggestions,
 }: ResearchInputProps) {
@@ -22,7 +22,7 @@ export function ResearchInput({
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (query.trim()) {
-      onSearch(query, isDeepSearch);
+      onResearch(query, isDeepSearch);
     }
   };
 
@@ -62,7 +62,7 @@ export function ResearchInput({
               <button
                 key={s}
                 type="button"
-                onClick={() => onSearch(s, true)}
+                onClick={() => onResearch(s, true)}
                 className="px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-xs font-semibold text-muted-foreground transition-all border border-border/50 hover:border-primary/30"
               >
                 {s}

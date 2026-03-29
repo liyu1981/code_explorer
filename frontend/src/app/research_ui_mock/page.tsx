@@ -2,8 +2,7 @@
 
 import { useAtom } from "jotai";
 import { Archive } from "lucide-react";
-import { nanoid } from "nanoid";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { AppContainer } from "../_components/app-container";
@@ -15,11 +14,10 @@ import {
 } from "../_jotai/research-store";
 import { FloatingThoughtProcess } from "../research/_components/floating-thought-process";
 import { IdleResearchView } from "../research/_components/idle-research-view";
-import { ReasoningTrace } from "../research/_components/reasoning-trace";
-import { ResearchInput } from "../research/_components/research-input";
 import { ResearchReport } from "../research/_components/research-report";
 import { StickyResearchInput } from "../research/_components/sticky-research-input";
-import { CEEvent, getMockStream, OpenAIChunk } from "./_mock/ce";
+import { createStreamingCallbacks } from "../research/_hooks/useResearchStreamProcessor";
+import { getMockStream } from "./_mock/ce";
 function ResearchMockContent() {
   const [sessions, setSessions] = useAtom(researchSessionsAtom);
   const [activeSessionId, setActiveSessionId] = useAtom(activeSessionIdAtom);
@@ -91,8 +89,7 @@ function ResearchMockContent() {
           });
         }
       }
-    } else if (activeSession?.state === "searching") {
-      // During initial reasoning of the VERY FIRST turn, scroll to bottom to see logs
+    } else if (activeSession?.state === "researching") {
       setTimeout(() => {
         scrollContainerRef.current?.scrollTo({
           top: scrollContainerRef.current.scrollHeight,
@@ -100,160 +97,87 @@ function ResearchMockContent() {
         });
       }, 100);
     }
-
-    // We explicitly omit report/thoughtProcess length from deps to "stop moving" during streaming
   }, [
     activeSession?.turns.length,
     activeSession?.activeTurnId,
-    activeSession?.state === "searching",
-    // This dependency ensures we "retry" as new content comes in, in case of layout shifts
+    activeSession?.state === "researching",
     activeSession?.turns[activeSession?.turns.length - 1]?.report.length,
   ]);
 
-  const handleSearch = async (
+  const handleResearch = async (
     sessionId: string,
     query: string,
     _deep: boolean,
   ) => {
-    const turnId = nanoid();
-
-    // Initialize turn in session
     setSessions((current) =>
       current.map((s) =>
         s.id === sessionId
           ? {
               ...s,
-              state: "searching",
-              activeTurnId: turnId,
+              state: "researching",
               thoughtProcess: "",
-              turns: [
-                ...s.turns,
-                {
-                  id: turnId,
-                  query,
-                  report: "",
-                  sources: [],
-                  timestamp: Date.now(),
-                },
-              ],
+              steps: [],
             }
           : s,
       ),
     );
 
-    // Get mock stream
     const stream = getMockStream(query);
+    const callbacks = createStreamingCallbacks(sessionId, setSessions, {
+      current: new Map(),
+    });
 
-    // Simulate streaming
     for (const line of stream) {
-      // Small delay to simulate real network/llm
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       if (line.startsWith("data: ")) {
         try {
-          const chunk: OpenAIChunk = JSON.parse(line.slice(6));
-          const content = chunk.choices[0]?.delta?.content;
-          if (content) {
-            setSessions((current) =>
-              current.map((s) =>
-                s.id === sessionId
-                  ? {
-                      ...s,
-                      turns: s.turns.map((t) =>
-                        t.id === turnId
-                          ? { ...t, report: t.report + content }
-                          : t,
-                      ),
-                    }
-                  : s,
-              ),
-            );
-          }
+          callbacks.onOpenaiChunk(
+            crypto.randomUUID(),
+            JSON.parse(line.slice(6)),
+          );
         } catch (e) {
           console.error("Failed to parse mock data chunk", e, line);
         }
       } else if (line.startsWith("ce: ")) {
         try {
-          const event: CEEvent = JSON.parse(line.slice(4));
-
-          setSessions((current) =>
-            current.map((s) => {
-              if (s.id !== sessionId) return s;
-
-              switch (event.object) {
-                case "research.step.update":
-                  const existingStep = s.steps.find((st) => st.id === event.id);
-                  if (existingStep) {
-                    return {
-                      ...s,
-                      steps: s.steps.map((step) =>
-                        step.id === event.id
-                          ? {
-                              ...step,
-                              status: event.status ?? step.status,
-                              label: event.label ?? step.label,
-                            }
-                          : step,
-                      ),
-                    };
-                  }
-                  if (event.id && event.label && event.status) {
-                    return {
-                      ...s,
-                      steps: [
-                        ...s.steps,
-                        {
-                          id: event.id,
-                          label: event.label,
-                          status: event.status,
-                        },
-                      ],
-                    };
-                  }
-                  return s;
-                case "research.reasoning.delta":
-                  return {
-                    ...s,
-                    thoughtProcess: s.thoughtProcess + (event.content || ""),
-                  };
-                case "research.source.added":
-                  return {
-                    ...s,
-                    turns: s.turns.map((t) =>
-                      t.id === turnId
-                        ? { ...t, sources: [...t.sources, event.source] }
-                        : t,
-                    ),
-                  };
-                case "resource.material":
-                  return {
-                    ...s,
-                    turns: s.turns.map((t) =>
-                      t.id === turnId
-                        ? { ...t, sources: [...t.sources, event.resource] }
-                        : t,
-                    ),
-                  };
-                default:
-                  return s;
-              }
-            }),
-          );
+          const event = JSON.parse(line.slice(4));
+          switch (event.object) {
+            case "llm.try.run.start":
+              callbacks.onLLMTryRunStart(crypto.randomUUID(), event);
+              break;
+            case "llm.try.run.end":
+              callbacks.onLLMTryRunEnd(crypto.randomUUID(), event);
+              break;
+            case "llm.try.run.failed":
+              callbacks.onLLMTryRunFailed(crypto.randomUUID(), event);
+              break;
+            case "research.turn.started":
+              callbacks.onResearchTurnStarted(crypto.randomUUID(), event);
+              break;
+            case "research.step.update":
+              callbacks.onResearchStepUpdate(crypto.randomUUID(), event);
+              break;
+            case "research.reasoning.delta":
+              callbacks.onResearchReasoningDelta(crypto.randomUUID(), event);
+              break;
+            case "research.source.added":
+              callbacks.onResearchSourceAdded(crypto.randomUUID(), event);
+              break;
+            case "resource.material":
+              callbacks.onResourceMaterial(crypto.randomUUID(), event);
+              break;
+          }
         } catch (e) {
           console.error("Failed to parse mock CE event", e, line);
         }
       }
     }
 
-    // Finalize
     setSessions((current) =>
       current.map((s) =>
         s.id === sessionId
-          ? {
-              ...s,
-              state: "reported",
-              activeTurnId: undefined,
-            }
+          ? { ...s, state: "reported", activeTurnId: undefined }
           : s,
       ),
     );
@@ -272,9 +196,8 @@ function ResearchMockContent() {
   }
 
   const isResearching =
-    keepThoughtOpen ||
-    activeSession.state === "searching" ||
-    activeSession.state === "reasoning";
+    keepThoughtOpen || activeSession.state === "researching";
+  const isIdle = activeSession.state === "idle";
 
   return (
     <AppContainer>
@@ -284,6 +207,7 @@ function ResearchMockContent() {
             Research Mock UI
           </h1>
           <button
+            type="button"
             onClick={() => handleArchive(activeSession.id)}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors ml-auto"
             title="Archive Research"
@@ -295,44 +219,41 @@ function ResearchMockContent() {
       </AppHeader>
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* Content Area */}
         <div
           ref={scrollContainerRef}
           className={cn(
             "flex-1 overflow-auto transition-all duration-500",
-            activeSession.state === "idle"
-              ? "flex items-center justify-center"
-              : "p-6",
+            isIdle ? "flex items-center justify-center" : "px-10 py-6",
           )}
         >
-          {activeSession.state === "idle" && (
+          {isIdle ? (
             <IdleResearchView
-              onSearch={(q, deep) => handleSearch(activeSession.id, q, deep)}
-              title="UI Mock: What are we building?"
+              onResearch={(q, deep) =>
+                handleResearch(activeSession.id, q, deep)
+              }
             />
-          )}
-
-          {(activeSession.turns.length > 0 || isResearching) && (
-            <div className="max-w-6xl mx-auto w-full space-y-12 pb-48">
-              <ResearchReport
-                turns={activeSession.turns}
-                isStreaming={isResearching}
-              />
-            </div>
+          ) : (
+            (activeSession.turns.length > 0 || isResearching) && (
+              <div className="mx-auto w-full space-y-12 pb-48">
+                <ResearchReport
+                  turns={activeSession.turns}
+                  isStreaming={isResearching}
+                />
+                <div className="h-[400px]" />
+              </div>
+            )
           )}
         </div>
 
-        {/* Floating Thought Process Indicator */}
         <FloatingThoughtProcess
           isVisible={isResearching}
           steps={activeSession.steps}
           thoughtProcess={activeSession.thoughtProcess}
         />
 
-        {/* Sticky Input Area */}
         <StickyResearchInput
-          isVisible={activeSession.state !== "idle"}
-          onSearch={(q, deep) => handleSearch(activeSession.id, q, deep)}
+          isVisible={!isIdle}
+          onSearch={(q, deep) => handleResearch(activeSession.id, q, deep)}
         />
       </div>
     </AppContainer>

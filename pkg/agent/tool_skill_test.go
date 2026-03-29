@@ -16,25 +16,25 @@ func TestListAgentSkillsTool(t *testing.T) {
 	ctx := context.Background()
 	stream := &skillMockStreamWriter{}
 
-	// Create some test skills
-	skill1 := &db.Skill{
-		Name:         "test-skill-1",
-		SystemPrompt: "Test skill 1 prompt",
+	// Create some test prompts
+	prompt1 := &db.Prompt{
+		Name:         "test-prompt-1",
+		SystemPrompt: "Test prompt 1 prompt",
 		Tags:         "tag1,tag2",
 		Tools:        "tool1 tool2",
 	}
-	if err := store.CreateSkill(ctx, skill1); err != nil {
-		t.Fatalf("create skill: %v", err)
+	if err := store.CreatePrompt(ctx, prompt1); err != nil {
+		t.Fatalf("create prompt: %v", err)
 	}
 
-	skill2 := &db.Skill{
-		Name:         "test-skill-2",
-		SystemPrompt: "Test skill 2 prompt",
+	prompt2 := &db.Prompt{
+		Name:         "test-prompt-2",
+		SystemPrompt: "Test prompt 2 prompt",
 		Tags:         "tag3",
 		Tools:        "tool3",
 	}
-	if err := store.CreateSkill(ctx, skill2); err != nil {
-		t.Fatalf("create skill: %v", err)
+	if err := store.CreatePrompt(ctx, prompt2); err != nil {
+		t.Fatalf("create prompt: %v", err)
 	}
 
 	tool := NewListAgentSkillsTool()
@@ -48,44 +48,44 @@ func TestListAgentSkillsTool(t *testing.T) {
 		t.Fatalf("ListAgentSkillsTool failed: %v", err)
 	}
 
-	var skills []map[string]string
-	if err := json.Unmarshal([]byte(res), &skills); err != nil {
+	var prompts []map[string]string
+	if err := json.Unmarshal([]byte(res), &prompts); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
 
-	if len(skills) != 2 {
-		t.Errorf("Expected 2 skills, got %d", len(skills))
+	if len(prompts) != 2 {
+		t.Errorf("Expected 2 prompts, got %d", len(prompts))
 	}
 
-	// Check that both skills are present
-	skillNames := make(map[string]bool)
-	for _, skill := range skills {
-		skillNames[skill["name"]] = true
+	// Check that both prompts are present
+	promptNames := make(map[string]bool)
+	for _, prompt := range prompts {
+		promptNames[prompt["name"]] = true
 	}
 
-	if !skillNames["test-skill-1"] {
-		t.Error("Expected test-skill-1 to be present")
+	if !promptNames["test-prompt-1"] {
+		t.Error("Expected test-prompt-1 to be present")
 	}
-	if !skillNames["test-skill-2"] {
-		t.Error("Expected test-skill-2 to be present")
+	if !promptNames["test-prompt-2"] {
+		t.Error("Expected test-prompt-2 to be present")
 	}
 
-	// Check tags and tools for first skill
-	for _, skill := range skills {
-		if skill["name"] == "test-skill-1" {
-			if skill["tags"] != "tag1,tag2" {
-				t.Errorf("Expected tags 'tag1,tag2' for test-skill-1, got '%s'", skill["tags"])
+	// Check tags and tools for first prompt
+	for _, prompt := range prompts {
+		if prompt["name"] == "test-prompt-1" {
+			if prompt["tags"] != "tag1,tag2" {
+				t.Errorf("Expected tags 'tag1,tag2' for test-prompt-1, got '%s'", prompt["tags"])
 			}
-			if skill["tools"] != "tool1 tool2" {
-				t.Errorf("Expected tools 'tool1 tool2' for test-skill-1, got '%s'", skill["tools"])
+			if prompt["tools"] != "tool1 tool2" {
+				t.Errorf("Expected tools 'tool1 tool2' for test-prompt-1, got '%s'", prompt["tools"])
 			}
 		}
-		if skill["name"] == "test-skill-2" {
-			if skill["tags"] != "tag3" {
-				t.Errorf("Expected tags 'tag3' for test-skill-2, got '%s'", skill["tags"])
+		if prompt["name"] == "test-prompt-2" {
+			if prompt["tags"] != "tag3" {
+				t.Errorf("Expected tags 'tag3' for test-prompt-2, got '%s'", prompt["tags"])
 			}
-			if skill["tools"] != "tool3" {
-				t.Errorf("Expected tools 'tool3' for test-skill-2, got '%s'", skill["tools"])
+			if prompt["tools"] != "tool3" {
+				t.Errorf("Expected tools 'tool3' for test-prompt-2, got '%s'", prompt["tools"])
 			}
 		}
 	}

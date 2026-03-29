@@ -70,7 +70,12 @@ func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, strea
 		return "", err
 	}
 
-	fullPath := filepath.Join(t.baseDir, req.Path)
+	var fullPath string
+	if filepath.IsAbs(req.Path) {
+		fullPath = req.Path
+	} else {
+		fullPath = filepath.Join(t.baseDir, req.Path)
+	}
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)

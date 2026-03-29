@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import type { ReasoningStep } from "../research/_components/reasoning-trace";
 import type { Source } from "../research/_components/source-card";
 
-export type ResearchState = "idle" | "searching" | "reasoning" | "reported";
+export type ResearchState = "idle" | "researching" | "reasoning" | "reported";
 
 export interface ResearchTurn {
   id: string;

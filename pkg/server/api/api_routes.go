@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
@@ -18,10 +17,9 @@ import (
 
 // ApiHandler represents the API handler
 type ApiHandler struct {
-	index        *codemogger.CodeIndex
-	hub          *WsHub
-	agentFactory *agent.AgentFactory
-	taskManager  *task.Manager
+	index       *codemogger.CodeIndex
+	hub         *WsHub
+	taskManager *task.Manager
 }
 
 // ApiConfig holds the API handler configuration
@@ -36,20 +34,13 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		store = config.Index.GetStore()
 	}
 
-	if err := agent.InitAgentFactory(store, GetSystemLLMConfig()); err != nil {
-		panic("failed to initialize agent factory: " + err.Error())
-	}
-
-	factory := agent.GetAgentFactory()
-
 	h := &ApiHandler{
-		index:        config.Index,
-		hub:          NewWsHub(),
-		agentFactory: factory,
+		index: config.Index,
+		hub:   NewWsHub(),
 	}
 
 	if config.Index != nil {
-		prompt.SyncBuiltinSkills(context.Background(), store)
+		prompt.SyncBuiltinPrompts(context.Background(), store)
 
 		numWorkers := runtime.NumCPU() - 1
 		isDev := false
@@ -63,7 +54,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 		}
 
 		h.taskManager = task.NewManager(store, numWorkers, h.Publish)
-		task.RegisterQueueHandlers(h.taskManager, config.Index, factory, h.Publish)
+		task.RegisterQueueHandlers(h.taskManager, config.Index, h.Publish)
 
 		h.taskManager.StartWorkers(context.Background(), isDev)
 	}
@@ -96,6 +87,7 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/codebases", h.handleListSystemCodebases)
 	mux.HandleFunc("GET /api/codemogger/codebases", h.handleListCodebases)
 	mux.HandleFunc("GET /api/codemogger/status", h.handleGetCodemoggerStatus)
+	mux.HandleFunc("DELETE /api/codemogger/codebases", h.handleDeleteCodemoggerCodebase)
 
 	// Files
 	mux.HandleFunc("GET /api/codemogger/files", h.handleListFiles)
@@ -125,19 +117,15 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/saved_reports", h.handleSaveSavedReport)
 	mux.HandleFunc("DELETE /api/saved_reports/{id}", h.handleDeleteSavedReport)
 
-	// Knowledge Base
-	mux.HandleFunc("GET /api/knowledge", h.handleListKnowledgePages)
-	mux.HandleFunc("GET /api/knowledge/get", h.handleGetKnowledgePage)
-	mux.HandleFunc("POST /api/knowledge", h.handleCreateKnowledgePage)
-	mux.HandleFunc("PUT /api/knowledge", h.handleUpdateKnowledgePage)
-	mux.HandleFunc("DELETE /api/knowledge", h.handleDeleteKnowledgePage)
-	mux.HandleFunc("POST /api/knowledge/build", h.handleBuildKnowledge)
+	// Code Summer
+	mux.HandleFunc("POST /api/codesummer/{id}", h.handleCreateCodesummer)
+	mux.HandleFunc("GET /api/codesummer/summaries", h.handleListCodesummerSummaries)
 
 	// Agent Skills
-	mux.HandleFunc("GET /api/agent_skills", h.handleListSkills)
-	mux.HandleFunc("GET /api/agent_skills/get", h.handleGetSkill)
-	mux.HandleFunc("PUT /api/agent_skills", h.handleUpdateSkill)
-	mux.HandleFunc("DELETE /api/agent_skills", h.handleDeleteSkill)
+	mux.HandleFunc("GET /api/agent_prompts", h.handleListSkills)
+	mux.HandleFunc("GET /api/agent_prompts/get", h.handleGetSkill)
+	mux.HandleFunc("PUT /api/agent_prompts", h.handleUpdateSkill)
+	mux.HandleFunc("DELETE /api/agent_prompts", h.handleDeleteSkill)
 }
 
 // handleHealth returns the health status of the API
@@ -169,4 +157,25 @@ func writeError(w http.ResponseWriter, status int, message string, err error) {
 		details = err.Error()
 	}
 	writeJSON(w, status, map[string]any{"error": message, "details": details})
+}
+
+func (h *ApiHandler) handleCreateCodesummer(w http.ResponseWriter, r *http.Request) {
+	codebaseID := r.PathValue("id")
+	if codebaseID == "" {
+		writeError(w, http.StatusBadRequest, "codebase id is required", nil)
+		return
+	}
+
+	taskID, err := h.taskManager.Submit(r.Context(), "codesummer", map[string]string{
+		"codebaseId": codebaseID,
+	}, 3)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to submit codesummer task", err)
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status": "codesummer_queued",
+		"taskId": taskID,
+	})
 }

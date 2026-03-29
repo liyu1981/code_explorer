@@ -18,16 +18,22 @@ type HTTPClientLLM struct {
 	model      string
 	baseURL    string
 	apiKey     string
+	noThink    bool
 	httpClient *http.Client
 }
 
-func NewHTTPClientLLM(model, baseURL, apiKey string) *HTTPClientLLM {
+func newHTTPClientLLM(model, baseURL, apiKey string) *HTTPClientLLM {
 	return &HTTPClientLLM{
 		model:      model,
 		baseURL:    baseURL,
 		apiKey:     apiKey,
+		noThink:    false,
 		httpClient: &http.Client{},
 	}
+}
+
+func (l *HTTPClientLLM) SetNoThink(noThink bool) {
+	l.noThink = noThink
 }
 
 func (l *HTTPClientLLM) Name() string {
@@ -44,6 +50,10 @@ func (l *HTTPClientLLM) Generate(ctx context.Context, messages []Message, tools 
 	}
 	if responseFormat != nil {
 		payload["response_format"] = responseFormat
+	}
+	if l.noThink {
+		// Note: only llamacpp server support this, ollama is not yet.
+		payload["chat_template_kwargs"] = map[string]any{"enable_thinking": false}
 	}
 
 	body, err := json.Marshal(payload)
@@ -131,6 +141,8 @@ func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, 
 	}
 	if responseFormat != nil {
 		payload["response_format"] = responseFormat
+	}
+	if l.noThink {
 	}
 
 	body, err := json.Marshal(payload)
@@ -236,63 +248,53 @@ func (l *HTTPClientLLM) GenerateStream(ctx context.Context, messages []Message, 
 	return fullContent, toolCalls, nil
 }
 
-type MockLLM struct {
-	model     string
-	responses []string
-	toolCalls [][]ToolCall
-	callIndex int
-}
-
-func NewMockLLM(model string, responses []string, toolCalls [][]ToolCall) *MockLLM {
-	return &MockLLM{
-		model:     model,
-		responses: responses,
-		toolCalls: toolCalls,
-	}
-}
-
-func (l *MockLLM) Name() string {
-	return l.model
-}
-
-func (l *MockLLM) Generate(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat) (string, []ToolCall, error) {
-	if l.callIndex >= len(l.responses) {
-		return "", nil, nil
+func BuildLLM(cfg map[string]any) (LLM, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("llm config is required")
 	}
 
-	response := l.responses[l.callIndex]
-	var tcs []ToolCall
-	if l.callIndex < len(l.toolCalls) {
-		tcs = l.toolCalls[l.callIndex]
+	llmType, _ := cfg["type"].(string)
+	var llm LLM
+	switch llmType {
+	case "openai":
+		baseURL, _ := cfg["base_url"].(string)
+		if baseURL == "" {
+			baseURL = "http://localhost:11434/v1"
+		}
+		model, _ := cfg["model"].(string)
+		if model == "" {
+			model = "qwen3.5:4b"
+		}
+		apiKey := os.Getenv("LLM_API_KEY")
+		if ak, ok := cfg["api_key"].(string); ok {
+			apiKey = ak
+		}
+		httpLLMClient := newHTTPClientLLM(model, baseURL, apiKey)
+		if _, ok := cfg["no_think"]; ok {
+			if cfg["no_think"].(bool) {
+				httpLLMClient.SetNoThink(true)
+			}
+		}
+		llm = httpLLMClient
+
+	case "mock":
+		model, _ := cfg["model"].(string)
+		responses, _ := cfg["responses"].([]any)
+		respStrs := make([]string, len(responses))
+		for i, r := range responses {
+			respStrs[i], _ = r.(string)
+		}
+		llm = NewMockLLM(model, respStrs, nil)
+
+	default:
+		// Fallback for when type is not specified but it looks like an OpenAI-compatible config
+		if model, ok := cfg["model"].(string); ok && model != "" {
+			baseURL, _ := cfg["base_url"].(string)
+			apiKey, _ := cfg["api_key"].(string)
+			return newHTTPClientLLM(model, baseURL, apiKey), nil
+		}
+		return nil, fmt.Errorf("unknown llm type: %s", llmType)
 	}
-	l.callIndex++
 
-	return response, tcs, nil
-}
-
-func (l *MockLLM) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat, stream protocol.IStreamWriter) (string, []ToolCall, error) {
-	content, toolCalls, err := l.Generate(ctx, messages, tools, responseFormat)
-	if err != nil {
-		return "", nil, err
-	}
-
-	if stream != nil && content != "" {
-		stream.WriteOpenAIChunk("mock-id", l.model, content, nil)
-	}
-
-	return content, toolCalls, nil
-}
-
-type EnvConfig struct {
-	apiKey  string
-	baseURL string
-	model   string
-}
-
-func LoadEnvConfig() EnvConfig {
-	return EnvConfig{
-		apiKey:  os.Getenv("LLM_API_KEY"),
-		baseURL: os.Getenv("LLM_BASE_URL"),
-		model:   os.Getenv("LLM_MODEL"),
-	}
+	return llm, nil
 }

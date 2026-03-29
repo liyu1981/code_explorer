@@ -109,9 +109,7 @@ function KnowledgeContent() {
 
     setIsBuilding(true);
     try {
-      const response = await api.post("/api/knowledge/build", {
-        codebaseId: cbid,
-      });
+      const response = await api.post(`/api/codesummer/${cbid}`, {});
       const data = response.data;
       toast.info(`Build started. Task ID: ${data.taskId}`);
 

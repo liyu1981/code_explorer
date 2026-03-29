@@ -25,12 +25,9 @@ type CodeIndex struct {
 }
 
 func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeIndex, error) {
-	var emb embed.Embedder
 	embCfg := cfg.CodeMogger.Embedder
 
-	// Handle inheritance from System LLM
 	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
-		// Do not inherit 'model' for embedder as it's usually different from LLM model
 		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
 			embCfg.Type = t
 		}
@@ -40,39 +37,12 @@ func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeInde
 		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
 			embCfg.OpenAI.APIKey = key
 		}
+		if model, ok := cfg.System.LLM["model"].(string); ok && model != "" {
+			embCfg.OpenAI.Model = model
+		}
 	}
 
-	switch embCfg.Type {
-	case "openai":
-		model := embCfg.OpenAI.Model
-		if model == "" {
-			model = embCfg.Model
-		}
-		if model == "" {
-			model = "text-embedding-3-small"
-		}
-		emb = embed.NewOpenAIEmbedder(
-			embCfg.OpenAI.APIBase,
-			model,
-			embCfg.OpenAI.APIKey,
-			1536,
-		)
-	default:
-		apiBase := embCfg.OpenAI.APIBase
-		if apiBase == "" {
-			apiBase = "http://localhost:11434/v1"
-		}
-		model := embCfg.Model
-		if model == "" {
-			model = "all-minilm:l6-v2"
-		}
-		emb = embed.NewOpenAIEmbedder(
-			apiBase,
-			model,
-			embCfg.OpenAI.APIKey,
-			384,
-		)
-	}
+	emb := embed.NewEmbedderFromConfig(embCfg)
 
 	return &CodeIndex{
 		store:          store,
@@ -124,10 +94,10 @@ func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (
 
 	log.Info().Msg("Checking file hashes...")
 	for i, file := range files {
-		activeFiles[file.AbsPath] = true
-		storedHash, err := c.store.CodemoggerGetFileHash(ctx, metadataID, file.AbsPath)
+		activeFiles[file.RelPath] = true
+		storedHash, err := c.store.CodemoggerGetFileHash(ctx, metadataID, file.RelPath)
 		if err != nil {
-			log.Warn().Str("file", file.AbsPath).Err(err).Msg("Failed to get file hash")
+			log.Warn().Str("file", file.RelPath).Err(err).Msg("Failed to get file hash")
 			continue
 		}
 		if storedHash == file.Hash {
@@ -149,12 +119,12 @@ func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (
 
 	log.Info().Msg("Chunking files...")
 	for i, file := range filesToProcess {
-		langConfig := chunk.DetectLanguage(file.AbsPath)
+		langConfig := chunk.DetectLanguage(file.RelPath)
 		if langConfig == nil {
 			continue
 		}
 
-		chunks := chunk.ChunkFile(file.AbsPath, file.Content, file.Hash, langConfig)
+		chunks := chunk.ChunkFile(file.RelPath, file.Content, file.Hash, langConfig)
 		if len(chunks) > 0 {
 			dbChunks := make([]db.CodeChunk, len(chunks))
 			for j, chk := range chunks {
@@ -176,7 +146,7 @@ func (c *CodeIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (
 				FileHash string
 				Chunks   []db.CodeChunk
 			}{
-				FilePath: file.AbsPath,
+				FilePath: file.RelPath,
 				FileHash: file.Hash,
 				Chunks:   dbChunks,
 			})
@@ -442,9 +412,7 @@ func (c *CodeIndex) ReloadConfig() error {
 	var emb embed.Embedder
 	embCfg := cfg.CodeMogger.Embedder
 
-	// Handle inheritance from System LLM
 	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
-		// Do not inherit 'model' for embedder as it's usually different from LLM model
 		if t, ok := cfg.System.LLM["type"].(string); ok && t != "" {
 			embCfg.Type = t
 		}
@@ -453,6 +421,9 @@ func (c *CodeIndex) ReloadConfig() error {
 		}
 		if key, ok := cfg.System.LLM["api_key"].(string); ok && key != "" {
 			embCfg.OpenAI.APIKey = key
+		}
+		if model, ok := cfg.System.LLM["model"].(string); ok && model != "" {
+			embCfg.OpenAI.Model = model
 		}
 	}
 

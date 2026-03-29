@@ -28,11 +28,11 @@ func NewCodeMoggerListFilesTool() Tool {
 }
 
 func (t *CodeMoggerListFilesTool) Name() string {
-	return "codemogger_list_files"
+	return list_files_tool_name
 }
 
 func (t *CodeMoggerListFilesTool) Description() string {
-	return "Lists all indexed files in the codebase."
+	return list_files_tool_desc
 }
 
 func (t *CodeMoggerListFilesTool) Clone() Tool {

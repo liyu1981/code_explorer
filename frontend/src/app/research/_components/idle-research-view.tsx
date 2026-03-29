@@ -3,13 +3,13 @@
 import { ResearchInput } from "./research-input";
 
 interface IdleResearchViewProps {
-  onSearch: (query: string, deep: boolean) => void;
+  onResearch: (query: string, deep: boolean) => void;
   title?: string;
   subtitle?: string;
 }
 
 export function IdleResearchView({
-  onSearch,
+  onResearch,
   title = "What are we building?",
   subtitle = "Research your codebase with semantic intelligence and deep analytical reasoning.",
 }: IdleResearchViewProps) {
@@ -22,7 +22,7 @@ export function IdleResearchView({
         </p>
       </div>
       <div className="max-w-6xl mx-auto p-8">
-        <ResearchInput onSearch={onSearch} />
+        <ResearchInput onResearch={onResearch} />
       </div>
     </div>
   );

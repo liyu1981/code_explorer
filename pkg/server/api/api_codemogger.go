@@ -122,3 +122,21 @@ func (h *ApiHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, results)
 }
+
+func (h *ApiHandler) handleDeleteCodemoggerCodebase(w http.ResponseWriter, r *http.Request) {
+	codebaseID := r.URL.Query().Get("codebase_id")
+	if codebaseID == "" {
+		writeError(w, http.StatusBadRequest, "codebase_id is required", nil)
+		return
+	}
+
+	log.Info().Str("codebaseID", codebaseID).Msg("Deleting codemogger codebase entries")
+
+	if err := h.index.GetStore().CodemoggerDeleteCodebase(r.Context(), codebaseID); err != nil {
+		log.Error().Err(err).Str("codebaseID", codebaseID).Msg("Failed to delete codemogger codebase")
+		writeError(w, http.StatusInternalServerError, "Failed to delete codemogger codebase", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
