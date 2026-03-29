@@ -30,15 +30,31 @@ type IntentDetection struct {
 	Reasoning  string  `json:"reasoning"`
 }
 
+const DefaultDynamicSystemPrompt = `Analyze the user request and determine the appropriate workflow intent.
+
+Categories:
+- "simple": Factual questions, definitions, direct answers (e.g., "what is X", "who is Y", "define Z")
+- "investigate": Code/file exploration, search, reading (e.g., "find files", "search for X", "read file Y", "grep Z")
+- "complex": Multi-step tasks, reports, comparisons (e.g., "summarize X", "compare Y and Z", "generate report", "analyze and explain")
+
+Respond with JSON only.`
+
 type DynamicRouter struct {
 	llm          agent.LLM
 	toolRegistry *agent.ToolRegistry
+	systemPrompt string
 	reactRunner  *ReactWorkflowRunner
 	rcRunner     *RCWorkflowRunner
 	peeRunner    *PEEWorkflowRunner
 }
 
 type DynamicRouterOption func(*DynamicRouter)
+
+func DynamicWithSystemPrompt(prompt string) DynamicRouterOption {
+	return func(d *DynamicRouter) {
+		d.systemPrompt = prompt
+	}
+}
 
 func DynamicWithReactWorkflowRunner(runner *ReactWorkflowRunner) DynamicRouterOption {
 	return func(d *DynamicRouter) {
@@ -62,6 +78,7 @@ func NewDynamicRouter(llm agent.LLM, toolRegistry *agent.ToolRegistry, opts ...D
 	d := &DynamicRouter{
 		llm:          llm,
 		toolRegistry: toolRegistry,
+		systemPrompt: DefaultDynamicSystemPrompt,
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -77,17 +94,8 @@ func (d *DynamicRouter) Route(ctx context.Context, goal string) (*RouteResult, e
 		return nil, fmt.Errorf("failed to create intent format: %w", err)
 	}
 
-	systemPrompt := `Analyze the user request and determine the appropriate workflow intent.
-
-Categories:
-- "simple": Factual questions, definitions, direct answers (e.g., "what is X", "who is Y", "define Z")
-- "investigate": Code/file exploration, search, reading (e.g., "find files", "search for X", "read file Y", "grep Z")
-- "complex": Multi-step tasks, reports, comparisons (e.g., "summarize X", "compare Y and Z", "generate report", "analyze and explain")
-
-Respond with JSON only.`
-
 	messages := []agent.Message{
-		{Role: "system", Content: systemPrompt},
+		{Role: "system", Content: d.systemPrompt},
 		{Role: "user", Content: goal},
 	}
 

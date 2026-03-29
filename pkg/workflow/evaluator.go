@@ -28,19 +28,38 @@ type Evaluator interface {
 	Evaluate(ctx context.Context, goal string, d *DAG) (*EvalResult, error)
 }
 
+const DefaultEvaluatorSystemPrompt = `You are a result evaluator. Given a goal and task outcomes, decide:
+- "done": goal fully achieved, provide final_answer
+- "replan": goal not met, explain replan_hint and missing_info
+- "failed": unrecoverable error`
+
 type LLMEvaluator struct {
 	llm            agent.LLM
 	tools          []map[string]any
 	responseFormat *agent.ResponseFormat
+	systemPrompt   string
 	lastHint       string
 }
 
-func NewLLMEvaluator(llm agent.LLM, tools []map[string]any, responseFormat *agent.ResponseFormat) *LLMEvaluator {
-	return &LLMEvaluator{
+type LLMEvaluatorOption func(*LLMEvaluator)
+
+func EvaluatorWithSystemPrompt(prompt string) LLMEvaluatorOption {
+	return func(e *LLMEvaluator) {
+		e.systemPrompt = prompt
+	}
+}
+
+func NewLLMEvaluator(llm agent.LLM, tools []map[string]any, responseFormat *agent.ResponseFormat, opts ...LLMEvaluatorOption) *LLMEvaluator {
+	e := &LLMEvaluator{
 		llm:            llm,
 		tools:          tools,
 		responseFormat: responseFormat,
+		systemPrompt:   DefaultEvaluatorSystemPrompt,
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
 }
 
 func NewLLMEvaluatorWithJSONFormat(llm agent.LLM, tools []map[string]any) (*LLMEvaluator, error) {
@@ -52,10 +71,7 @@ func NewLLMEvaluatorWithJSONFormat(llm agent.LLM, tools []map[string]any) (*LLME
 }
 
 func (ev *LLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*EvalResult, error) {
-	system := `You are a result evaluator. Given a goal and task outcomes, decide:
-- "done": goal fully achieved, provide final_answer
-- "replan": goal not met, explain replan_hint and missing_info
-- "failed": unrecoverable error`
+	system := ev.systemPrompt
 
 	user := ev.buildPrompt(goal, d)
 

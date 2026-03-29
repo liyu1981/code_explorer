@@ -9,25 +9,57 @@ import (
 )
 
 type PEEWorkflowRunner struct {
-	planner      Planner
-	executor     *Executor
-	evaluator    Evaluator
-	maxIter      int
-	toolRegistry *agent.ToolRegistry
+	planner       Planner
+	executor      *Executor
+	evaluator     Evaluator
+	maxIter       int
+	toolRegistry  *agent.ToolRegistry
+	plannerOpts   []LLMPlannerOption
+	evaluatorOpts []LLMEvaluatorOption
 }
 
-func NewPEEWorkflowRunner(llm agent.LLM, toolRegistry *agent.ToolRegistry, maxWorkers, maxIter int) *PEEWorkflowRunner {
+type PEEWorkflowRunnerOption func(*PEEWorkflowRunner)
+
+func PEEWithPlannerSystemPrompt(prompt string) PEEWorkflowRunnerOption {
+	return func(r *PEEWorkflowRunner) {
+		r.plannerOpts = append(r.plannerOpts, PlannerWithSystemPrompt(prompt))
+	}
+}
+
+func PEEWithEvaluatorSystemPrompt(prompt string) PEEWorkflowRunnerOption {
+	return func(r *PEEWorkflowRunner) {
+		r.evaluatorOpts = append(r.evaluatorOpts, EvaluatorWithSystemPrompt(prompt))
+	}
+}
+
+func NewPEEWorkflowRunner(llm agent.LLM, toolRegistry *agent.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) *PEEWorkflowRunner {
+	r := &PEEWorkflowRunner{
+		maxIter:      maxIter,
+		toolRegistry: toolRegistry,
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+
 	tools := toolRegistry.MarshalToolsForLLM()
 	return &PEEWorkflowRunner{
-		planner:      NewLLMPlanner(llm, tools, nil),
+		planner:      NewLLMPlanner(llm, tools, nil, r.plannerOpts...),
 		executor:     NewExecutor(toolRegistry, maxWorkers),
-		evaluator:    NewLLMEvaluator(llm, tools, nil),
+		evaluator:    NewLLMEvaluator(llm, tools, nil, r.evaluatorOpts...),
 		maxIter:      maxIter,
 		toolRegistry: toolRegistry,
 	}
 }
 
-func NewRunnerWithJSONFormat(llm agent.LLM, toolRegistry *agent.ToolRegistry, maxWorkers, maxIter int) (*PEEWorkflowRunner, error) {
+func NewRunnerWithJSONFormat(llm agent.LLM, toolRegistry *agent.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) (*PEEWorkflowRunner, error) {
+	r := &PEEWorkflowRunner{
+		maxIter:      maxIter,
+		toolRegistry: toolRegistry,
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+
 	tools := toolRegistry.MarshalToolsForLLM()
 
 	planner, err := NewLLMPlannerWithJSONFormat(llm, tools)

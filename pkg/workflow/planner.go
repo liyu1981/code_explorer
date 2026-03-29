@@ -32,18 +32,35 @@ type PlanResponse struct {
 	Tasks []TaskPlan `json:"tasks"`
 }
 
+const DefaultPlannerSystemPrompt = `You are a task planner. Given a goal, plan a set of tasks to accomplish it.
+Tasks may depend on each other. Output a JSON task graph.`
+
 type LLMPlanner struct {
 	llm            agent.LLM
 	tools          []map[string]any
 	responseFormat *agent.ResponseFormat
+	systemPrompt   string
 }
 
-func NewLLMPlanner(llm agent.LLM, tools []map[string]any, responseFormat *agent.ResponseFormat) *LLMPlanner {
-	return &LLMPlanner{
+type LLMPlannerOption func(*LLMPlanner)
+
+func PlannerWithSystemPrompt(prompt string) LLMPlannerOption {
+	return func(p *LLMPlanner) {
+		p.systemPrompt = prompt
+	}
+}
+
+func NewLLMPlanner(llm agent.LLM, tools []map[string]any, responseFormat *agent.ResponseFormat, opts ...LLMPlannerOption) *LLMPlanner {
+	p := &LLMPlanner{
 		llm:            llm,
 		tools:          tools,
 		responseFormat: responseFormat,
+		systemPrompt:   DefaultPlannerSystemPrompt,
 	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
 }
 
 func NewLLMPlannerWithJSONFormat(llm agent.LLM, tools []map[string]any) (*LLMPlanner, error) {
@@ -87,8 +104,7 @@ func (p *LLMPlanner) Plan(ctx context.Context, req PlanRequest) (*DAG, error) {
 }
 
 func (p *LLMPlanner) buildSystemPrompt() string {
-	return `You are a task planner. Given a goal, plan a set of tasks to accomplish it.
-Tasks may depend on each other. Output a JSON task graph.`
+	return p.systemPrompt
 }
 
 func (p *LLMPlanner) buildUserPrompt(req PlanRequest) string {
