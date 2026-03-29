@@ -80,7 +80,7 @@ func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stre
 }
 
 func TestAgentIntegration(t *testing.T) {
-	baseURL, model, _ := GetIntegrationTestParams()
+	baseURL, model, apiKey, noThink := GetIntegrationTestParams()
 
 	InitGlobalToolRegistry()
 
@@ -88,7 +88,8 @@ func TestAgentIntegration(t *testing.T) {
 	registry.Register(&echoTool{})
 	registry.Register(&calculateTool{})
 
-	llm := newHTTPClientLLM(model, baseURL, "")
+	llm := newHTTPClientLLM(model, baseURL, apiKey)
+	llm.SetNoThink(noThink)
 	agentInstance := newAgent(llm, "", "", registry, WithMaxIterations(5))
 
 	ctx := context.Background()

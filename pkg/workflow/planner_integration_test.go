@@ -11,13 +11,14 @@ import (
 )
 
 func TestLLMPlannerIntegration(t *testing.T) {
-	baseURL, model, _ := agent.GetIntegrationTestParams()
+	stype, baseURL, model, apiKey, noThink := agent.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
-		"type":     "openai",
+		"type":     stype,
 		"model":    model,
 		"base_url": baseURL,
-		"api_key":  "",
+		"api_key":  apiKey,
+		"no_think": noThink,
 	}
 	llm, err := agent.BuildLLM(llmCfg)
 	if err != nil {
@@ -140,13 +141,14 @@ func TestLLMPlannerIntegration(t *testing.T) {
 }
 
 func TestLLMPlannerJSONOutputIntegration(t *testing.T) {
-	baseURL, model, _ := agent.GetIntegrationTestParams()
+	stype, baseURL, model, apiKey, noThink := agent.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
-		"type":     "openai",
+		"type":     stype,
 		"model":    model,
 		"base_url": baseURL,
-		"api_key":  "",
+		"api_key":  apiKey,
+		"no_think": noThink,
 	}
 	llm, err := agent.BuildLLM(llmCfg)
 	if err != nil {

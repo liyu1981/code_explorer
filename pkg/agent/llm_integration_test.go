@@ -9,9 +9,10 @@ import (
 )
 
 func TestLLMIntegration(t *testing.T) {
-	baseURL, model, apiKey := GetIntegrationTestParams()
+	baseURL, model, apiKey, noThink := GetIntegrationTestParams()
 
 	llm := newHTTPClientLLM(model, baseURL, apiKey)
+	llm.SetNoThink(noThink)
 
 	t.Run("Simple Text Generation", func(t *testing.T) {
 		messages := []Message{
@@ -109,10 +110,10 @@ func TestLLMIntegration(t *testing.T) {
 }
 
 func TestLLMNoThinkIntegration(t *testing.T) {
-	baseURL, model, apiKey := GetIntegrationTestParams()
+	baseURL, model, apiKey, noThink := GetIntegrationTestParams()
 
 	llmNoThink := newHTTPClientLLM(model, baseURL, apiKey)
-	llmNoThink.SetNoThink(true)
+	llmNoThink.SetNoThink(noThink)
 
 	messages := []Message{
 		{Role: "user", Content: "What is 1+1?"},

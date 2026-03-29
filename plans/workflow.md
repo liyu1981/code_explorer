@@ -10,11 +10,16 @@ A self-contained package inside your existing Go app. Plugs into your existing L
 
 ```
 pkg/workflow/
-├── workflow.go      # Agent loop (Run), public entry point
-├── dag.go           # Task, DAG, status types
-├── planner.go       # Planner interface + skeleton
-├── executor.go      # Parallel executor
-└── evaluator.go    # Evaluator interface + skeleton
+├── pee_workflow.go            # Plan-Execute-Evaluate workflow runner
+├── dag.go                     # Task, DAG, status types
+├── planner.go                 # Planner interface + LLM implementation
+├── executor.go                # Parallel executor
+├── evaluator.go               # Evaluator interface + LLM implementation
+├── react_workflow.go          # ReAct workflow runner (Draft → Act → Observe)
+├── rc_workflow.go             # Reflect-Critic workflow runner (Draft → Critique → Revise)
+├── dynamic_workflow.go        # Dynamic routing (Switchboard) - routes to appropriate workflow
+├── *_test.go                 # Unit tests
+└── *_integration_test.go      # Integration tests
 ```
 
 ---
@@ -508,10 +513,12 @@ This approach:
 
 ## Caller Usage
 
+### PEE Workflow
+
 ```go
 import (
     "yourapp/pkg/agent"
-    "yourapp/internal/workflow"
+    "yourapp/pkg/workflow"
 )
 
 toolRegistry := agent.GetGlobalToolRegistry()
@@ -521,8 +528,30 @@ llm, _ := agent.BuildLLM(map[string]any{
     "base_url": "http://localhost:11434/v1",
 })
 
-runner := workflow.NewRunner(llm, toolRegistry, 5, 10)
+runner, _ := workflow.NewRunnerWithJSONFormat(llm, toolRegistry, 5, 10)
 answer, err := runner.Run(ctx, "Summarize the latest Go release notes")
+```
+
+### ReAct Workflow
+
+```go
+import (
+    "yourapp/pkg/agent"
+    "yourapp/pkg/workflow"
+)
+
+toolRegistry := agent.GetGlobalToolRegistry()
+llm, _ := agent.BuildLLM(map[string]any{
+    "type": "openai",
+    "model": "qwen3.5:4b",
+    "base_url": "http://localhost:11434/v1",
+})
+
+runner := workflow.NewReactRunner(llm, toolRegistry,
+    workflow.ReactWithMaxIterations(10),
+    workflow.ReactWithMaxRetry(3),
+)
+answer, err := runner.Run(ctx, "Use the echo tool to say hello")
 ```
 
 ---
@@ -531,12 +560,14 @@ answer, err := runner.Run(ctx, "Summarize the latest Go release notes")
 
 | Location | What | Status |
 |---|---|---|
-| `dag.go validate()` | Topological sort + cycle detection | TODO |
-| `dag.go IsDone()` | Range tasks, check all terminal | TODO |
-| `dag.go Outputs()` | Collect non-nil outputs | TODO |
-| `executor.go skipDependents()` | BFS over tasks to mark Skipped | TODO |
-| `planner.go buildUserPrompt()` | Format failures + prior outputs into prompt | TODO |
-| `evaluator.go buildPrompt()` | Format task results into prompt | TODO |
+| `dag.go` | All methods implemented | Done |
+| `executor.go` | All methods implemented | Done |
+| `planner.go` | All methods implemented | Done |
+| `evaluator.go` | All methods implemented | Done |
+| `pee_workflow.go` | All methods implemented | Done |
+| `react_workflow.go` | All methods implemented | Done |
+| `rc_workflow.go` | All methods implemented | Done |
+| `dynamic_workflow.go` | Intent detection + routing to appropriate workflow | Done |
 
 ---
 
@@ -551,3 +582,347 @@ They can be composed:
 1. Use workflow for complex multi-step tasks that need planning
 2. Each workflow task can use an `agent.Agent` for its execution
 3. Or, use workflow's executor directly with the existing tool registry
+
+---
+
+## ReAct Workflow
+
+A standalone ReAct (Reasoning + Acting) workflow that interleaves model thinking with tool execution. Implemented in `pkg/workflow/react_workflow.go`.
+
+### When to Use Each
+
+| Pattern | Use Case |
+|---------|----------|
+| **ReAct** | Single complex goal, exploratory tasks, when you want the model to figure out steps as it goes |
+| **PEE** | Complex multi-step tasks with dependencies, when upfront planning is beneficial, reusable task graphs |
+
+### Implementation (`pkg/workflow/react_workflow.go`)
+
+```go
+type ReactRunner struct {
+    llm            agent.LLM
+    toolRegistry   *agent.ToolRegistry
+    systemPrompt   string
+    maxIterations  int
+    maxRetry       int
+    responseFormat *agent.ResponseFormat
+    messages       []agent.Message
+}
+
+// Options
+func ReactWithMaxIterations(n int) ReactRunnerOption
+func ReactWithMaxRetry(n int) ReactRunnerOption
+func ReactWithSystemPrompt(prompt string) ReactRunnerOption
+func ReactWithResponseFormat(rf *agent.ResponseFormat) ReactRunnerOption
+
+// Create runner
+func NewReactRunner(llm agent.LLM, toolRegistry *agent.ToolRegistry, opts ...ReactRunnerOption) *ReactRunner
+
+// Run workflow
+func (r *ReactRunner) Run(ctx context.Context, goal string) (string, error)
+func (r *ReactRunner) RunWithStream(ctx context.Context, goal string, stream protocol.IStreamWriter) (string, error)
+```
+
+### ReAct Loop
+
+```
+┌─────────────────────────────────────┐
+│  1. System + User Message           │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│  2. LLM Generate                    │
+│     (with tools)                    │
+└──────────────┬──────────────────────┘
+               │
+        ┌──────┴──────┐
+        │              │
+        ▼              ▼
+   ┌─────────┐   ┌─────────────────┐
+   │ No Tools │   │ Has Tool Calls │
+   │ Return   │   └────────┬────────┘
+   └─────────┘            │
+                          ▼
+               ┌─────────────────────┐
+               │  Execute Tools      │
+               │  (in parallel)     │
+               └────────┬───────────┘
+                        │
+                        ▼
+               ┌─────────────────────┐
+               │  Add Tool Results  │
+               │  as Messages       │
+               └────────┬───────────┘
+                        │
+                        └──► Back to LLM Generate
+```
+
+### ReAct vs PEE Comparison
+
+| Aspect | ReAct | PEE |
+|--------|-------|-----|
+| Planning | Dynamic (during execution) | Upfront (before execution) |
+| Loop | Think → Act → Observe | Plan → Execute → Evaluate |
+| Dependencies | Implicit in tool usage | Explicit in DAG |
+| Best for | Exploratory, unknown steps | Structured, known steps |
+| Complexity | Lower | Higher |
+| Debugging | Easier to trace | Need to inspect DAG |
+
+### ReAct as PEE Task
+
+ReAct can be used as a single task within a PEE workflow:
+
+```go
+// Create a ReAct runner for a specific task
+reactRunner := workflow.NewReactRunner(llm, toolRegistry,
+    workflow.ReactWithMaxIterations(10),
+)
+
+// The executor can call it like any other tool
+// (wrap in a Tool implementation if needed)
+```
+
+---
+
+## Reflect-Critic Workflow
+
+A Generator-Critic loop where the model drafts a response, then critiques itself, then revises. Particularly effective with Qwen models which tend to be "chatty" and reflective.
+
+### Why Reflect-Critic?
+
+- **Qwen models are naturally reflective**: They produce verbose "thinking" that can be captured as critiques
+- **Self-correction**: The model catches its own errors before they propagate
+- **Better tool use**: Catches missing parameters, hallucinated paths, wrong tool selection
+- **Improved accuracy**: Multiple passes refine the output quality
+
+### Workflow Loop
+
+```
+┌─────────────────────────────────────┐
+│  1. Generate Draft                  │
+│     (tool calls or text answer)     │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│  2. Execute Tool(s)                 │
+│     (if tool calls were made)       │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│  3. Self-Critique                  │
+│     "Critique your tool call for    │
+│      potential errors, missing      │
+│      parameters, or issues"         │
+└──────────────┬──────────────────────┘
+               │
+        ┌──────┴──────┐
+        │              │
+        ▼              ▼
+   ┌─────────┐   ┌────────────┐
+   │ Issues  │   │ No Issues  │
+   │ Found   │   │ Continue   │
+   └────┬────┘   └────────────┘
+        │
+        ▼
+┌─────────────────────────────────────┐
+│  4. Revise / Retry                  │
+│     (fix issues, re-execute)       │
+└──────────────┬──────────────────────┘
+               │
+               └──► Back to Step 2 (if needed)
+```
+
+### When to Use
+
+| Scenario | Recommended Pattern |
+|----------|-------------------|
+| Complex tool calls with many parameters | Reflect-Critic |
+| Qwen models (chatty/reflective) | Reflect-Critic |
+| High-stakes outputs requiring verification | Reflect-Critic |
+| Simple, single-step tasks | ReAct |
+| Exploratory tasks with unknown steps | ReAct |
+
+### Implementation Concept
+
+```go
+type ReflectCriticRunner struct {
+    llm            agent.LLM
+    toolRegistry   *agent.ToolRegistry
+    maxReflections int      // Max critique-revise cycles
+    maxIterations  int      // Max tool call iterations
+}
+
+func NewReflectCriticRunner(llm agent.LLM, toolRegistry *agent.ToolRegistry) *ReflectCriticRunner
+
+func (r *ReflectCriticRunner) Run(ctx context.Context, goal string) (string, error) {
+    // Loop: Generate → Execute → Critique → Revise
+}
+```
+
+### Critique Prompts
+
+**System Prompt (Generator)**:
+```
+You are a precise assistant. Make tool calls only when necessary.
+```
+
+**Critique Prompt**:
+```
+Review your previous tool call and tool results:
+1. Were all required parameters provided?
+2. Were the parameter values correct?
+3. Were there any errors in the results?
+4. Is the task complete, or do you need more information?
+
+Respond with your critique.
+```
+
+### Reflect-Critic vs Other Patterns
+
+| Aspect | ReAct | PEE | Reflect-Critic |
+|--------|-------|-----|----------------|
+| Self-correction | No | Optional (via evaluator) | Yes (built-in) |
+| Loop structure | Act → Observe | Plan → Execute → Evaluate | Draft → Critique → Revise |
+| Best for | Simple tasks | Complex tasks with dependencies | High-accuracy tool use |
+| Model fit | All models | All models | Qwen / chatty models |
+
+---
+
+## Dynamic Routing Workflow (Switchboard)
+
+A meta-level router that analyzes user intent and dispatches to the appropriate workflow pattern.
+
+### Intent Detection Flow
+
+```
+┌─────────────────────────────────────┐
+│  User Request                       │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│  Intent Detection                   │
+│  (simple LLM call, no tools)        │
+└──────────────┬──────────────────────┘
+               │
+        ┌──────┼──────┬──────────────┐
+        │             │              │
+        ▼             ▼              ▼
+   ┌─────────┐  ┌─────────┐  ┌─────────────┐
+   │ Simple  │  │Invest-  │  │  Complex    │
+   │Question │  │igation  │  │  Report     │
+   └────┬────┘  └────┬────┘  └──────┬──────┘
+        │             │               │
+        ▼             ▼               ▼
+   ┌─────────┐  ┌─────────┐  ┌─────────────┐
+   │  Direct │  │  ReAct  │  │    PEE      │
+   │  LLM    │  │  Loop   │  │   (Plan)    │
+   └─────────┘  └─────────┘  └─────────────┘
+```
+
+### Routing Logic
+
+| Intent | Indicators | Workflow |
+|--------|-----------|---------|
+| **Simple Question** | "what is", "who is", "define", "explain" | Direct LLM response |
+| **Code Investigation** | "find", "search", "read", "grep", "analyze" | ReAct or Reflect-Critic |
+| **Complex Report** | "compare", "summarize", "generate", "report", multi-step | PEE (Plan-Execute-Evaluate) |
+
+### Implementation Concept
+
+```go
+type Intent string
+
+const (
+    IntentSimple      Intent = "simple"
+    IntentInvestgate  Intent = "investigate"
+    IntentComplex    Intent = "complex"
+)
+
+type RouteResult struct {
+    Intent       Intent
+    Confidence   float64
+    SuggestedWorkflow string
+    Reasoning    string
+}
+
+type DynamicRouter struct {
+    llm           agent.LLM
+    toolRegistry  *agent.ToolRegistry
+    simpleRunner  *SimpleRunner      // Direct LLM response
+    reactRunner   *ReactRunner       // ReAct loop
+    peeRunner     *PEEWorkflowRunner // Plan-Execute-Evaluate
+    rcRunner      *RCRunner          // Reflect-Critic
+}
+
+func NewDynamicRouter(llm agent.LLM, toolRegistry *agent.ToolRegistry) *DynamicRouter
+
+func (r *DynamicRouter) Route(ctx context.Context, goal string) (*RouteResult, error)
+
+func (r *DynamicRouter) Run(ctx context.Context, goal string) (string, error) {
+    // 1. Detect intent
+    route, err := r.Route(ctx, goal)
+    if err != nil {
+        return "", err
+    }
+
+    // 2. Dispatch to appropriate workflow
+    switch route.Intent {
+    case IntentSimple:
+        return r.simpleRunner.Run(ctx, goal)
+    case IntentInvestigate:
+        return r.reactRunner.Run(ctx, goal)
+    case IntentComplex:
+        return r.peeRunner.Run(ctx, goal)
+    }
+}
+```
+
+### Intent Detection Prompt
+
+```json
+{
+  "type": "json_schema",
+  "json_schema": {
+    "name": "intent_detection",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "enum": ["simple", "investigate", "complex"],
+          "description": "simple: factual questions, investigate: code/file search, complex: multi-step reports"
+        },
+        "confidence": {"type": "number"},
+        "reasoning": {"type": "string"}
+      },
+      "required": ["intent", "confidence", "reasoning"]
+    }
+  }
+}
+```
+
+### Fallback Strategy
+
+If intent detection is uncertain (confidence < threshold), default to the more capable workflow (PEE) to ensure quality results.
+
+```go
+const MinConfidenceThreshold = 0.7
+
+if route.Confidence < MinConfidenceThreshold {
+    // Default to PEE for uncertain cases
+    return r.peeRunner.Run(ctx, goal)
+}
+```
+
+### When to Use Dynamic Routing
+
+| Scenario | Dynamic Routing | Single Pattern |
+|----------|----------------|----------------|
+| Mixed workload (Q&A + code investigation + reports) | Yes | No |
+| Single use case | No | Yes |
+| Need optimal resource usage | Yes | No |
+| Simpler implementation preferred | No | Yes |
