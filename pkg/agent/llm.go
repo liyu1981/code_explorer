@@ -270,8 +270,10 @@ func BuildLLM(cfg map[string]any) (LLM, error) {
 			apiKey = ak
 		}
 		httpLLMClient := newHTTPClientLLM(model, baseURL, apiKey)
-		if cfg["no_think"].(bool) {
-			httpLLMClient.SetNoThink(true)
+		if _, ok := cfg["no_think"]; ok {
+			if cfg["no_think"].(bool) {
+				httpLLMClient.SetNoThink(true)
+			}
 		}
 		llm = httpLLMClient
 
