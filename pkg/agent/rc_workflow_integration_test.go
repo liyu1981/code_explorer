@@ -19,7 +19,7 @@ func TestRCWorkflowRunnerIntegration(t *testing.T) {
 		"api_key":  apiKey,
 		"no_think": noThink,
 	}
-	llm, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestRCWorkflowRunnerIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Direct Answer", func(t *testing.T) {
-		runner, err := NewRCWorkflowRunnerWithJSONFormat(llm, registry)
+		runner, err := NewRCWorkflowRunnerWithJSONFormat(llmInstance, registry)
 		if err != nil {
 			t.Fatalf("Failed to create runner: %v", err)
 		}
@@ -46,7 +46,7 @@ func TestRCWorkflowRunnerIntegration(t *testing.T) {
 	})
 
 	t.Run("Single Tool Call", func(t *testing.T) {
-		runner, err := NewRCWorkflowRunnerWithJSONFormat(llm, registry)
+		runner, err := NewRCWorkflowRunnerWithJSONFormat(llmInstance, registry)
 		if err != nil {
 			t.Fatalf("Failed to create runner: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestRCWorkflowRunnerIntegration(t *testing.T) {
 	})
 
 	t.Run("Tool With Critique", func(t *testing.T) {
-		runner, err := NewRCWorkflowRunnerWithJSONFormat(llm, registry,
+		runner, err := NewRCWorkflowRunnerWithJSONFormat(llmInstance, registry,
 			RCWithMaxReflections(3),
 			RCWithMaxIterations(5),
 		)

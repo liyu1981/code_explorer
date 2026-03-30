@@ -7,12 +7,12 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/llm"
 )
 
-func TestExecutor(t *testing.T) {
+func TestPEEExecutor(t *testing.T) {
 	registry := llm.NewToolRegistry()
 	registry.Register(&integrationEchoTool{})
 	registry.Register(&integrationCalculateTool{})
 
-	executor := NewExecutor(registry, 3)
+	executor := NewPEEExecutor(registry, 3)
 
 	ctx := context.Background()
 

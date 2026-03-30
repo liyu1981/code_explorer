@@ -19,7 +19,7 @@ func TestDynamicRouterIntegration(t *testing.T) {
 		"api_key":  apiKey,
 		"no_think": noThink,
 	}
-	llm, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestDynamicRouterIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Route Simple Question", func(t *testing.T) {
-		router := NewDynamicRouter(llm, registry)
+		router := NewDynamicRouter(llmInstance, registry)
 
 		goal := "What is the capital of France?"
 		result, err := router.Run(ctx, goal)
@@ -43,12 +43,12 @@ func TestDynamicRouterIntegration(t *testing.T) {
 	})
 
 	t.Run("Route Code Investigation", func(t *testing.T) {
-		rcRunner, err := NewRCWorkflowRunnerWithJSONFormat(llm, registry)
+		rcRunner, err := NewRCWorkflowRunnerWithJSONFormat(llmInstance, registry)
 		if err != nil {
 			t.Fatalf("Failed to create RC runner: %v", err)
 		}
 
-		router := NewDynamicRouter(llm, registry,
+		router := NewDynamicRouter(llmInstance, registry,
 			DynamicWithRCWorkflowRunner(rcRunner),
 		)
 
@@ -62,12 +62,12 @@ func TestDynamicRouterIntegration(t *testing.T) {
 	})
 
 	t.Run("Route Complex Task", func(t *testing.T) {
-		peeRunner, err := NewRunnerWithJSONFormat(llm, registry, 3, 5)
+		peeRunner, err := NewRunnerWithJSONFormat(llmInstance, registry, 3, 5)
 		if err != nil {
 			t.Fatalf("Failed to create PEE runner: %v", err)
 		}
 
-		router := NewDynamicRouter(llm, registry,
+		router := NewDynamicRouter(llmInstance, registry,
 			DynamicWithPEERunner(peeRunner),
 		)
 

@@ -19,7 +19,7 @@ func TestPEEWorkflowRunnerIntegration(t *testing.T) {
 		"api_key":  apiKey,
 		"no_think": noThink,
 	}
-	llm, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestPEEWorkflowRunnerIntegration(t *testing.T) {
 	toolRegistry := llm.NewToolRegistry()
 	toolRegistry.Register(&integrationEchoTool{})
 
-	runner, err := NewRunnerWithJSONFormat(llm, toolRegistry, 3, 5)
+	runner, err := NewRunnerWithJSONFormat(llmInstance, toolRegistry, 3, 5)
 	if err != nil {
 		t.Fatalf("Failed to create runner: %v", err)
 	}

@@ -9,26 +9,26 @@ import (
 )
 
 type PEEWorkflowRunner struct {
-	planner       Planner
-	executor      *Executor
-	evaluator     Evaluator
+	planner       PEEPlanner
+	executor      *PEEExecutor
+	evaluator     PEEEvaluator
 	maxIter       int
 	toolRegistry  *llm.ToolRegistry
-	plannerOpts   []LLMPlannerOption
-	evaluatorOpts []LLMEvaluatorOption
+	plannerOpts   []PEELLMPlannerOption
+	evaluatorOpts []PEELLMEvaluatorOption
 }
 
 type PEEWorkflowRunnerOption func(*PEEWorkflowRunner)
 
 func PEEWithPlannerSystemPrompt(prompt string) PEEWorkflowRunnerOption {
 	return func(r *PEEWorkflowRunner) {
-		r.plannerOpts = append(r.plannerOpts, PlannerWithSystemPrompt(prompt))
+		r.plannerOpts = append(r.plannerOpts, PEEPlannerWithSystemPrompt(prompt))
 	}
 }
 
 func PEEWithEvaluatorSystemPrompt(prompt string) PEEWorkflowRunnerOption {
 	return func(r *PEEWorkflowRunner) {
-		r.evaluatorOpts = append(r.evaluatorOpts, EvaluatorWithSystemPrompt(prompt))
+		r.evaluatorOpts = append(r.evaluatorOpts, PEEEvaluatorWithSystemPrompt(prompt))
 	}
 }
 
@@ -43,9 +43,9 @@ func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *llm.ToolRegistry, maxWorkers
 
 	tools := toolRegistry.MarshalToolsForLLM()
 	return &PEEWorkflowRunner{
-		planner:      NewLLMPlanner(ai, tools, nil, r.plannerOpts...),
-		executor:     NewExecutor(toolRegistry, maxWorkers),
-		evaluator:    NewLLMEvaluator(ai, tools, nil, r.evaluatorOpts...),
+		planner:      NewPEELLMPlanner(ai, tools, nil, r.plannerOpts...),
+		executor:     NewPEEExecutor(toolRegistry, maxWorkers),
+		evaluator:    NewPEELLMEvaluator(ai, tools, nil, r.evaluatorOpts...),
 		maxIter:      maxIter,
 		toolRegistry: toolRegistry,
 	}
@@ -62,19 +62,19 @@ func NewRunnerWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistry, maxWork
 
 	tools := toolRegistry.MarshalToolsForLLM()
 
-	planner, err := NewLLMPlannerWithJSONFormat(ai, tools)
+	planner, err := NewPEELLMPlannerWithJSONFormat(ai, tools)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create planner: %w", err)
 	}
 
-	evaluator, err := NewLLMEvaluatorWithJSONFormat(ai, tools)
+	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(ai, tools)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create evaluator: %w", err)
 	}
 
 	return &PEEWorkflowRunner{
 		planner:      planner,
-		executor:     NewExecutor(toolRegistry, maxWorkers),
+		executor:     NewPEEExecutor(toolRegistry, maxWorkers),
 		evaluator:    evaluator,
 		maxIter:      maxIter,
 		toolRegistry: toolRegistry,
@@ -82,7 +82,7 @@ func NewRunnerWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistry, maxWork
 }
 
 func (r *PEEWorkflowRunner) Run(ctx context.Context, goal string) (string, error) {
-	req := PlanRequest{Goal: goal}
+	req := PEEPlanRequest{Goal: goal}
 
 	for i := range r.maxIter {
 		req.Iteration = i + 1
@@ -104,13 +104,13 @@ func (r *PEEWorkflowRunner) Run(ctx context.Context, goal string) (string, error
 		}
 
 		switch result.Status {
-		case EvalDone:
+		case PEEEvalDone:
 			log.Info().Int("iteration", req.Iteration).Msg("workflow completed successfully")
 			return result.FinalAnswer, nil
-		case EvalFailed:
+		case PEEEvalFailed:
 			log.Error().Str("hint", result.ReplanHint).Int("iteration", req.Iteration).Msg("workflow failed")
 			return "", fmt.Errorf("unrecoverable: %s", result.ReplanHint)
-		case EvalReplan:
+		case PEEEvalReplan:
 			log.Info().Str("hint", result.ReplanHint).Int("iteration", req.Iteration).Msg("replanning")
 			req.PriorOutputs = dag.Outputs()
 			req.FailedTasks = dag.FailedTasks()

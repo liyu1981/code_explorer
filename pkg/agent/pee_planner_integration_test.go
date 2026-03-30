@@ -10,7 +10,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/llm"
 )
 
-func TestLLMPlannerIntegration(t *testing.T) {
+func TestPEELLMPlannerIntegration(t *testing.T) {
 	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
@@ -20,12 +20,12 @@ func TestLLMPlannerIntegration(t *testing.T) {
 		"api_key":  apiKey,
 		"no_think": noThink,
 	}
-	llm, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	planner, err := NewLLMPlannerWithJSONFormat(llm, nil)
+	planner, err := NewPEELLMPlannerWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create planner: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestLLMPlannerIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Simple Goal Planning", func(t *testing.T) {
-		req := PlanRequest{
+		req := PEEPlanRequest{
 			Goal:      "Search for information about Go programming",
 			Iteration: 1,
 		}
@@ -65,7 +65,7 @@ func TestLLMPlannerIntegration(t *testing.T) {
 	})
 
 	t.Run("Multi-step Goal Planning", func(t *testing.T) {
-		req := PlanRequest{
+		req := PEEPlanRequest{
 			Goal:      "First search for Go best practices, then summarize the results",
 			Iteration: 1,
 		}
@@ -91,7 +91,7 @@ func TestLLMPlannerIntegration(t *testing.T) {
 	})
 
 	t.Run("Planning With Prior Context", func(t *testing.T) {
-		req := PlanRequest{
+		req := PEEPlanRequest{
 			Goal: "Find files related to user authentication",
 			PriorOutputs: map[string]any{
 				"search_results": "Found 5 relevant files in src/auth/",
@@ -115,7 +115,7 @@ func TestLLMPlannerIntegration(t *testing.T) {
 	})
 
 	t.Run("Planning After Failed Tasks", func(t *testing.T) {
-		req := PlanRequest{
+		req := PEEPlanRequest{
 			Goal:      "Read and analyze the main configuration file",
 			Iteration: 3,
 			FailedTasks: []*Task{
@@ -140,7 +140,7 @@ func TestLLMPlannerIntegration(t *testing.T) {
 	})
 }
 
-func TestLLMPlannerJSONOutputIntegration(t *testing.T) {
+func TestPEELLMPlannerJSONOutputIntegration(t *testing.T) {
 	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
@@ -150,12 +150,12 @@ func TestLLMPlannerJSONOutputIntegration(t *testing.T) {
 		"api_key":  apiKey,
 		"no_think": noThink,
 	}
-	llm, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	planner, err := NewLLMPlannerWithJSONFormat(llm, nil)
+	planner, err := NewPEELLMPlannerWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create planner: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestLLMPlannerJSONOutputIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Verify JSON Parsing", func(t *testing.T) {
-		req := PlanRequest{
+		req := PEEPlanRequest{
 			Goal:      "Calculate 5 + 3 using the calculate tool",
 			Iteration: 1,
 		}

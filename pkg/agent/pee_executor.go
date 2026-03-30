@@ -11,19 +11,19 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type Executor struct {
+type PEEExecutor struct {
 	toolRegistry *llm.ToolRegistry
 	maxWorkers   int
 }
 
-func NewExecutor(toolRegistry *llm.ToolRegistry, maxWorkers int) *Executor {
-	return &Executor{
+func NewPEEExecutor(toolRegistry *llm.ToolRegistry, maxWorkers int) *PEEExecutor {
+	return &PEEExecutor{
 		toolRegistry: toolRegistry,
 		maxWorkers:   maxWorkers,
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, d *DAG) error {
+func (e *PEEExecutor) Execute(ctx context.Context, d *DAG) error {
 	sem := make(chan struct{}, e.maxWorkers)
 	results := make(chan string, len(d.tasks))
 	var wg sync.WaitGroup
@@ -76,7 +76,7 @@ func (e *Executor) Execute(ctx context.Context, d *DAG) error {
 					e.skipDependents(d, task.ID)
 				} else {
 					log.Info().Str("task", task.ID).Msg("task completed")
-					d.SetStatus(task.ID, StatusDone)
+					d.SetStatus(t.ID, StatusDone)
 				}
 			}(t)
 		}
@@ -93,7 +93,7 @@ func (e *Executor) Execute(ctx context.Context, d *DAG) error {
 	return nil
 }
 
-func (e *Executor) skipDependents(d *DAG, failedID string) {
+func (e *PEEExecutor) skipDependents(d *DAG, failedID string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

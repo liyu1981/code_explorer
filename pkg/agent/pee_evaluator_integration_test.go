@@ -9,7 +9,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/llm"
 )
 
-func TestLLMEvaluatorIntegration(t *testing.T) {
+func TestPEELLMEvaluatorIntegration(t *testing.T) {
 	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
@@ -19,12 +19,12 @@ func TestLLMEvaluatorIntegration(t *testing.T) {
 		"api_key":  apiKey,
 		"no_think": noThink,
 	}
-	llm, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	evaluator, err := NewLLMEvaluatorWithJSONFormat(llm, nil)
+	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create evaluator: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestLLMEvaluatorIntegration(t *testing.T) {
 			t.Logf("Missing info: %v", result.MissingInfo)
 		}
 
-		if result.Status != EvalDone && result.Status != EvalReplan {
+		if result.Status != PEEEvalDone && result.Status != PEEEvalReplan {
 			t.Errorf("Expected Done or Replan, got %s", result.Status)
 		}
 	})
@@ -140,7 +140,7 @@ func TestLLMEvaluatorIntegration(t *testing.T) {
 		}
 
 		t.Logf("Evaluation status: %s", result.Status)
-		if result.Status == EvalFailed {
+		if result.Status == PEEEvalFailed {
 			t.Logf("Detected as unrecoverable: %s", result.ReplanHint)
 		} else if result.ReplanHint != "" {
 			t.Logf("Replan hint: %s", result.ReplanHint)
@@ -175,7 +175,7 @@ func TestLLMEvaluatorIntegration(t *testing.T) {
 	})
 }
 
-func TestLLMEvaluatorJSONFormatIntegration(t *testing.T) {
+func TestPEELLMEvaluatorJSONFormatIntegration(t *testing.T) {
 	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
@@ -185,12 +185,12 @@ func TestLLMEvaluatorJSONFormatIntegration(t *testing.T) {
 		"api_key":  apiKey,
 		"no_think": noThink,
 	}
-	llm, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	evaluator, err := NewLLMEvaluatorWithJSONFormat(llm, nil)
+	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create evaluator: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestLLMEvaluatorJSONFormatIntegration(t *testing.T) {
 		t.Logf("ReplanHint: %s", result.ReplanHint)
 		t.Logf("MissingInfo: %v", result.MissingInfo)
 
-		if result.Status != EvalDone && result.Status != EvalReplan && result.Status != EvalFailed {
+		if result.Status != PEEEvalDone && result.Status != PEEEvalReplan && result.Status != PEEEvalFailed {
 			t.Errorf("Unexpected status: %s", result.Status)
 		}
 	})

@@ -46,6 +46,7 @@ type DynamicRouter struct {
 	reactRunner  *ReactWorkflowRunner
 	rcRunner     *RCWorkflowRunner
 	peeRunner    *PEEWorkflowRunner
+	simpleRunner *SimpleWorkflowRunner
 }
 
 type DynamicRouterOption func(*DynamicRouter)
@@ -74,11 +75,18 @@ func DynamicWithPEERunner(runner *PEEWorkflowRunner) DynamicRouterOption {
 	}
 }
 
+func DynamicWithSimpleWorkflowRunner(runner *SimpleWorkflowRunner) DynamicRouterOption {
+	return func(d *DynamicRouter) {
+		d.simpleRunner = runner
+	}
+}
+
 func NewDynamicRouter(ai llm.LLM, toolRegistry *llm.ToolRegistry, opts ...DynamicRouterOption) *DynamicRouter {
 	d := &DynamicRouter{
 		llm:          ai,
 		toolRegistry: toolRegistry,
 		systemPrompt: DefaultDynamicSystemPrompt,
+		simpleRunner: NewSimpleWorkflowRunner(ai),
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -170,7 +178,7 @@ func (d *DynamicRouter) Run(ctx context.Context, goal string) (string, error) {
 
 	switch route.SuggestedWorkflow {
 	case "simple":
-		return d.directLLM(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal)
 	case "react":
 		if d.reactRunner != nil {
 			return d.reactRunner.Run(ctx, goal)
@@ -178,7 +186,7 @@ func (d *DynamicRouter) Run(ctx context.Context, goal string) (string, error) {
 		if d.rcRunner != nil {
 			return d.rcRunner.Run(ctx, goal)
 		}
-		return d.directLLM(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal)
 	case "reflect-critic":
 		if d.rcRunner != nil {
 			return d.rcRunner.Run(ctx, goal)
@@ -186,7 +194,7 @@ func (d *DynamicRouter) Run(ctx context.Context, goal string) (string, error) {
 		if d.reactRunner != nil {
 			return d.reactRunner.Run(ctx, goal)
 		}
-		return d.directLLM(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal)
 	case "pee":
 		if d.peeRunner != nil {
 			return d.peeRunner.Run(ctx, goal)
@@ -194,20 +202,8 @@ func (d *DynamicRouter) Run(ctx context.Context, goal string) (string, error) {
 		if d.rcRunner != nil {
 			return d.rcRunner.Run(ctx, goal)
 		}
-		return d.directLLM(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal)
 	default:
-		return d.directLLM(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal)
 	}
-}
-
-func (d *DynamicRouter) directLLM(ctx context.Context, goal string) (string, error) {
-	messages := []llm.Message{
-		{Role: "user", Content: goal},
-	}
-
-	response, _, err := d.llm.Generate(ctx, messages, nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("direct llm: %w", err)
-	}
-	return response, nil
 }

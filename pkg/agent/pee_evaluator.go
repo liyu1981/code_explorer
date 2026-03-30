@@ -9,31 +9,31 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/llm"
 )
 
-type EvalStatus string
+type PEEEvalStatus string
 
 const (
-	EvalDone   EvalStatus = "done"
-	EvalReplan EvalStatus = "replan"
-	EvalFailed EvalStatus = "failed"
+	PEEEvalDone   PEEEvalStatus = "done"
+	PEEEvalReplan PEEEvalStatus = "replan"
+	PEEEvalFailed PEEEvalStatus = "failed"
 )
 
-type EvalResult struct {
-	Status      EvalStatus `json:"status"`
-	FinalAnswer string     `json:"final_answer"`
-	ReplanHint  string     `json:"replan_hint"`
-	MissingInfo []string   `json:"missing_info"`
+type PEEEvalResult struct {
+	Status      PEEEvalStatus `json:"status"`
+	FinalAnswer string        `json:"final_answer"`
+	ReplanHint  string        `json:"replan_hint"`
+	MissingInfo []string      `json:"missing_info"`
 }
 
-type Evaluator interface {
-	Evaluate(ctx context.Context, goal string, d *DAG) (*EvalResult, error)
+type PEEEvaluator interface {
+	Evaluate(ctx context.Context, goal string, d *DAG) (*PEEEvalResult, error)
 }
 
-const DefaultEvaluatorSystemPrompt = `You are a result evaluator. Given a goal and task outcomes, decide:
+const DefaultPEEEvaluatorSystemPrompt = `You are a result evaluator. Given a goal and task outcomes, decide:
 - "done": goal fully achieved, provide final_answer
 - "replan": goal not met, explain replan_hint and missing_info
 - "failed": unrecoverable error`
 
-type LLMEvaluator struct {
+type PEELLMEvaluator struct {
 	llm            llm.LLM
 	tools          []map[string]any
 	responseFormat *llm.ResponseFormat
@@ -41,20 +41,20 @@ type LLMEvaluator struct {
 	lastHint       string
 }
 
-type LLMEvaluatorOption func(*LLMEvaluator)
+type PEELLMEvaluatorOption func(*PEELLMEvaluator)
 
-func EvaluatorWithSystemPrompt(prompt string) LLMEvaluatorOption {
-	return func(e *LLMEvaluator) {
+func PEEEvaluatorWithSystemPrompt(prompt string) PEELLMEvaluatorOption {
+	return func(e *PEELLMEvaluator) {
 		e.systemPrompt = prompt
 	}
 }
 
-func NewLLMEvaluator(ai llm.LLM, tools []map[string]any, responseFormat *llm.ResponseFormat, opts ...LLMEvaluatorOption) *LLMEvaluator {
-	e := &LLMEvaluator{
+func NewPEELLMEvaluator(ai llm.LLM, tools []map[string]any, responseFormat *llm.ResponseFormat, opts ...PEELLMEvaluatorOption) *PEELLMEvaluator {
+	e := &PEELLMEvaluator{
 		llm:            ai,
 		tools:          tools,
 		responseFormat: responseFormat,
-		systemPrompt:   DefaultEvaluatorSystemPrompt,
+		systemPrompt:   DefaultPEEEvaluatorSystemPrompt,
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -62,15 +62,15 @@ func NewLLMEvaluator(ai llm.LLM, tools []map[string]any, responseFormat *llm.Res
 	return e
 }
 
-func NewLLMEvaluatorWithJSONFormat(ai llm.LLM, tools []map[string]any) (*LLMEvaluator, error) {
-	responseFormat, err := llm.ResponseFormatFromStruct[EvalResult]("evaluation_result")
+func NewPEELLMEvaluatorWithJSONFormat(ai llm.LLM, tools []map[string]any) (*PEELLMEvaluator, error) {
+	responseFormat, err := llm.ResponseFormatFromStruct[PEEEvalResult]("evaluation_result")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create response format: %w", err)
 	}
-	return NewLLMEvaluator(ai, tools, responseFormat), nil
+	return NewPEELLMEvaluator(ai, tools, responseFormat), nil
 }
 
-func (ev *LLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*EvalResult, error) {
+func (ev *PEELLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*PEEEvalResult, error) {
 	system := ev.systemPrompt
 
 	user := ev.buildPrompt(goal, d)
@@ -85,13 +85,13 @@ func (ev *LLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*Eva
 		return nil, fmt.Errorf("evaluator llm: %w", err)
 	}
 
-	var res EvalResult
+	var res PEEEvalResult
 	if err := json.Unmarshal([]byte(raw), &res); err != nil {
 		return nil, fmt.Errorf("evaluator parse: %w, raw: %s", err, raw)
 	}
 
-	if res.Status == EvalReplan && res.ReplanHint == ev.lastHint {
-		res.Status = EvalFailed
+	if res.Status == PEEEvalReplan && res.ReplanHint == ev.lastHint {
+		res.Status = PEEEvalFailed
 		res.ReplanHint = "stagnation detected: " + res.ReplanHint
 	}
 	ev.lastHint = res.ReplanHint
@@ -99,7 +99,7 @@ func (ev *LLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*Eva
 	return &res, nil
 }
 
-func (ev *LLMEvaluator) buildPrompt(goal string, d *DAG) string {
+func (ev *PEELLMEvaluator) buildPrompt(goal string, d *DAG) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("Goal: %s\n\n", goal))

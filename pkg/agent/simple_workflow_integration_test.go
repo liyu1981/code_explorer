@@ -9,7 +9,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/llm"
 )
 
-func TestReactWorkflowRunnerIntegration(t *testing.T) {
+func TestSimpleWorkflowRunnerIntegration(t *testing.T) {
 	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
@@ -24,42 +24,50 @@ func TestReactWorkflowRunnerIntegration(t *testing.T) {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	registry := llm.NewToolRegistry()
-	registry.Register(&integrationEchoTool{})
-	registry.Register(&integrationCalculateTool{})
-
-	runner := NewReactWorkflowRunner(llmInstance, registry)
+	runner := NewSimpleWorkflowRunner(llmInstance)
 
 	ctx := context.Background()
 
-	t.Run("Direct Answer", func(t *testing.T) {
-		goal := "What is the capital of France? Just say the answer."
+	t.Run("Simple Question", func(t *testing.T) {
+		goal := "What is the capital of France?"
 
 		result, err := runner.Run(ctx, goal)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
 
+		if result == "" {
+			t.Fatal("Expected non-empty result")
+		}
+
 		t.Logf("Result: %s", result)
 	})
 
-	t.Run("Single Tool Call", func(t *testing.T) {
-		goal := "Use the echo tool to say 'Hello ReAct'"
+	t.Run("Definition", func(t *testing.T) {
+		goal := "Define: photosynthesis"
 
 		result, err := runner.Run(ctx, goal)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
 
+		if result == "" {
+			t.Fatal("Expected non-empty result")
+		}
+
 		t.Logf("Result: %s", result)
 	})
 
-	t.Run("Multiple Tool Calls", func(t *testing.T) {
-		goal := "First calculate 15 + 25, then use echo to say the result"
+	t.Run("Factual Query", func(t *testing.T) {
+		goal := "Who was the first person to walk on the moon?"
 
 		result, err := runner.Run(ctx, goal)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
+		}
+
+		if result == "" {
+			t.Fatal("Expected non-empty result")
 		}
 
 		t.Logf("Result: %s", result)
