@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
@@ -63,19 +65,21 @@ func HandleSummarizeTopicTask(
 
 	updateProgress(40, "Generating summary...")
 
-	// Build Agent using the skill
-	ag, err := llm.NewAgentFromConfig(ctx, &llm.AgentConfig{
-		MaxIterations:   1,
-		AgentPromptName: "concise-topic-summarizer",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to build agent: %w", err)
+	llmCfg := config.Get().System.LLM
+	if llmCfg == nil {
+		return fmt.Errorf("config.System.LLM is nil")
 	}
+
+	ai, err := llm.BuildLLM(llmCfg)
+	if err != nil {
+		return fmt.Errorf("failed to build llm: %w", err)
+	}
+
+	runner := agent.NewSimpleWorkflowRunner(ai)
 
 	userInput := fmt.Sprintf("Generate a concise title (strictly maximum 5 words) for this research.\n\nQuery: %s\n\nPartial Report: %s", firstQuery, firstReport)
 
-	title, err := ag.Run(ctx, userInput, nil, nil)
-
+	title, err := runner.Run(ctx, userInput, nil)
 	if err != nil {
 		return fmt.Errorf("failed to generate title: %w", err)
 	}

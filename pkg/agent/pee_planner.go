@@ -1,4 +1,4 @@
-package workflow
+package agent
 
 import (
 	"context"
@@ -36,7 +36,8 @@ const DefaultPEEPlannerSystemPrompt = `You are a task planner. Given a goal, pla
 Tasks may depend on each other. Output a JSON task graph.`
 
 type PEELLMPlanner struct {
-	llm            llm.LLM
+	generator      *llm.Generator
+	toolRegistry   *llm.ToolRegistry
 	tools          []map[string]any
 	responseFormat *llm.ResponseFormat
 	systemPrompt   string
@@ -50,9 +51,17 @@ func PEEPlannerWithSystemPrompt(prompt string) PEELLMPlannerOption {
 	}
 }
 
-func NewPEELLMPlanner(ai llm.LLM, tools []map[string]any, responseFormat *llm.ResponseFormat, opts ...PEELLMPlannerOption) *PEELLMPlanner {
+func PEEPlannerWithMaxIterations(n int) PEELLMPlannerOption {
+	return func(p *PEELLMPlanner) {
+		p.generator.Options(llm.WithGeneratorMaxIterations(n))
+	}
+}
+
+func NewPEELLMPlanner(ai llm.LLM, toolRegistry *llm.ToolRegistry, responseFormat *llm.ResponseFormat, opts ...PEELLMPlannerOption) *PEELLMPlanner {
+	tools := toolRegistry.MarshalToolsForLLM()
 	p := &PEELLMPlanner{
-		llm:            ai,
+		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
+		toolRegistry:   toolRegistry,
 		tools:          tools,
 		responseFormat: responseFormat,
 		systemPrompt:   DefaultPEEPlannerSystemPrompt,
@@ -63,12 +72,12 @@ func NewPEELLMPlanner(ai llm.LLM, tools []map[string]any, responseFormat *llm.Re
 	return p
 }
 
-func NewPEELLMPlannerWithJSONFormat(ai llm.LLM, tools []map[string]any) (*PEELLMPlanner, error) {
+func NewPEELLMPlannerWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistry) (*PEELLMPlanner, error) {
 	responseFormat, err := llm.ResponseFormatFromStruct[PEEPlanResponse]("task_plan")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create response format: %w", err)
 	}
-	return NewPEELLMPlanner(ai, tools, responseFormat), nil
+	return NewPEELLMPlanner(ai, toolRegistry, responseFormat), nil
 }
 
 func (p *PEELLMPlanner) Plan(ctx context.Context, req PEEPlanRequest) (*DAG, error) {
@@ -80,7 +89,7 @@ func (p *PEELLMPlanner) Plan(ctx context.Context, req PEEPlanRequest) (*DAG, err
 		{Role: "user", Content: user},
 	}
 
-	raw, _, err := p.llm.Generate(ctx, messages, p.tools, p.responseFormat)
+	raw, _, err := p.generator.Generate(ctx, messages, p.tools, p.responseFormat)
 	if err != nil {
 		return nil, fmt.Errorf("planner llm: %w", err)
 	}

@@ -5,6 +5,7 @@ ce_output.txt
 .codemogger/
 vendor/
 tmp/
+ref/
 pkg/server/ui/out/
 
 #####

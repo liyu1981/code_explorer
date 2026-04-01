@@ -1,4 +1,4 @@
-package workflow
+package agent
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/rs/zerolog/log"
 )
 
@@ -158,7 +159,7 @@ func (d *DynamicRouter) chooseWorkflow(intent Intent) string {
 	}
 }
 
-func (d *DynamicRouter) Run(ctx context.Context, goal string) (string, error) {
+func (d *DynamicRouter) Run(ctx context.Context, goal string, stream protocol.IStreamWriter) (string, error) {
 	route, err := d.Route(ctx, goal)
 	if err != nil {
 		return "", fmt.Errorf("routing failed: %w", err)
@@ -173,37 +174,37 @@ func (d *DynamicRouter) Run(ctx context.Context, goal string) (string, error) {
 
 	if route.Confidence < MinConfidenceThreshold && d.peeRunner != nil {
 		log.Info().Float64("confidence", route.Confidence).Msg("Low confidence, falling back to PEE")
-		return d.peeRunner.Run(ctx, goal)
+		return d.peeRunner.Run(ctx, goal, stream)
 	}
 
 	switch route.SuggestedWorkflow {
 	case "simple":
-		return d.simpleRunner.Run(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal, stream)
 	case "react":
 		if d.reactRunner != nil {
-			return d.reactRunner.Run(ctx, goal)
+			return d.reactRunner.Run(ctx, goal, stream)
 		}
 		if d.rcRunner != nil {
-			return d.rcRunner.Run(ctx, goal)
+			return d.rcRunner.Run(ctx, goal, stream)
 		}
-		return d.simpleRunner.Run(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal, stream)
 	case "reflect-critic":
 		if d.rcRunner != nil {
-			return d.rcRunner.Run(ctx, goal)
+			return d.rcRunner.Run(ctx, goal, stream)
 		}
 		if d.reactRunner != nil {
-			return d.reactRunner.Run(ctx, goal)
+			return d.reactRunner.Run(ctx, goal, stream)
 		}
-		return d.simpleRunner.Run(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal, stream)
 	case "pee":
 		if d.peeRunner != nil {
-			return d.peeRunner.Run(ctx, goal)
+			return d.peeRunner.Run(ctx, goal, stream)
 		}
 		if d.rcRunner != nil {
-			return d.rcRunner.Run(ctx, goal)
+			return d.rcRunner.Run(ctx, goal, stream)
 		}
-		return d.simpleRunner.Run(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal, stream)
 	default:
-		return d.simpleRunner.Run(ctx, goal)
+		return d.simpleRunner.Run(ctx, goal, stream)
 	}
 }

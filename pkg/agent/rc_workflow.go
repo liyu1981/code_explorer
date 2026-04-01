@@ -1,4 +1,4 @@
-package workflow
+package agent
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/rs/zerolog/log"
 )
 
@@ -35,7 +36,7 @@ type RCStep struct {
 }
 
 type RCWorkflowRunner struct {
-	llm            llm.LLM
+	generator      *llm.Generator
 	toolRegistry   *llm.ToolRegistry
 	systemPrompt   string
 	maxReflections int
@@ -57,13 +58,13 @@ func RCWithMaxReflections(n int) RCWorkflowRunnerOption {
 
 func RCWithMaxIterations(n int) RCWorkflowRunnerOption {
 	return func(r *RCWorkflowRunner) {
-		r.maxIterations = n
+		r.generator.Options(llm.WithGeneratorMaxIterations(n))
 	}
 }
 
 func RCWithMaxRetry(n int) RCWorkflowRunnerOption {
 	return func(r *RCWorkflowRunner) {
-		r.maxRetry = n
+		r.generator.Options(llm.WithGeneratorMaxRetry(n))
 	}
 }
 
@@ -81,7 +82,7 @@ func RCWithResponseFormat(rf *llm.ResponseFormat) RCWorkflowRunnerOption {
 
 func NewRCWorkflowRunner(ai llm.LLM, toolRegistry *llm.ToolRegistry, opts ...RCWorkflowRunnerOption) *RCWorkflowRunner {
 	r := &RCWorkflowRunner{
-		llm:            ai,
+		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
 		toolRegistry:   toolRegistry,
 		maxReflections: RCDefaultMaxReflections,
 		maxIterations:  RCDefaultMaxIterations,
@@ -103,7 +104,7 @@ func NewRCWorkflowRunnerWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistr
 	}
 
 	r := &RCWorkflowRunner{
-		llm:            ai,
+		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
 		toolRegistry:   toolRegistry,
 		maxReflections: RCDefaultMaxReflections,
 		maxIterations:  RCDefaultMaxIterations,
@@ -127,20 +128,35 @@ For each task:
 3. Revise if needed
 4. When satisfied, provide your final answer`
 
-func (r *RCWorkflowRunner) Run(ctx context.Context, goal string) (string, error) {
+func (r *RCWorkflowRunner) Run(ctx context.Context, goal string, stream protocol.IStreamWriter) (string, error) {
 	r.messages = []llm.Message{
 		{Role: "system", Content: r.systemPrompt},
 		{Role: "user", Content: goal},
 	}
 	r.history = make([]RCStep, 0)
 
+	if stream != nil {
+		stream.SendTurnStarted("", goal, 0)
+	}
+
 	for i := 0; i < r.maxIterations; i++ {
 		log.Debug().Int("iteration", i).Msg("RC runner iteration start")
 
-		// Step 1: Generate Draft
-		draft, toolCalls, err := r.generateDraft(ctx)
+		if stream != nil {
+			stream.SendTryRunStart("", int64(i))
+			stream.SendStepUpdate(fmt.Sprintf("rc-draft-%d", i), "Drafting response", protocol.StepActive)
+		}
+
+		draft, toolCalls, err := r.generateDraft(ctx, stream)
 		if err != nil {
+			if stream != nil {
+				stream.SendTryRunFailed("", int64(i))
+			}
 			return "", fmt.Errorf("generate draft: %w", err)
+		}
+
+		if stream != nil {
+			stream.SendStepUpdate(fmt.Sprintf("rc-draft-%d", i), "Drafting response", protocol.StepCompleted)
 		}
 
 		step := RCStep{
@@ -148,16 +164,22 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string) (string, error)
 			ToolCalls: toolCalls,
 		}
 
-		// Step 2: Execute Tools (if any)
 		if len(toolCalls) > 0 {
 			for _, tc := range toolCalls {
-				r.executeTool(ctx, tc)
+				r.executeTool(ctx, tc, stream)
 			}
 		}
 
-		// Step 3: Self-Critique (only if we made tool calls)
 		if len(toolCalls) > 0 {
+			if stream != nil {
+				stream.SendStepUpdate(fmt.Sprintf("rc-critique-%d", i), "Self-critique", protocol.StepActive)
+			}
+
 			critique, err := r.critique(ctx)
+			if stream != nil {
+				stream.SendStepUpdate(fmt.Sprintf("rc-critique-%d", i), "Self-critique", protocol.StepCompleted)
+			}
+
 			if err != nil {
 				log.Warn().Err(err).Msg("critique failed, continuing")
 			} else {
@@ -167,63 +189,78 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string) (string, error)
 				if critique.HasIssues {
 					log.Info().Strs("issues", critique.Issues).Msg("Critique found issues, revising")
 
-					// Step 4: Revise based on critique
 					if err := r.revise(ctx, critique); err != nil {
 						log.Warn().Err(err).Msg("revise failed, continuing")
 					}
 
-					// Check reflection limit
-					if i >= r.maxReflections {
-						log.Info().Int("limit", r.maxReflections).Msg("Max reflections reached")
-					} else {
-						// Continue to next iteration to retry
+					if i < r.maxReflections {
+						if stream != nil {
+							stream.SendTryRunEnd("", int64(i))
+						}
 						continue
 					}
+					log.Info().Int("limit", r.maxReflections).Msg("Max reflections reached")
 				}
 			}
 		}
 
-		// No tool calls or no issues found - return the draft
+		if stream != nil {
+			stream.SendTryRunEnd("", int64(i))
+		}
+
 		if len(toolCalls) == 0 {
+			if stream != nil {
+				stream.WriteOpenAIChunk("", "", draft, nil)
+				stream.WriteDone()
+			}
 			return draft, nil
 		}
 
 		if step.Critique == nil || !step.Critique.HasIssues {
+			if stream != nil {
+				stream.WriteOpenAIChunk("", "", draft, nil)
+				stream.WriteDone()
+			}
 			return draft, nil
 		}
 	}
 
+	if stream != nil {
+		stream.WriteDone()
+	}
 	return "", fmt.Errorf("max iterations (%d) reached", r.maxIterations)
 }
 
-func (r *RCWorkflowRunner) generateDraft(ctx context.Context) (string, []llm.ToolCall, error) {
+func (r *RCWorkflowRunner) generateDraft(ctx context.Context, stream protocol.IStreamWriter) (string, []llm.ToolCall, error) {
 	tools := r.toolRegistry.MarshalToolsForLLM()
 
 	for i := 0; i < r.maxRetry; i++ {
-		response, toolCalls, err := r.llm.Generate(ctx, r.messages, tools, r.responseFormat)
+		var response string
+		var toolCalls []llm.ToolCall
+		var err error
+
+		if stream != nil {
+			response, toolCalls, err = r.generator.GenerateStream(ctx, r.messages, tools, r.responseFormat, stream)
+		} else {
+			response, toolCalls, err = r.generator.Generate(ctx, r.messages, tools, r.responseFormat)
+		}
+
 		if err != nil {
 			log.Error().Err(err).Int("retry", i).Msg("LLM generation failed in generateDraft")
 			continue
 		}
 
-		// Validate response
 		if len(response) == 0 && len(toolCalls) == 0 {
 			log.Warn().Int("retry", i).Msg("Empty response in generateDraft")
 			r.addEnforcer("You must provide either a text response or tool calls.")
 			continue
 		}
 
-		// If we have tool calls, add them to messages and return
 		if len(toolCalls) > 0 {
-			r.messages = append(r.messages, llm.Message{
-				Role:      "assistant",
-				Content:   response,
-				ToolCalls: toolCalls,
-			})
+			r.messages = r.generator.Messages()
 			return response, toolCalls, nil
 		}
 
-		// Text only response - this is a final answer
 		return response, nil, nil
 	}
 
@@ -238,7 +275,7 @@ func (r *RCWorkflowRunner) critique(ctx context.Context) (*CritiqueResult, error
 		Content: critiquePrompt,
 	})
 
-	response, _, err := r.llm.Generate(ctx, r.messages, nil, r.critiqueFormat)
+	response, _, err := r.generator.LLM().Generate(ctx, r.messages, nil, r.critiqueFormat)
 	if err != nil {
 		return nil, fmt.Errorf("critique llm: %w", err)
 	}
@@ -313,27 +350,57 @@ func (r *RCWorkflowRunner) revise(ctx context.Context, critique *CritiqueResult)
 	return nil
 }
 
-func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall) {
+func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall, stream protocol.IStreamWriter) {
 	log.Info().Str("tool", tc.Name).Msg("RC executing tool")
+
+	if stream != nil {
+		toolStepID := fmt.Sprintf("rc-tool-%s", tc.Name)
+		stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepActive)
+		stream.SendToolCall(tc.Name, tc.Input)
+	}
 
 	tool, ok := r.toolRegistry.Get(tc.Name)
 	if !ok {
+		msg := fmt.Sprintf("Error: tool '%s' not found", tc.Name)
 		r.messages = append(r.messages, llm.Message{
 			Role:       "tool",
-			Content:    fmt.Sprintf("Error: tool '%s' not found", tc.Name),
+			Content:    msg,
 			ToolCallID: tc.ID,
 		})
+		if stream != nil {
+			stream.SendToolResponse(tc.Name, msg)
+			stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+		}
 		return
 	}
 
-	output, err := tool.Execute(ctx, tc.Input, nil)
+	inputJSON, err := json.Marshal(tc.Input)
+	if err != nil {
+		err = fmt.Errorf("marshal input: %w", err)
+		r.messages = append(r.messages, llm.Message{
+			Role:       "tool",
+			Content:    err.Error(),
+			ToolCallID: tc.ID,
+		})
+		if stream != nil {
+			stream.SendToolResponse(tc.Name, err.Error())
+			stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+		}
+		return
+	}
+
+	output, err := tool.Execute(ctx, inputJSON, stream)
 	if err != nil {
 		log.Error().Err(err).Str("tool", tc.Name).Msg("RC tool execution failed")
 		r.messages = append(r.messages, llm.Message{
 			Role:       "tool",
-			Content:    fmt.Sprintf("Error: %v", err),
+			Content:    err.Error(),
 			ToolCallID: tc.ID,
 		})
+		if stream != nil {
+			stream.SendToolResponse(tc.Name, err.Error())
+			stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+		}
 		return
 	}
 
@@ -343,6 +410,16 @@ func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall) {
 		Content:    output,
 		ToolCallID: tc.ID,
 	})
+
+	if stream != nil {
+		var structured any
+		if json.Unmarshal([]byte(output), &structured) == nil {
+			stream.SendToolResponse(tc.Name, structured)
+		} else {
+			stream.SendToolResponse(tc.Name, output)
+		}
+		stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepCompleted)
+	}
 }
 
 func (r *RCWorkflowRunner) addEnforcer(hint string) {

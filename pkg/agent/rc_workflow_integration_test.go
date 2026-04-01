@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflow
+package agent
 
 import (
 	"context"
@@ -37,7 +37,7 @@ func TestRCWorkflowRunnerIntegration(t *testing.T) {
 		}
 		goal := "What is the capital of Japan? Just answer."
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -52,7 +52,7 @@ func TestRCWorkflowRunnerIntegration(t *testing.T) {
 		}
 		goal := "Use the echo tool to say 'Hello Reflect-Critic'"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -71,7 +71,7 @@ func TestRCWorkflowRunnerIntegration(t *testing.T) {
 		}
 		goal := "Calculate 25 + 17 using the calculate tool"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}

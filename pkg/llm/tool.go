@@ -125,3 +125,15 @@ func (r *ToolRegistry) MarshalToolsForLLM() []map[string]any {
 	}
 	return result
 }
+
+func (r *ToolRegistry) Bind(data map[string]any) (*ToolRegistry, error) {
+	toolRegistry := &ToolRegistry{tools: make(map[string]Tool)}
+	for _, tool := range r.List() {
+		cloneTool := tool.Clone()
+		if err := cloneTool.Bind(context.Background(), &data); err != nil {
+			return nil, err
+		}
+		toolRegistry.Register(cloneTool)
+	}
+	return toolRegistry, nil
+}

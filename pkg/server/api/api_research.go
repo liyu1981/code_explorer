@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
+	agentworkflow "github.com/liyu1981/code_explorer/pkg/agent"
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/llm"
@@ -127,42 +127,54 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
-
-	agentCfg := &llm.AgentConfig{
-		LLM:             config.Get().System.LLM,
-		AgentPromptName: "general-researcher",
-		NoThink:         true,
-	}
-
-	codebaseBaseDir := ""
-	if req.SessionID != "" {
-		session, err := h.index.GetStore().GetResearchSession(r.Context(), req.SessionID)
-		if err != nil {
-			log.Warn().Err(err).Str("session", req.SessionID).Msg("Failed to get session for codebase basedir")
-		} else if session != nil && session.CodebaseID != "" {
-			codebase, err := h.index.GetStore().GetCodebaseByID(r.Context(), session.CodebaseID)
-			if err != nil {
-				log.Warn().Err(err).Str("codebase", session.CodebaseID).Msg("Failed to get codebase for basedir")
-			} else if codebase != nil {
-				codebaseBaseDir = codebase.RootPath
-			}
-		}
-	}
-
-	ag, err := llm.NewAgentFromConfig(
-		r.Context(),
-		agentCfg,
-		llm.WithBindData("index", h.index),
-		llm.WithBindData("baseDir", codebaseBaseDir),
-	)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to build agent")
-		writeError(w, http.StatusInternalServerError, "Failed to build agent", err)
+	if req.SessionID == "" {
+		writeError(w, http.StatusBadRequest, "SessionID is required", nil)
 		return
 	}
 
-	// Set headers for streaming
+	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
+
+	llmCfg := config.Get().System.LLM
+	if llmCfg == nil {
+		writeError(w, http.StatusInternalServerError, "LLM config not found", nil)
+		return
+	}
+
+	ai, err := llm.BuildLLM(llmCfg)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to build LLM")
+		writeError(w, http.StatusInternalServerError, "Failed to build LLM", err)
+		return
+	}
+
+	var toolRegistry *llm.ToolRegistry
+	sess, err := h.index.GetStore().GetResearchSession(r.Context(), req.SessionID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Session not found", err)
+		return
+	}
+
+	codebase, err := h.index.GetStore().GetCodebaseByID(r.Context(), sess.CodebaseID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Codebase not found", err)
+		return
+	}
+
+	toolRegistry, err = llm.GetGlobalToolRegistry().Bind(map[string]any{
+		"index":   h.index,
+		"baseDir": codebase.RootPath,
+	})
+	log.Debug().Interface("codebase_index", h.index).Str("codebase_basedir", codebase.RootPath).Msg("Bound tool registry with index and codebase root")
+
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to bind tools", err)
+		return
+	}
+
+	maxWorkers := 3
+	maxIterations := 5
+	runner := agentworkflow.NewPEEWorkflowRunner(ai, toolRegistry, maxWorkers, maxIterations)
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -170,7 +182,6 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	sw := protocol.NewStreamWriter(w)
 	var finalSw protocol.IStreamWriter = sw
 
-	// Wrap if persistence is requested
 	if req.SessionID != "" && h.index != nil {
 		finalSw = &persistenceStreamWriter{
 			StreamWriter: sw,
@@ -179,64 +190,17 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Generate turn ID
-	turnID := time.Now().Format("20060102150405") // Or use a proper UUID
-	finalSw.SendTurnStarted(turnID, req.Query, time.Now().UnixMilli())
-
-	// Send initial steps
-	// We can define standard steps here or let the agent emit them
-	finalSw.SendStepUpdate(fmt.Sprintf("turn-%s-thinking", turnID), "Thinking about the research plan", protocol.StepActive)
-
-	// Run agent in a goroutine or directly
-	// For streaming, we should run it and let it write to sw
-	_, err = ag.Run(r.Context(), req.Query, nil, &llm.StreamUpdate{
-		TurnID: turnID,
-		Stream: finalSw,
-	})
+	_, err = runner.Run(r.Context(), req.Query, finalSw)
 	if err != nil {
-		// In a stream, we might have already started sending data.
-		// Errors should ideally be sent as events.
+		log.Error().Err(err).Msg("PEE workflow failed")
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
 	}
 
-	finalSw.SendStepUpdate(fmt.Sprintf("turn-%s-thinking", turnID), "Thinking about the research plan", protocol.StepCompleted)
-	finalSw.WriteDone()
-
-	// Prune reports for this session if limit is reached
 	maxReports := config.Get().Research.MaxReportsPerSession
 	if maxReports <= 0 {
 		maxReports = 50
 	}
 	_ = h.index.GetStore().PruneReportsBySession(r.Context(), req.SessionID, maxReports)
-}
-
-func GetSystemLLMConfig() map[string]any {
-	llmCfg := make(map[string]any)
-	if config.Get().System.LLM != nil {
-		for k, v := range config.Get().System.LLM {
-			llmCfg[k] = v
-		}
-	} else {
-		llmCfg["type"] = "openai"
-		llmCfg["model"] = os.Getenv("LLM_MODEL")
-		llmCfg["base_url"] = os.Getenv("LLM_BASE_URL")
-	}
-
-	if llmCfg["model"] == nil || llmCfg["model"] == "" {
-		llmCfg["model"] = "gpt-4o"
-	}
-	if llmCfg["base_url"] == nil || llmCfg["base_url"] == "" {
-		llmCfg["base_url"] = "https://api.openai.com/v1"
-	}
-	if llmCfg["type"] == nil || llmCfg["type"] == "" {
-		llmCfg["type"] = "openai"
-	}
-	if config.Get().System.ContextLength > 0 {
-		llmCfg["context_length"] = config.Get().System.ContextLength
-	} else {
-		llmCfg["context_length"] = 262144
-	}
-	return llmCfg
 }
 
 func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) {

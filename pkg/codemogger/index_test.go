@@ -63,7 +63,7 @@ func Add(a, b int) int {
 	store := db.NewStore(sqlDB, dbPath)
 
 	// Create index
-	idx, err := NewCodeIndex(cfg, dbPath, store)
+	idx, err := NewCodeIndex(cfg, store)
 	if err != nil {
 		t.Fatalf("failed to create index: %v", err)
 	}

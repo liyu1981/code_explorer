@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflow
+package agent
 
 import (
 	"context"
@@ -35,7 +35,7 @@ func TestReactWorkflowRunnerIntegration(t *testing.T) {
 	t.Run("Direct Answer", func(t *testing.T) {
 		goal := "What is the capital of France? Just say the answer."
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -46,7 +46,7 @@ func TestReactWorkflowRunnerIntegration(t *testing.T) {
 	t.Run("Single Tool Call", func(t *testing.T) {
 		goal := "Use the echo tool to say 'Hello ReAct'"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -57,7 +57,7 @@ func TestReactWorkflowRunnerIntegration(t *testing.T) {
 	t.Run("Multiple Tool Calls", func(t *testing.T) {
 		goal := "First calculate 15 + 25, then use echo to say the result"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}

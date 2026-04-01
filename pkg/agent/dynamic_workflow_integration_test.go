@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflow
+package agent
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func TestDynamicRouterIntegration(t *testing.T) {
 		router := NewDynamicRouter(llmInstance, registry)
 
 		goal := "What is the capital of France?"
-		result, err := router.Run(ctx, goal)
+		result, err := router.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -53,7 +53,7 @@ func TestDynamicRouterIntegration(t *testing.T) {
 		)
 
 		goal := "Use the echo tool to say 'Hello Dynamic Routing'"
-		result, err := router.Run(ctx, goal)
+		result, err := router.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestDynamicRouterIntegration(t *testing.T) {
 	})
 
 	t.Run("Route Complex Task", func(t *testing.T) {
-		peeRunner, err := NewRunnerWithJSONFormat(llmInstance, registry, 3, 5)
+		peeRunner, err := NewPEEWorkflowRunnerWithJSONFormat(llmInstance, registry, 3, 5)
 		if err != nil {
 			t.Fatalf("Failed to create PEE runner: %v", err)
 		}
@@ -72,7 +72,7 @@ func TestDynamicRouterIntegration(t *testing.T) {
 		)
 
 		goal := "Use the echo tool to say 'Hello Complex Task'"
-		result, err := router.Run(ctx, goal)
+		result, err := router.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}

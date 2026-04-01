@@ -19,12 +19,11 @@ import (
 
 type CodeIndex struct {
 	store          *db.Store
-	dbPath         string
 	embedder       embed.Embedder
 	embeddingModel string
 }
 
-func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeIndex, error) {
+func NewCodeIndex(cfg *config.Config, store *db.Store) (*CodeIndex, error) {
 	embCfg := cfg.CodeMogger.Embedder
 
 	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
@@ -46,7 +45,6 @@ func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeInde
 
 	return &CodeIndex{
 		store:          store,
-		dbPath:         dbPath,
 		embedder:       emb,
 		embeddingModel: cfg.CodeMogger.Embedder.Model,
 	}, nil
@@ -466,8 +464,4 @@ func (c *CodeIndex) ReloadConfig() error {
 
 func (c *CodeIndex) GetStore() *db.Store {
 	return c.store
-}
-
-func (c *CodeIndex) GetDbPath() string {
-	return c.dbPath
 }

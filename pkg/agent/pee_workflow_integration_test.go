@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflow
+package agent
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func TestPEEWorkflowRunnerIntegration(t *testing.T) {
 	toolRegistry := llm.NewToolRegistry()
 	toolRegistry.Register(&integrationEchoTool{})
 
-	runner, err := NewRunnerWithJSONFormat(llmInstance, toolRegistry, 3, 5)
+	runner, err := NewPEEWorkflowRunnerWithJSONFormat(llmInstance, toolRegistry, 3, 5)
 	if err != nil {
 		t.Fatalf("Failed to create runner: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestPEEWorkflowRunnerIntegration(t *testing.T) {
 	t.Run("Simple Echo Workflow", func(t *testing.T) {
 		goal := "Use the echo tool to say 'Hello Workflow'"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Workflow failed: %v", err)
 		}

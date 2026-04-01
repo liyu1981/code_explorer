@@ -58,13 +58,13 @@ func main() {
 	cfg := config.Get()
 
 	// init db
-	dbPath, _, store, err := db.InitDb(cfg)
+	_, _, store, err := db.InitDb(cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to open db")
 	}
 
 	// init codemogger
-	idx, err := codemogger.NewCodeIndex(cfg, dbPath, store)
+	idx, err := codemogger.NewCodeIndex(cfg, store)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to init codemogger")
 	}

@@ -1,6 +1,6 @@
 //go:build integration
 
-package workflow
+package agent
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func TestSimpleWorkflowRunnerIntegration(t *testing.T) {
 	t.Run("Simple Question", func(t *testing.T) {
 		goal := "What is the capital of France?"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -46,7 +46,7 @@ func TestSimpleWorkflowRunnerIntegration(t *testing.T) {
 	t.Run("Definition", func(t *testing.T) {
 		goal := "Define: photosynthesis"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}
@@ -61,7 +61,7 @@ func TestSimpleWorkflowRunnerIntegration(t *testing.T) {
 	t.Run("Factual Query", func(t *testing.T) {
 		goal := "Who was the first person to walk on the moon?"
 
-		result, err := runner.Run(ctx, goal)
+		result, err := runner.Run(ctx, goal, nil)
 		if err != nil {
 			t.Fatalf("Run failed: %v", err)
 		}

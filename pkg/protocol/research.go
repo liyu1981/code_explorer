@@ -25,6 +25,7 @@ const (
 	StepPending   StepStatus = "pending"
 	StepActive    StepStatus = "active"
 	StepCompleted StepStatus = "completed"
+	StepFailed    StepStatus = "failed"
 )
 
 // StepUpdate represents a change in the status of a predefined research step.

@@ -52,6 +52,10 @@ func ResetStoreForTest() {
 	once = sync.Once{}
 }
 
+func (s *Store) GetDBPath() string {
+	return s.dbPath
+}
+
 // ExecWrite executes a write query under a global write lock.
 func (s *Store) ExecWrite(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	s.writeMu.Lock()

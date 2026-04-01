@@ -1,4 +1,4 @@
-package workflow
+package agent
 
 import (
 	"context"
@@ -34,7 +34,8 @@ const DefaultPEEEvaluatorSystemPrompt = `You are a result evaluator. Given a goa
 - "failed": unrecoverable error`
 
 type PEELLMEvaluator struct {
-	llm            llm.LLM
+	generator      *llm.Generator
+	toolRegistry   *llm.ToolRegistry
 	tools          []map[string]any
 	responseFormat *llm.ResponseFormat
 	systemPrompt   string
@@ -49,9 +50,17 @@ func PEEEvaluatorWithSystemPrompt(prompt string) PEELLMEvaluatorOption {
 	}
 }
 
-func NewPEELLMEvaluator(ai llm.LLM, tools []map[string]any, responseFormat *llm.ResponseFormat, opts ...PEELLMEvaluatorOption) *PEELLMEvaluator {
+func PEEEvaluatorWithMaxIterations(n int) PEELLMEvaluatorOption {
+	return func(e *PEELLMEvaluator) {
+		e.generator.Options(llm.WithGeneratorMaxIterations(n))
+	}
+}
+
+func NewPEELLMEvaluator(ai llm.LLM, toolRegistry *llm.ToolRegistry, responseFormat *llm.ResponseFormat, opts ...PEELLMEvaluatorOption) *PEELLMEvaluator {
+	tools := toolRegistry.MarshalToolsForLLM()
 	e := &PEELLMEvaluator{
-		llm:            ai,
+		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
+		toolRegistry:   toolRegistry,
 		tools:          tools,
 		responseFormat: responseFormat,
 		systemPrompt:   DefaultPEEEvaluatorSystemPrompt,
@@ -62,12 +71,12 @@ func NewPEELLMEvaluator(ai llm.LLM, tools []map[string]any, responseFormat *llm.
 	return e
 }
 
-func NewPEELLMEvaluatorWithJSONFormat(ai llm.LLM, tools []map[string]any) (*PEELLMEvaluator, error) {
+func NewPEELLMEvaluatorWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistry, tools []map[string]any) (*PEELLMEvaluator, error) {
 	responseFormat, err := llm.ResponseFormatFromStruct[PEEEvalResult]("evaluation_result")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create response format: %w", err)
 	}
-	return NewPEELLMEvaluator(ai, tools, responseFormat), nil
+	return NewPEELLMEvaluator(ai, toolRegistry, responseFormat), nil
 }
 
 func (ev *PEELLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*PEEEvalResult, error) {
@@ -80,7 +89,7 @@ func (ev *PEELLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*
 		{Role: "user", Content: user},
 	}
 
-	raw, _, err := ev.llm.Generate(ctx, messages, ev.tools, ev.responseFormat)
+	raw, _, err := ev.generator.Generate(ctx, messages, ev.tools, ev.responseFormat)
 	if err != nil {
 		return nil, fmt.Errorf("evaluator llm: %w", err)
 	}
