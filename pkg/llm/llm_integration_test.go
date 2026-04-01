@@ -9,7 +9,7 @@ import (
 )
 
 func TestLLMIntegration(t *testing.T) {
-	baseURL, model, apiKey, noThink := GetIntegrationTestParams()
+	_, baseURL, model, apiKey, noThink := GetIntegrationTestParams()
 
 	llm := newHTTPClientLLM(model, baseURL, apiKey)
 	llm.SetNoThink(noThink)
@@ -86,7 +86,7 @@ func TestLLMIntegration(t *testing.T) {
 		}
 
 		var sb strings.Builder
-		mockWriter := &mockStreamWriter{builder: &sb}
+		mockWriter := &MockStreamWriter{builder: &sb}
 
 		content, toolCalls, err := llm.GenerateStream(context.Background(), messages, nil, nil, mockWriter)
 		if err != nil {
@@ -110,7 +110,7 @@ func TestLLMIntegration(t *testing.T) {
 }
 
 func TestLLMNoThinkIntegration(t *testing.T) {
-	baseURL, model, apiKey, noThink := GetIntegrationTestParams()
+	_, baseURL, model, apiKey, noThink := GetIntegrationTestParams()
 
 	llmNoThink := newHTTPClientLLM(model, baseURL, apiKey)
 	llmNoThink.SetNoThink(noThink)

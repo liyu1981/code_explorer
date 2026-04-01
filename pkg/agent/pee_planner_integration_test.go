@@ -25,7 +25,7 @@ func TestPEELLMPlannerIntegration(t *testing.T) {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	planner, err := NewPEELLMPlannerWithJSONFormat(llmInstance, nil, nil)
+	planner, err := NewPEELLMPlannerWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create planner: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestPEELLMPlannerJSONOutputIntegration(t *testing.T) {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	planner, err := NewPEELLMPlannerWithJSONFormat(llmInstance, nil, nil)
+	planner, err := NewPEELLMPlannerWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create planner: %v", err)
 	}

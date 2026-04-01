@@ -59,7 +59,10 @@ func PEEPlannerWithMaxIterations(n int) PEELLMPlannerOption {
 }
 
 func NewPEELLMPlanner(ai llm.LLM, toolRegistry *tools.ToolRegistry, responseFormat *llm.ResponseFormat, opts ...PEELLMPlannerOption) *PEELLMPlanner {
-	tools := toolRegistry.MarshalToolsForLLM()
+	var tools []map[string]any = nil
+	if toolRegistry != nil {
+		tools = toolRegistry.MarshalToolsForLLM()
+	}
 	p := &PEELLMPlanner{
 		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
 		toolRegistry:   toolRegistry,

@@ -69,7 +69,10 @@ func (r *ReactWorkflowRunner) Run(ctx context.Context, goal string, stream proto
 		{Role: "user", Content: goal},
 	}
 
-	tools := r.toolRegistry.MarshalToolsForLLM()
+	var tools []map[string]any = nil
+	if r.toolRegistry != nil {
+		tools = r.toolRegistry.MarshalToolsForLLM()
+	}
 	r.messages = messages
 
 	if stream != nil {

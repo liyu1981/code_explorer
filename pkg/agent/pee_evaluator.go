@@ -58,7 +58,10 @@ func PEEEvaluatorWithMaxIterations(n int) PEELLMEvaluatorOption {
 }
 
 func NewPEELLMEvaluator(ai llm.LLM, toolRegistry *tools.ToolRegistry, responseFormat *llm.ResponseFormat, opts ...PEELLMEvaluatorOption) *PEELLMEvaluator {
-	tools := toolRegistry.MarshalToolsForLLM()
+	var tools []map[string]any = nil
+	if toolRegistry != nil {
+		tools = toolRegistry.MarshalToolsForLLM()
+	}
 	e := &PEELLMEvaluator{
 		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
 		toolRegistry:   toolRegistry,
@@ -72,7 +75,7 @@ func NewPEELLMEvaluator(ai llm.LLM, toolRegistry *tools.ToolRegistry, responseFo
 	return e
 }
 
-func NewPEELLMEvaluatorWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegistry, toolsList []map[string]any) (*PEELLMEvaluator, error) {
+func NewPEELLMEvaluatorWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegistry) (*PEELLMEvaluator, error) {
 	responseFormat, err := llm.ResponseFormatFromStruct[PEEEvalResult]("evaluation_result")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create response format: %w", err)

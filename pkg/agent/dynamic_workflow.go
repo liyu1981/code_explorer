@@ -109,7 +109,12 @@ func (d *DynamicRouter) Route(ctx context.Context, goal string) (*RouteResult, e
 		{Role: "user", Content: goal},
 	}
 
-	response, _, err := d.llm.Generate(ctx, messages, nil, intentFormat)
+	var tools []map[string]any = nil
+	if d.toolRegistry != nil {
+		tools = d.toolRegistry.MarshalToolsForLLM()
+	}
+
+	response, _, err := d.llm.Generate(ctx, messages, tools, intentFormat)
 	if err != nil {
 		return nil, fmt.Errorf("intent detection llm: %w", err)
 	}

@@ -11,8 +11,87 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
+
+const (
+	DEFAULT_MAX_ITERATIONS = 5
+	DEFAULT_MAX_RETRY      = 3
+	DEFAULT_CONTEXT_LENGTH = 262144 / 2
+)
+
+type Message struct {
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+}
+
+type ToolCall struct {
+	ID       string           `json:"id"`
+	Type     string           `json:"type,omitempty"`
+	Function ToolCallFunction `json:"function"`
+	Name     string           `json:"-"` // For internal use
+	Input    json.RawMessage  `json:"-"` // For internal use
+}
+
+type ToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type ToolResult struct {
+	ToolCallID string
+	Output     string
+	Error      error
+}
+
+type ResponseFormat struct {
+	Type       string      `json:"type"`
+	JSONSchema *JSONSchema `json:"json_schema,omitempty"`
+}
+
+type JSONSchema struct {
+	Name   string         `json:"name"`
+	Schema map[string]any `json:"schema"`
+}
+
+// ResponseFormatFromStruct creates a ResponseFormat from a Go struct type
+func ResponseFormatFromStruct[T any](name string) (*ResponseFormat, error) {
+	schema, err := jsonschema.For[T](nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate schema: %w", err)
+	}
+	return ResponseFormatFromSchema(name, schema)
+}
+
+// ResponseFormatFromSchema creates a ResponseFormat from a jsonschema.Schema
+func ResponseFormatFromSchema(name string, schema *jsonschema.Schema) (*ResponseFormat, error) {
+	b, err := json.Marshal(schema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal schema: %w", err)
+	}
+
+	var schemaMap map[string]any
+	if err := json.Unmarshal(b, &schemaMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal schema to map: %w", err)
+	}
+
+	return &ResponseFormat{
+		Type: "json_schema",
+		JSONSchema: &JSONSchema{
+			Name:   name,
+			Schema: schemaMap,
+		},
+	}, nil
+}
+
+type LLM interface {
+	Generate(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat) (string, []ToolCall, error)
+	GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat, stream protocol.IStreamWriter) (string, []ToolCall, error)
+	Name() string
+}
 
 type HTTPClientLLM struct {
 	model      string
@@ -276,15 +355,6 @@ func BuildLLM(cfg map[string]any) (LLM, error) {
 			}
 		}
 		llm = httpLLMClient
-
-	case "mock":
-		model, _ := cfg["model"].(string)
-		responses, _ := cfg["responses"].([]any)
-		respStrs := make([]string, len(responses))
-		for i, r := range responses {
-			respStrs[i], _ = r.(string)
-		}
-		llm = NewMockLLM(model, respStrs, nil)
 
 	default:
 		// Fallback for when type is not specified but it looks like an OpenAI-compatible config

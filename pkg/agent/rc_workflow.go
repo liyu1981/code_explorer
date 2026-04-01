@@ -190,7 +190,7 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string, stream protocol
 				if critique.HasIssues {
 					log.Info().Strs("issues", critique.Issues).Msg("Critique found issues, revising")
 
-					if err := r.revise(ctx, critique); err != nil {
+					if err := r.revise(critique); err != nil {
 						log.Warn().Err(err).Msg("revise failed, continuing")
 					}
 
@@ -233,7 +233,10 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string, stream protocol
 }
 
 func (r *RCWorkflowRunner) generateDraft(ctx context.Context, stream protocol.IStreamWriter) (string, []llm.ToolCall, error) {
-	tools := r.toolRegistry.MarshalToolsForLLM()
+	var tools []map[string]any = nil
+	if r.toolRegistry != nil {
+		tools = r.toolRegistry.MarshalToolsForLLM()
+	}
 
 	for i := 0; i < r.maxRetry; i++ {
 		var response string
@@ -326,7 +329,7 @@ func (r *RCWorkflowRunner) buildCritiquePrompt() string {
 	return sb.String()
 }
 
-func (r *RCWorkflowRunner) revise(ctx context.Context, critique *CritiqueResult) error {
+func (r *RCWorkflowRunner) revise(critique *CritiqueResult) error {
 	var sb strings.Builder
 	sb.WriteString("Based on your critique, please revise:\n\n")
 

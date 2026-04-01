@@ -9,8 +9,8 @@ import (
 
 func TestPEEExecutor(t *testing.T) {
 	registry := tools.NewToolRegistry()
-	registry.Register(&integrationEchoTool{})
-	registry.Register(&integrationCalculateTool{})
+	registry.RegisterTool(&integrationEchoTool{})
+	registry.RegisterTool(&integrationCalculateTool{})
 
 	executor := NewPEEExecutor(registry, 3)
 

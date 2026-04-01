@@ -3,9 +3,12 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 
+	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -42,31 +45,35 @@ func GetGlobalToolRegistry() *ToolRegistry {
 	return globalToolRegistry
 }
 
-// func (r *ToolRegistry) initTools() {
-// 	r.registerTool(NewListAgentSkillsTool())
-// 	log.Debug().Msg("Load global tool list_agent_skills")
-// 	r.registerTool(NewSaveKnowledgeTool())
-// 	log.Debug().Msg("Load global tool save_knowledge")
-// 	r.registerTool(NewQueueTaskTool())
-// 	log.Debug().Msg("Load global tool queue_task")
-// 	r.registerTool(NewCodeMoggerListFilesTool())
-// 	log.Debug().Msg("Load global tool codemogger_list_files")
-// 	r.registerTool(NewCodeMoggerSearchTool())
-// 	log.Debug().Msg("Load global tool codgemogger_search")
-// 	r.registerTool(NewReadFileTool())
-// 	log.Debug().Msg("Load global tool read_file")
-// 	r.registerTool(NewGetTreeTool())
-// 	log.Debug().Msg("Load global tool get_tree")
-// 	r.registerTool(NewGrepSearchTool())
-// 	log.Debug().Msg("Load global tool grep_search")
+func (r *ToolRegistry) InitTools(data map[string]any) error {
+	if data == nil {
+		return fmt.Errorf("data is nil")
+	}
 
-// 	tools := r.List()
-// 	var toolNames []string
-// 	for _, tool := range tools {
-// 		toolNames = append(toolNames, tool.Name())
-// 	}
-// 	log.Info().Interface("tools", toolNames).Msg("Registered tools")
-// }
+	cmIndex, ok := data["codemogger_index"]
+	if !ok || cmIndex == nil {
+		return fmt.Errorf("codemogger index is required")
+	}
+
+	r.RegisterTool(NewCodeMoggerListFilesTool(cmIndex.(*codemogger.CodeIndex)))
+	log.Debug().Msg("Load tool codemogger_list_files")
+	r.RegisterTool(NewCodeMoggerSearchTool(cmIndex.(*codemogger.CodeIndex)))
+	log.Debug().Msg("Load tool codgemogger_search")
+	r.RegisterTool(NewReadFileTool())
+	log.Debug().Msg("Load global tool read_file")
+	r.RegisterTool(NewGetTreeTool())
+	log.Debug().Msg("Load global tool get_tree")
+	r.RegisterTool(NewGrepSearchTool())
+	log.Debug().Msg("Load global tool grep_search")
+
+	tools := r.List()
+	var toolNames []string
+	for _, tool := range tools {
+		toolNames = append(toolNames, tool.Name())
+	}
+	log.Info().Interface("tools", toolNames).Msg("Registered tools")
+	return nil
+}
 
 func (r *ToolRegistry) RegisterTool(tool Tool) {
 	r.mu.Lock()

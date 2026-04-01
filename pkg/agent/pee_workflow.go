@@ -71,14 +71,12 @@ func NewPEEWorkflowRunnerWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegi
 		opt(r)
 	}
 
-	tools := toolRegistry.MarshalToolsForLLM()
-
 	planner, err := NewPEELLMPlannerWithJSONFormat(ai, toolRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create planner: %w", err)
 	}
 
-	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(ai, toolRegistry, tools)
+	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(ai, toolRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create evaluator: %w", err)
 	}

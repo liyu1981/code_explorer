@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 func TestReactWorkflowRunnerIntegration(t *testing.T) {
@@ -24,9 +25,9 @@ func TestReactWorkflowRunnerIntegration(t *testing.T) {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	registry := llm.NewToolRegistry()
-	registry.Register(&integrationEchoTool{})
-	registry.Register(&integrationCalculateTool{})
+	registry := tools.NewToolRegistry()
+	registry.RegisterTool(&integrationEchoTool{})
+	registry.RegisterTool(&integrationCalculateTool{})
 
 	runner := NewReactWorkflowRunner(llmInstance, registry)
 

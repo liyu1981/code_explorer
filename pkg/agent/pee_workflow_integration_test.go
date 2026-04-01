@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 func TestPEEWorkflowRunnerIntegration(t *testing.T) {
@@ -24,8 +25,8 @@ func TestPEEWorkflowRunnerIntegration(t *testing.T) {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	toolRegistry := llm.NewToolRegistry()
-	toolRegistry.Register(&integrationEchoTool{})
+	toolRegistry := tools.NewToolRegistry()
+	toolRegistry.RegisterTool(&integrationEchoTool{})
 
 	runner, err := NewPEEWorkflowRunnerWithJSONFormat(llmInstance, toolRegistry, 3, 5)
 	if err != nil {

@@ -161,16 +161,13 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	toolRegistry, err = tools.GetGlobalToolRegistry().Bind(map[string]any{
-		"index":   h.index,
-		"baseDir": codebase.RootPath,
-	})
-	log.Debug().Interface("codebase_index", h.index).Str("codebase_basedir", codebase.RootPath).Msg("Bound tool registry with index and codebase root")
-
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to bind tools", err)
-		return
-	}
+	toolRegistry = tools.NewToolRegistry()
+	toolRegistry.RegisterTool(tools.NewCodeMoggerListFilesTool(h.index))
+	toolRegistry.RegisterTool(tools.NewCodeMoggerSearchTool(h.index))
+	toolRegistry.RegisterTool(tools.NewReadFileTool())
+	toolRegistry.RegisterTool(tools.NewGetTreeTool())
+	toolRegistry.RegisterTool(tools.NewGrepSearchTool())
+	log.Debug().Interface("codebase_index", h.index).Str("codebase_basedir", codebase.RootPath).Msg("Created tool registry with index and codebase root")
 
 	maxWorkers := 3
 	maxIterations := 5

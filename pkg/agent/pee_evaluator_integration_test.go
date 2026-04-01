@@ -24,7 +24,7 @@ func TestPEELLMEvaluatorIntegration(t *testing.T) {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(llmInstance, nil, nil)
+	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create evaluator: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestPEELLMEvaluatorJSONFormatIntegration(t *testing.T) {
 		t.Fatalf("Failed to build LLM: %v", err)
 	}
 
-	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(llmInstance, nil, nil)
+	evaluator, err := NewPEELLMEvaluatorWithJSONFormat(llmInstance, nil)
 	if err != nil {
 		t.Fatalf("Failed to create evaluator: %v", err)
 	}

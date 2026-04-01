@@ -71,7 +71,11 @@ func main() {
 	defer idx.Close()
 
 	// init global agent tool registry
-	tools.GetGlobalToolRegistry()
+	if err := tools.GetGlobalToolRegistry().InitTools(map[string]any{
+		"codemogger_index": idx,
+	}); err != nil {
+		log.Fatal().Err(err).Msg("Failed to init tool registry")
+	}
 
 	// init httpSrv
 	port := os.Getenv("PORT")
