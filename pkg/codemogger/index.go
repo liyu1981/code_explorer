@@ -39,6 +39,9 @@ func NewCodeIndex(cfg *config.Config, store *db.Store) (*CodeIndex, error) {
 		if model, ok := cfg.System.LLM["model"].(string); ok && model != "" {
 			embCfg.OpenAI.Model = model
 		}
+		if embeddingDim, ok := cfg.System.LLM["embedding_dim"].(int); ok && embeddingDim != 0 {
+			embCfg.OpenAI.EmbeddingDim = embeddingDim
+		}
 	}
 
 	emb := embed.NewEmbedderFromConfig(embCfg)

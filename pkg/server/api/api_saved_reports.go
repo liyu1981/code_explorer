@@ -20,11 +20,6 @@ type SavedReportWithSources struct {
 }
 
 func (h *ApiHandler) handleSaveSavedReport(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-
 	var req struct {
 		SessionID    string `json:"sessionId"`
 		CodebaseID   string `json:"codebaseId"`
@@ -45,7 +40,7 @@ func (h *ApiHandler) handleSaveSavedReport(w http.ResponseWriter, r *http.Reques
 
 	// If turnId is provided, fetch stream_data from research_reports
 	if req.TurnID != "" && streamData == "" {
-		reports, err := h.index.GetStore().GetResearchReportsBySession(r.Context(), req.SessionID)
+		reports, err := db.GetStore().GetResearchReportsBySession(r.Context(), req.SessionID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to get research reports", err)
 			return
@@ -73,7 +68,7 @@ func (h *ApiHandler) handleSaveSavedReport(w http.ResponseWriter, r *http.Reques
 		CodebasePath: req.CodebasePath,
 	}
 
-	if err := h.index.GetStore().SaveSavedReport(r.Context(), report); err != nil {
+	if err := db.GetStore().SaveSavedReport(r.Context(), report); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to save report", err)
 		return
 	}
@@ -82,13 +77,8 @@ func (h *ApiHandler) handleSaveSavedReport(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ApiHandler) handleGetSavedReport(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-
 	id := r.PathValue("id")
-	report, err := h.index.GetStore().GetSavedReport(r.Context(), id)
+	report, err := db.GetStore().GetSavedReport(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to get report", err)
 		return
@@ -115,16 +105,11 @@ func (h *ApiHandler) handleGetSavedReport(w http.ResponseWriter, r *http.Request
 }
 
 func (h *ApiHandler) handleListSavedReports(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-
 	query := r.URL.Query().Get("q")
 	page := getIntParam(r, "page", 1)
 	pageSize := getIntParam(r, "pageSize", 10)
 
-	reports, total, err := h.index.GetStore().ListSavedReports(r.Context(), page, pageSize, query)
+	reports, total, err := db.GetStore().ListSavedReports(r.Context(), page, pageSize, query)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list reports", err)
 		return
@@ -139,13 +124,8 @@ func (h *ApiHandler) handleListSavedReports(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ApiHandler) handleDeleteSavedReport(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-
 	id := r.PathValue("id")
-	if err := h.index.GetStore().DeleteSavedReport(r.Context(), id); err != nil {
+	if err := db.GetStore().DeleteSavedReport(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to delete report", err)
 		return
 	}

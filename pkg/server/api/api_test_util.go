@@ -43,7 +43,7 @@ func setupTestHandler(t *testing.T) (*ApiHandler, *codemogger.CodeIndex, func())
 		t.Fatal(err)
 	}
 
-	h := NewHandler(&ApiConfig{Index: index})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: index})
 
 	cleanup := func() {
 		h.Stop()

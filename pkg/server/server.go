@@ -9,7 +9,7 @@ import (
 
 func New(idx *codemogger.CodeIndex) http.Handler {
 	apiHandler := api.NewHandler(&api.ApiConfig{
-		Index: idx,
+		CodemoggerIndex: idx,
 	})
 
 	uiServer := NewUIServer(&Config{

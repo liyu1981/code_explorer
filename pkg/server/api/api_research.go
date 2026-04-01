@@ -133,7 +133,17 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	log.Info().Str("query", req.Query).Str("session", req.SessionID).Msg("Handling agent research request")
+	sess, err := db.GetStore().GetResearchSession(r.Context(), req.SessionID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Session not found", err)
+		return
+	}
+
+	codebase, err := db.GetStore().GetCodebaseByID(r.Context(), sess.CodebaseID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Codebase not found", err)
+		return
+	}
 
 	llmCfg := config.Get().System.LLM
 	if llmCfg == nil {
@@ -141,37 +151,16 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ai, err := llm.BuildLLM(llmCfg)
+	llmInstance, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to build LLM")
 		writeError(w, http.StatusInternalServerError, "Failed to build LLM", err)
 		return
 	}
 
-	var toolRegistry *tools.ToolRegistry
-	sess, err := h.index.GetStore().GetResearchSession(r.Context(), req.SessionID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Session not found", err)
-		return
-	}
-
-	codebase, err := h.index.GetStore().GetCodebaseByID(r.Context(), sess.CodebaseID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Codebase not found", err)
-		return
-	}
-
-	toolRegistry = tools.NewToolRegistry()
-	toolRegistry.RegisterTool(tools.NewCodeMoggerListFilesTool(h.index))
-	toolRegistry.RegisterTool(tools.NewCodeMoggerSearchTool(h.index))
-	toolRegistry.RegisterTool(tools.NewReadFileTool())
-	toolRegistry.RegisterTool(tools.NewGetTreeTool())
-	toolRegistry.RegisterTool(tools.NewGrepSearchTool())
-	log.Debug().Interface("codebase_index", h.index).Str("codebase_basedir", codebase.RootPath).Msg("Created tool registry with index and codebase root")
-
 	maxWorkers := 3
 	maxIterations := 5
-	runner := agentworkflow.NewPEEWorkflowRunner(ai, toolRegistry, maxWorkers, maxIterations)
+	runner := agentworkflow.NewPEEWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), maxWorkers, maxIterations)
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -180,15 +169,18 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	sw := protocol.NewStreamWriter(w)
 	var finalSw protocol.IStreamWriter = sw
 
-	if req.SessionID != "" && h.index != nil {
+	if req.SessionID != "" {
 		finalSw = &persistenceStreamWriter{
 			StreamWriter: sw,
 			sessionID:    req.SessionID,
-			store:        h.index.GetStore(),
+			store:        db.GetStore(),
 		}
 	}
 
-	_, err = runner.Run(r.Context(), req.Query, finalSw)
+	query := fmt.Sprintf("%s\n\nContext: target codebase id=%s", req.Query, codebase.ID)
+	log.Info().Str("query", query).Str("session", req.SessionID).Msg("Handling agent research request")
+
+	_, err = runner.Run(r.Context(), query, finalSw)
 	if err != nil {
 		log.Error().Err(err).Msg("PEE workflow failed")
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
@@ -198,23 +190,19 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	if maxReports <= 0 {
 		maxReports = 50
 	}
-	_ = h.index.GetStore().PruneReportsBySession(r.Context(), req.SessionID, maxReports)
+	_ = db.GetStore().PruneReportsBySession(r.Context(), req.SessionID, maxReports)
 }
 
 func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
 	codebaseId := r.URL.Query().Get("codebaseId")
 	includeArchived := r.URL.Query().Get("includeArchived") == "true"
 
 	var sessions []db.ResearchSession
 	var err error
 	if codebaseId != "" {
-		sessions, err = h.index.GetStore().GetResearchSessionsByCodebase(r.Context(), codebaseId, includeArchived)
+		sessions, err = db.GetStore().GetResearchSessionsByCodebase(r.Context(), codebaseId, includeArchived)
 	} else {
-		sessions, err = h.index.GetStore().ListResearchSessions(r.Context(), includeArchived)
+		sessions, err = db.GetStore().ListResearchSessions(r.Context(), includeArchived)
 	}
 
 	if err != nil {
@@ -225,16 +213,11 @@ func (h *ApiHandler) handleListSessions(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ApiHandler) handleGetSessionsPaginated(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-
 	codebaseId := r.URL.Query().Get("codebaseId")
 	page := getIntParam(r, "page", 1)
 	pageSize := getIntParam(r, "pageSize", 10)
 
-	sessions, total, err := h.index.GetStore().GetResearchSessionsPaginated(r.Context(), codebaseId, page, pageSize)
+	sessions, total, err := db.GetStore().GetResearchSessionsPaginated(r.Context(), codebaseId, page, pageSize)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to get sessions", err)
 		return
@@ -249,12 +232,8 @@ func (h *ApiHandler) handleGetSessionsPaginated(w http.ResponseWriter, r *http.R
 }
 
 func (h *ApiHandler) handleGetSessionReports(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
 	id := r.PathValue("id")
-	reports, err := h.index.GetStore().GetResearchReportsBySession(r.Context(), id)
+	reports, err := db.GetStore().GetResearchReportsBySession(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to get reports", err)
 		return
@@ -263,17 +242,13 @@ func (h *ApiHandler) handleGetSessionReports(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *ApiHandler) handleSaveSession(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
 	var sess db.ResearchSession
 	if err := json.NewDecoder(r.Body).Decode(&sess); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 
-	if err := h.index.GetStore().SaveResearchSession(r.Context(), &sess); err != nil {
+	if err := db.GetStore().SaveResearchSession(r.Context(), &sess); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to save session", err)
 		return
 	}
@@ -283,16 +258,12 @@ func (h *ApiHandler) handleSaveSession(w http.ResponseWriter, r *http.Request) {
 	if maxSessions <= 0 {
 		maxSessions = 10
 	}
-	_ = h.index.GetStore().PruneSessionsByCodebase(r.Context(), sess.CodebaseID, maxSessions)
+	_ = db.GetStore().PruneSessionsByCodebase(r.Context(), sess.CodebaseID, maxSessions)
 
 	writeJSON(w, http.StatusOK, sess)
 }
 
 func (h *ApiHandler) handleSummarizeSession(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
 	id := r.PathValue("id")
 
 	// Submit background task
@@ -313,12 +284,8 @@ func (h *ApiHandler) handleSummarizeSession(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
 	id := r.PathValue("id")
-	sess, err := h.index.GetStore().GetResearchSession(r.Context(), id)
+	sess, err := db.GetStore().GetResearchSession(r.Context(), id)
 	if err != nil || sess == nil {
 		writeError(w, http.StatusNotFound, "Session not found", nil)
 		return
@@ -326,7 +293,7 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 
 	now := time.Now().UnixMilli()
 	sess.ArchivedAt = &now
-	if err := h.index.GetStore().SaveResearchSession(r.Context(), sess); err != nil {
+	if err := db.GetStore().SaveResearchSession(r.Context(), sess); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to archive session", err)
 		return
 	}
@@ -335,12 +302,8 @@ func (h *ApiHandler) handleArchiveSession(w http.ResponseWriter, r *http.Request
 }
 
 func (h *ApiHandler) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
 	id := r.PathValue("id")
-	if err := h.index.GetStore().DeleteResearchSession(r.Context(), id); err != nil {
+	if err := db.GetStore().DeleteResearchSession(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to delete session", err)
 		return
 	}
@@ -348,14 +311,10 @@ func (h *ApiHandler) handleDeleteSession(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ApiHandler) handleDeleteReport(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
 	id := r.PathValue("id")
 	turnId := r.PathValue("turnId")
 	log.Info().Str("sessionId", id).Str("turnId", turnId).Msg("Deleting research report")
-	if err := h.index.GetStore().DeleteResearchReport(r.Context(), turnId); err != nil {
+	if err := db.GetStore().DeleteResearchReport(r.Context(), turnId); err != nil {
 		log.Error().Err(err).Str("turnId", turnId).Msg("Failed to delete research report")
 		writeError(w, http.StatusInternalServerError, "Failed to delete report", err)
 		return

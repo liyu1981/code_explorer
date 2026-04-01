@@ -17,47 +17,42 @@ import (
 
 // ApiHandler represents the API handler
 type ApiHandler struct {
-	index       *codemogger.CodeIndex
+	cmIndex     *codemogger.CodeIndex
 	hub         *WsHub
 	taskManager *task.Manager
 }
 
 // ApiConfig holds the API handler configuration
 type ApiConfig struct {
-	Index *codemogger.CodeIndex
+	CodemoggerIndex *codemogger.CodeIndex
 }
 
 // NewHandler creates a new API handler instance
 func NewHandler(config *ApiConfig) *ApiHandler {
-	var store *db.Store
-	if config.Index != nil {
-		store = config.Index.GetStore()
-	}
+	store := db.GetStore()
 
 	h := &ApiHandler{
-		index: config.Index,
-		hub:   NewWsHub(),
+		cmIndex: config.CodemoggerIndex,
+		hub:     NewWsHub(),
 	}
 
-	if config.Index != nil {
-		prompt.SyncBuiltinPrompts(context.Background(), store)
+	prompt.SyncBuiltinPrompts(context.Background(), store)
 
-		numWorkers := runtime.NumCPU() - 1
-		isDev := false
-		// In tests or dev mode, use fewer workers
-		if flag.Lookup("test.v") != nil {
-			isDev = true
-			numWorkers = 1
-		} else if os.Getenv("APP_ENV") == "development" {
-			isDev = true
-			numWorkers = 2
-		}
-
-		h.taskManager = task.NewManager(store, numWorkers, h.Publish)
-		task.RegisterQueueHandlers(h.taskManager, config.Index, h.Publish)
-
-		h.taskManager.StartWorkers(context.Background(), isDev)
+	numWorkers := runtime.NumCPU() - 1
+	isDev := false
+	// In tests or dev mode, use fewer workers
+	if flag.Lookup("test.v") != nil {
+		isDev = true
+		numWorkers = 1
+	} else if os.Getenv("APP_ENV") == "development" {
+		isDev = true
+		numWorkers = 2
 	}
+
+	h.taskManager = task.NewManager(store, numWorkers, h.Publish)
+	task.RegisterQueueHandlers(h.taskManager, h.cmIndex, h.Publish)
+
+	h.taskManager.StartWorkers(context.Background(), isDev)
 
 	go h.hub.run()
 	return h

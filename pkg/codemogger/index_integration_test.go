@@ -12,6 +12,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/libsql"
+	"github.com/liyu1981/code_explorer/pkg/tests"
 )
 
 func TestCodeIndexIntegration(t *testing.T) {
@@ -48,16 +49,13 @@ func Add(a, b int) int {
 		}
 	}
 
+	_, baseURL, model, apiKey, _, embeddingDim := tests.GetIntegrationTestParams()
 	cfg := config.DefaultConfig()
-	cfg.CodeMogger.InheritSystemLLM = false
-	cfg.CodeMogger.Embedder = config.EmbedderConfig{
-		Type:  "local",
-		Model: "unsloth/Qwen3.5-9B-GGUF:Q4_K_M",
-		OpenAI: config.OpenAIConfig{
-			APIBase: "http://localhost:20003/v1",
-			APIKey:  "",
-		},
-	}
+	cfg.CodeMogger.InheritSystemLLM = true
+	cfg.System.LLM["base_url"] = baseURL
+	cfg.System.LLM["model"] = model
+	cfg.System.LLM["api_key"] = apiKey
+	cfg.System.LLM["embedding_dim"] = embeddingDim
 	config.Set(cfg)
 
 	if err := db.Migrate(dbPath); err != nil {
@@ -143,11 +141,13 @@ func Add(a, b int) int {
 }
 
 func TestEmbedderDirectIntegration(t *testing.T) {
+	_, baseURL, model, apiKey, _, embeddingSize := tests.GetIntegrationTestParams()
+
 	emb := embed.NewOpenAIEmbedder(
-		"http://localhost:20003/v1",
-		"unsloth/Qwen3.5-9B-GGUF:Q4_K_M",
-		"",
-		384,
+		baseURL,
+		model,
+		apiKey,
+		embeddingSize,
 	)
 
 	t.Logf("Testing embedder with model: %s, dimension: %d", emb.Model(), emb.Dimension())

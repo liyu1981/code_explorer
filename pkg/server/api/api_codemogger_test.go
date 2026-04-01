@@ -16,7 +16,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/libsql"
 )
 
-func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
+func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 	tmpDir, err := os.MkdirTemp("", "api-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -50,10 +50,10 @@ func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 }
 
 func TestApiListCodebases(t *testing.T) {
-	idx, cleanup := setupTestIndex(t)
+	idx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
-	h := NewHandler(&ApiConfig{Index: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx})
 	defer h.Stop()
 	req := httptest.NewRequest("GET", "/api/codemogger/codebases", nil)
 	rr := httptest.NewRecorder()
@@ -74,8 +74,8 @@ func TestApiListCodebases(t *testing.T) {
 	}
 }
 
-func TestApiIndex(t *testing.T) {
-	idx, cleanup := setupTestIndex(t)
+func TestApiCodemoggerIndex(t *testing.T) {
+	idx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
 	// Create a dummy file to index
@@ -85,7 +85,7 @@ func TestApiIndex(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "main.go")
 	os.WriteFile(testFile, []byte("package main\nfunc main() {}"), 0644)
 
-	h := NewHandler(&ApiConfig{Index: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx})
 	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{
@@ -109,10 +109,10 @@ func TestApiIndex(t *testing.T) {
 }
 
 func TestApiSearch(t *testing.T) {
-	idx, cleanup := setupTestIndex(t)
+	idx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
-	h := NewHandler(&ApiConfig{Index: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx})
 	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{

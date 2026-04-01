@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,33 +18,34 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func getSystemLLMConfig() map[string]any {
-	llmCfg := make(map[string]any)
-	if config.Get().System.LLM != nil {
-		for k, v := range config.Get().System.LLM {
-			llmCfg[k] = v
-		}
-	} else {
-		llmCfg["type"] = "openai"
-		llmCfg["model"] = os.Getenv("LLM_MODEL")
-		llmCfg["base_url"] = os.Getenv("LLM_BASE_URL")
+func initTools(r *tools.ToolRegistry, data map[string]any) error {
+	if data == nil {
+		return fmt.Errorf("data is nil")
 	}
 
-	if llmCfg["model"] == nil || llmCfg["model"] == "" {
-		llmCfg["model"] = "gpt-4o"
+	cmIndex, ok := data["codemogger_index"]
+	if !ok || cmIndex == nil {
+		return fmt.Errorf("codemogger index is required")
 	}
-	if llmCfg["base_url"] == nil || llmCfg["base_url"] == "" {
-		llmCfg["base_url"] = "https://api.openai.com/v1"
+
+	r.RegisterTool(tools.NewCodeMoggerListFilesTool(cmIndex.(*codemogger.CodeIndex)))
+	log.Debug().Msg("Load tool codemogger_list_files")
+	r.RegisterTool(tools.NewCodeMoggerSearchTool(cmIndex.(*codemogger.CodeIndex)))
+	log.Debug().Msg("Load tool codgemogger_search")
+	r.RegisterTool(tools.NewReadFileTool())
+	log.Debug().Msg("Load global tool read_file")
+	r.RegisterTool(tools.NewGetTreeTool())
+	log.Debug().Msg("Load global tool get_tree")
+	r.RegisterTool(tools.NewGrepSearchTool())
+	log.Debug().Msg("Load global tool grep_search")
+
+	tools := r.List()
+	var toolNames []string
+	for _, tool := range tools {
+		toolNames = append(toolNames, tool.Name())
 	}
-	if llmCfg["type"] == nil || llmCfg["type"] == "" {
-		llmCfg["type"] = "openai"
-	}
-	if config.Get().System.ContextLength > 0 {
-		llmCfg["context_length"] = config.Get().System.ContextLength
-	} else {
-		llmCfg["context_length"] = 262144
-	}
-	return llmCfg
+	log.Info().Interface("tools", toolNames).Msg("Registered tools")
+	return nil
 }
 
 func main() {
@@ -71,7 +73,7 @@ func main() {
 	defer idx.Close()
 
 	// init global agent tool registry
-	if err := tools.GetGlobalToolRegistry().InitTools(map[string]any{
+	if err := initTools(tools.GetGlobalToolRegistry(), map[string]any{
 		"codemogger_index": idx,
 	}); err != nil {
 		log.Fatal().Err(err).Msg("Failed to init tool registry")
