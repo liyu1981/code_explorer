@@ -1,4 +1,4 @@
-package llm
+package tools
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/constant"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
-	"github.com/liyu1981/code_explorer/pkg/util"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -18,13 +17,12 @@ const (
 	list_files_tool_desc = "Lists all indexed files in the codebase."
 )
 
-// ListFilesTool exposes codemogger's ListFiles functionality to the agent
 type CodeMoggerListFilesTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewCodeMoggerListFilesTool() Tool {
-	return &CodeMoggerListFilesTool{}
+func NewCodeMoggerListFilesTool(index *codemogger.CodeIndex) Tool {
+	return &CodeMoggerListFilesTool{index: index}
 }
 
 func (t *CodeMoggerListFilesTool) Name() string {
@@ -35,15 +33,16 @@ func (t *CodeMoggerListFilesTool) Description() string {
 	return list_files_tool_desc
 }
 
-func (t *CodeMoggerListFilesTool) Clone() Tool {
-	return &CodeMoggerListFilesTool{index: t.index}
-}
-
 func (t *CodeMoggerListFilesTool) Parameters() map[string]any {
 	return map[string]any{
-		"type":       "object",
-		"properties": map[string]any{},
-		"required":   []string{},
+		"type": "object",
+		"properties": map[string]any{
+			"codebaseID": map[string]any{
+				"type":        "string",
+				"description": "The codebase ID to list files from",
+			},
+		},
+		"required": []string{"codebaseID"},
 	}
 }
 
@@ -52,7 +51,19 @@ func (t *CodeMoggerListFilesTool) Execute(ctx context.Context, input json.RawMes
 		return "", fmt.Errorf("index is nil")
 	}
 
-	files, err := t.index.ListFiles(ctx, "")
+	var req struct {
+		CodebaseID string `json:"codebaseID"`
+	}
+
+	if err := json.Unmarshal(input, &req); err != nil {
+		return "", fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+
+	if req.CodebaseID == "" {
+		return "", fmt.Errorf("codebaseID is required")
+	}
+
+	files, err := t.index.ListFiles(ctx, req.CodebaseID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list files: %w", err)
 	}
@@ -65,26 +76,12 @@ func (t *CodeMoggerListFilesTool) Execute(ctx context.Context, input json.RawMes
 	return string(data), nil
 }
 
-func (t *CodeMoggerListFilesTool) Bind(ctx context.Context, state *map[string]any) error {
-	index, err := util.SafeExtract[*codemogger.CodeIndex](state, "index")
-	if err != nil {
-		return fmt.Errorf("bind failed: %v", err)
-	}
-	if index != nil {
-		t.index = index
-		return nil
-	} else {
-		return fmt.Errorf("bind failed: index is nil")
-	}
-}
-
-// SearchTool exposes codemogger's Search functionality to the agent
 type CodeMoggerSearchTool struct {
 	index *codemogger.CodeIndex
 }
 
-func NewCodeMoggerSearchTool() Tool {
-	return &CodeMoggerSearchTool{}
+func NewCodeMoggerSearchTool(index *codemogger.CodeIndex) Tool {
+	return &CodeMoggerSearchTool{index: index}
 }
 
 func (t *CodeMoggerSearchTool) Name() string {
@@ -95,14 +92,14 @@ func (t *CodeMoggerSearchTool) Description() string {
 	return "Search the codebase using natural language (semantic) or keyword search."
 }
 
-func (t *CodeMoggerSearchTool) Clone() Tool {
-	return &CodeMoggerSearchTool{index: t.index}
-}
-
 func (t *CodeMoggerSearchTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			"codebaseID": map[string]any{
+				"type":        "string",
+				"description": "The codebase ID to search within",
+			},
 			"query": map[string]any{
 				"type":        "string",
 				"description": "The search query (e.g., 'how is authentication implemented?')",
@@ -116,12 +113,8 @@ func (t *CodeMoggerSearchTool) Parameters() map[string]any {
 				"description": "Search mode: 'hybrid', 'semantic', or 'keyword' (default 'hybrid')",
 				"enum":        []string{"hybrid", "semantic", "keyword"},
 			},
-			"codebaseID": map[string]any{
-				"type":        "string",
-				"description": "Optional codebase ID to scope the search to a specific codebase",
-			},
 		},
-		"required": []string{"query"},
+		"required": []string{"codebaseID", "query"},
 	}
 }
 
@@ -131,13 +124,18 @@ func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessag
 	}
 
 	var req struct {
-		Query string                `json:"query"`
-		Limit int                   `json:"limit"`
-		Mode  codemogger.SearchMode `json:"mode"`
+		CodebaseID string                `json:"codebaseID"`
+		Query      string                `json:"query"`
+		Limit      int                   `json:"limit"`
+		Mode       codemogger.SearchMode `json:"mode"`
 	}
 
 	if err := json.Unmarshal(input, &req); err != nil {
 		return "", fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+
+	if req.CodebaseID == "" {
+		return "", fmt.Errorf("codebaseID is required")
 	}
 
 	if req.Limit <= 0 {
@@ -153,7 +151,7 @@ func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessag
 		IncludeSnippet: true,
 	}
 
-	results, err := t.index.Search(ctx, "", req.Query, opts)
+	results, err := t.index.Search(ctx, req.CodebaseID, req.Query, opts)
 	if err != nil {
 		return "", fmt.Errorf("search failed: %w", err)
 	}
@@ -161,7 +159,6 @@ func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessag
 	var markdown strings.Builder
 	for i, res := range results {
 		if stream != nil {
-			// Emit a reasoning update so the user sees progress for each file
 			stream.SendReasoning(fmt.Sprintf("Found relevant snippet in %s:%d\n", res.FilePath, res.StartLine))
 
 			id, _ := gonanoid.New()
@@ -184,17 +181,4 @@ func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessag
 	}
 
 	return markdown.String(), nil
-}
-
-func (t *CodeMoggerSearchTool) Bind(ctx context.Context, state *map[string]any) error {
-	index, err := util.SafeExtract[*codemogger.CodeIndex](state, "index")
-	if err != nil {
-		return fmt.Errorf("bind failed: %v", err)
-	}
-	if index != nil {
-		t.index = index
-		return nil
-	} else {
-		return fmt.Errorf("bind failed: index is nil")
-	}
 }

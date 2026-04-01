@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -40,7 +41,7 @@ func WithGeneratorContextLength(n int) GeneratorOption {
 	}
 }
 
-func WithGeneratorToolRegistry(registry *ToolRegistry) GeneratorOption {
+func WithGeneratorToolRegistry(registry *tools.ToolRegistry) GeneratorOption {
 	return func(g *Generator) {
 		g.toolRegistry = registry
 	}
@@ -54,7 +55,7 @@ func WithGeneratorResponseFormat(rf *ResponseFormat) GeneratorOption {
 
 type Generator struct {
 	llm             LLM
-	toolRegistry    *ToolRegistry
+	toolRegistry    *tools.ToolRegistry
 	messages        []Message
 	maxIterations   int
 	maxRetry        int

@@ -1,4 +1,4 @@
-package llm
+package tools
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
-	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -17,10 +16,8 @@ var (
 type Tool interface {
 	Name() string
 	Description() string
-	Clone() Tool
 	Parameters() map[string]any
 	Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error)
-	Bind(ctx context.Context, state *map[string]any) error
 }
 
 type ToolRegistry struct {
@@ -35,7 +32,6 @@ func NewToolRegistry() *ToolRegistry {
 func InitGlobalToolRegistry() {
 	globalToolRegistryOnce.Do(func() {
 		globalToolRegistry = NewToolRegistry()
-		globalToolRegistry.initTools()
 	})
 }
 
@@ -46,39 +42,33 @@ func GetGlobalToolRegistry() *ToolRegistry {
 	return globalToolRegistry
 }
 
-func (r *ToolRegistry) initTools() {
-	r.registerTool(NewListAgentSkillsTool())
-	log.Debug().Msg("Load global tool list_agent_skills")
-	r.registerTool(NewSaveKnowledgeTool())
-	log.Debug().Msg("Load global tool save_knowledge")
-	r.registerTool(NewQueueTaskTool())
-	log.Debug().Msg("Load global tool queue_task")
-	r.registerTool(NewCodeMoggerListFilesTool())
-	log.Debug().Msg("Load global tool codemogger_list_files")
-	r.registerTool(NewCodeMoggerSearchTool())
-	log.Debug().Msg("Load global tool codgemogger_search")
-	r.registerTool(NewReadFileTool())
-	log.Debug().Msg("Load global tool read_file")
-	r.registerTool(NewGetTreeTool())
-	log.Debug().Msg("Load global tool get_tree")
-	r.registerTool(NewGrepSearchTool())
-	log.Debug().Msg("Load global tool grep_search")
+// func (r *ToolRegistry) initTools() {
+// 	r.registerTool(NewListAgentSkillsTool())
+// 	log.Debug().Msg("Load global tool list_agent_skills")
+// 	r.registerTool(NewSaveKnowledgeTool())
+// 	log.Debug().Msg("Load global tool save_knowledge")
+// 	r.registerTool(NewQueueTaskTool())
+// 	log.Debug().Msg("Load global tool queue_task")
+// 	r.registerTool(NewCodeMoggerListFilesTool())
+// 	log.Debug().Msg("Load global tool codemogger_list_files")
+// 	r.registerTool(NewCodeMoggerSearchTool())
+// 	log.Debug().Msg("Load global tool codgemogger_search")
+// 	r.registerTool(NewReadFileTool())
+// 	log.Debug().Msg("Load global tool read_file")
+// 	r.registerTool(NewGetTreeTool())
+// 	log.Debug().Msg("Load global tool get_tree")
+// 	r.registerTool(NewGrepSearchTool())
+// 	log.Debug().Msg("Load global tool grep_search")
 
-	tools := r.List()
-	var toolNames []string
-	for _, tool := range tools {
-		toolNames = append(toolNames, tool.Name())
-	}
-	log.Info().Interface("tools", toolNames).Msg("Registered tools")
-}
+// 	tools := r.List()
+// 	var toolNames []string
+// 	for _, tool := range tools {
+// 		toolNames = append(toolNames, tool.Name())
+// 	}
+// 	log.Info().Interface("tools", toolNames).Msg("Registered tools")
+// }
 
-func (r *ToolRegistry) registerTool(tool Tool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.tools[tool.Name()] = tool
-}
-
-func (r *ToolRegistry) Register(tool Tool) {
+func (r *ToolRegistry) RegisterTool(tool Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tools[tool.Name()] = tool
@@ -124,16 +114,4 @@ func (r *ToolRegistry) MarshalToolsForLLM() []map[string]any {
 		})
 	}
 	return result
-}
-
-func (r *ToolRegistry) Bind(data map[string]any) (*ToolRegistry, error) {
-	toolRegistry := &ToolRegistry{tools: make(map[string]Tool)}
-	for _, tool := range r.List() {
-		cloneTool := tool.Clone()
-		if err := cloneTool.Bind(context.Background(), &data); err != nil {
-			return nil, err
-		}
-		toolRegistry.Register(cloneTool)
-	}
-	return toolRegistry, nil
 }

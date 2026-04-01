@@ -9,6 +9,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	toolsregistry "github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/liyu1981/code_explorer/pkg/util"
 	"github.com/rs/zerolog/log"
 )
@@ -93,7 +94,7 @@ type LLM interface {
 
 type Agent struct {
 	llm            LLM
-	tools          *ToolRegistry
+	tools          *toolsregistry.ToolRegistry
 	SystemPrompt   string
 	UserPromptTpl  string
 	messages       []Message
@@ -142,10 +143,10 @@ func WithNoThink(noThink bool) AgentOption {
 	}
 }
 
-func newAgent(llm LLM, systemPrompt string, userPromptTpl string, tools *ToolRegistry, opts ...AgentOption) *Agent {
+func newAgent(llm LLM, systemPrompt string, userPromptTpl string, toolRegistry *toolsregistry.ToolRegistry, opts ...AgentOption) *Agent {
 	a := &Agent{
 		llm:           llm,
-		tools:         tools,
+		tools:         toolRegistry,
 		SystemPrompt:  systemPrompt,
 		UserPromptTpl: userPromptTpl,
 		messages:      make([]Message, 0),
@@ -663,8 +664,8 @@ func NewAgentFromConfig(
 		return nil, fmt.Errorf("failed to get agent prompt user prompt template: %w", err)
 	}
 
-	toolRegistry := NewToolRegistry()
-	globalRegistry := GetGlobalToolRegistry()
+	toolRegistry := toolsregistry.NewToolRegistry()
+	globalRegistry := toolsregistry.GetGlobalToolRegistry()
 
 	if cfg.AgentPromptName != "" {
 		promptTools, err := GetAgentPromptTools(ctx, cfg.AgentPromptName)

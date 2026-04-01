@@ -7,6 +7,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -15,7 +16,7 @@ type PEEWorkflowRunner struct {
 	executor      *PEEExecutor
 	evaluator     PEEEvaluator
 	maxIter       int
-	toolRegistry  *llm.ToolRegistry
+	toolRegistry  *tools.ToolRegistry
 	plannerOpts   []PEELLMPlannerOption
 	evaluatorOpts []PEELLMEvaluatorOption
 }
@@ -46,7 +47,7 @@ func PEEWithEvaluatorMaxIterations(n int) PEEWorkflowRunnerOption {
 	}
 }
 
-func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *llm.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) *PEEWorkflowRunner {
+func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) *PEEWorkflowRunner {
 	r := &PEEWorkflowRunner{
 		maxIter:      maxIter,
 		toolRegistry: toolRegistry,
@@ -61,7 +62,7 @@ func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *llm.ToolRegistry, maxWorkers
 	return r
 }
 
-func NewPEEWorkflowRunnerWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) (*PEEWorkflowRunner, error) {
+func NewPEEWorkflowRunnerWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) (*PEEWorkflowRunner, error) {
 	r := &PEEWorkflowRunner{
 		maxIter:      maxIter,
 		toolRegistry: toolRegistry,

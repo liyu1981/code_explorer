@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 type integrationEchoTool struct{}
@@ -15,7 +15,7 @@ func (t *integrationEchoTool) Name() string { return "echo" }
 func (t *integrationEchoTool) Description() string {
 	return "Echoes the input message back"
 }
-func (t *integrationEchoTool) Clone() llm.Tool { return &integrationEchoTool{} }
+func (t *integrationEchoTool) Clone() tools.Tool { return &integrationEchoTool{} }
 func (t *integrationEchoTool) Bind(ctx context.Context, state *map[string]any) error {
 	return nil
 }
@@ -44,7 +44,7 @@ func (t *integrationCalculateTool) Name() string { return "calculate" }
 func (t *integrationCalculateTool) Description() string {
 	return "Performs basic arithmetic operations"
 }
-func (t *integrationCalculateTool) Clone() llm.Tool { return &integrationCalculateTool{} }
+func (t *integrationCalculateTool) Clone() tools.Tool { return &integrationCalculateTool{} }
 func (t *integrationCalculateTool) Bind(ctx context.Context, state *map[string]any) error {
 	return nil
 }

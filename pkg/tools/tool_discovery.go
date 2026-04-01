@@ -1,4 +1,4 @@
-package llm
+package tools
 
 import (
 	"context"
@@ -14,10 +14,9 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/util"
 )
 
+// TODO: remove baseDir from the struct, as it will be passed in as param when execute
 // ReadFileTool allows reading content from local files
-type ReadFileTool struct {
-	baseDir string
-}
+type ReadFileTool struct{}
 
 func NewReadFileTool() Tool {
 	return &ReadFileTool{}
@@ -31,14 +30,14 @@ func (t *ReadFileTool) Description() string {
 	return "Reads the content of a file. Supports optional start_line and end_line."
 }
 
-func (t *ReadFileTool) Clone() Tool {
-	return &ReadFileTool{baseDir: t.baseDir}
-}
-
 func (t *ReadFileTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			"base_dir": map[string]any{
+				"type":        "string",
+				"description": "The codebase root directory",
+			},
 			"path": map[string]any{
 				"type":        "string",
 				"description": "Path to the file relative to codebase root",
@@ -52,16 +51,13 @@ func (t *ReadFileTool) Parameters() map[string]any {
 				"description": "Optional 1-based end line number",
 			},
 		},
-		"required": []string{"path"},
+		"required": []string{"base_dir", "path"},
 	}
 }
 
 func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
-	if t.baseDir == "" {
-		return "", fmt.Errorf("baseDir is empty")
-	}
-
 	var req struct {
+		BaseDir   string `json:"base_dir"`
 		Path      string `json:"path"`
 		StartLine int    `json:"start_line"`
 		EndLine   int    `json:"end_line"`
@@ -70,11 +66,15 @@ func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, strea
 		return "", err
 	}
 
+	if req.BaseDir == "" {
+		return "", fmt.Errorf("base_dir is required")
+	}
+
 	var fullPath string
 	if filepath.IsAbs(req.Path) {
 		fullPath = req.Path
 	} else {
-		fullPath = filepath.Join(t.baseDir, req.Path)
+		fullPath = filepath.Join(req.BaseDir, req.Path)
 	}
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
@@ -100,23 +100,8 @@ func (t *ReadFileTool) Execute(ctx context.Context, input json.RawMessage, strea
 	return strings.Join(lines, "\n"), nil
 }
 
-func (t *ReadFileTool) Bind(ctx context.Context, state *map[string]any) error {
-	baseDir, err := util.SafeExtract[string](state, "baseDir")
-	if err != nil {
-		return fmt.Errorf("bind failed: %v", err)
-	}
-	if baseDir != "" {
-		t.baseDir = baseDir
-		return nil
-	} else {
-		return fmt.Errorf("bind failed: basedDir is nil")
-	}
-}
-
 // GetTreeTool provides directory structure
-type GetTreeTool struct {
-	baseDir string
-}
+type GetTreeTool struct{}
 
 func NewGetTreeTool() Tool {
 	return &GetTreeTool{}
@@ -130,19 +115,20 @@ func (t *GetTreeTool) Description() string {
 	return "Returns a tree-like directory structure of the codebase."
 }
 
-func (t *GetTreeTool) Clone() Tool {
-	return &GetTreeTool{baseDir: t.baseDir}
-}
-
 func (t *GetTreeTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			"base_dir": map[string]any{
+				"type":        "string",
+				"description": "The codebase root directory",
+			},
 			"depth": map[string]any{
 				"type":        "integer",
 				"description": "Max depth to traverse (default 0, unlimited)",
 			},
 		},
+		"required": []string{"base_dir"},
 	}
 }
 
@@ -158,24 +144,26 @@ func (t *GetTreeTool) Parameters() map[string]any {
 //	└── cmd/
 //	    └── main.go
 func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
-	if t.baseDir == "" {
-		return "", fmt.Errorf("baseDir is empty")
-	}
-
 	var req struct {
-		Depth int `json:"depth"`
+		BaseDir string `json:"base_dir"`
+		Depth   int    `json:"depth"`
 	}
 	json.Unmarshal(input, &req)
+
+	if req.BaseDir == "" {
+		return "", fmt.Errorf("base_dir is required")
+	}
+
 	// depth <= 0 means unlimited
 	maxDepth := req.Depth
 
 	// Collect all file paths from the walker
-	fileListQueue := util.StartFileWalker(t.baseDir, true)
+	fileListQueue := util.StartFileWalker(req.BaseDir, true)
 
 	// Build a set of relative file paths
 	filePaths := make(map[string]struct{})
 	for f := range fileListQueue {
-		rel, err := filepath.Rel(t.baseDir, f.Location)
+		rel, err := filepath.Rel(req.BaseDir, f.Location)
 		if err != nil {
 			continue
 		}
@@ -263,23 +251,8 @@ func (t *GetTreeTool) Execute(ctx context.Context, input json.RawMessage, stream
 	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
-func (t *GetTreeTool) Bind(ctx context.Context, state *map[string]any) error {
-	baseDir, err := util.SafeExtract[string](state, "baseDir")
-	if err != nil {
-		return fmt.Errorf("bind failed: %v", err)
-	}
-	if baseDir != "" {
-		t.baseDir = baseDir
-		return nil
-	} else {
-		return fmt.Errorf("bind failed: basedDir is nil")
-	}
-}
-
 // GrepSearchTool allows fast pattern search
-type GrepSearchTool struct {
-	baseDir string
-}
+type GrepSearchTool struct{}
 
 func NewGrepSearchTool() Tool {
 	return &GrepSearchTool{}
@@ -293,64 +266,52 @@ func (t *GrepSearchTool) Description() string {
 	return "Performs a fast regex search across the codebase using ripgrep (if available) or grep."
 }
 
-func (t *GrepSearchTool) Clone() Tool {
-	return &GrepSearchTool{baseDir: t.baseDir}
-}
-
 func (t *GrepSearchTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			"base_dir": map[string]any{
+				"type":        "string",
+				"description": "The codebase root directory",
+			},
 			"pattern": map[string]any{
 				"type":        "string",
 				"description": "Regex pattern to search for",
 			},
 		},
-		"required": []string{"pattern"},
+		"required": []string{"base_dir", "pattern"},
 	}
 }
 
 func (t *GrepSearchTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
-	if t.baseDir == "" {
-		return "", fmt.Errorf("baseDir is empty")
-	}
-
 	var req struct {
+		BaseDir string `json:"base_dir"`
 		Pattern string `json:"pattern"`
 	}
 	if err := json.Unmarshal(input, &req); err != nil {
 		return "", err
 	}
 
+	if req.BaseDir == "" {
+		return "", fmt.Errorf("base_dir is required")
+	}
+
 	// Try ripgrep first, then grep
-	cmd := exec.CommandContext(ctx, "rg", "-n", "--max-count", "100", req.Pattern, t.baseDir)
+	cmd := exec.CommandContext(ctx, "rg", "-n", "--max-count", "100", req.Pattern, req.BaseDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		// Fallback to standard grep
-		cmd = exec.CommandContext(ctx, "grep", "-rn", "--max-count=100", req.Pattern, t.baseDir)
+		cmd = exec.CommandContext(ctx, "grep", "-rn", "--max-count=100", req.Pattern, req.BaseDir)
 		output, err = cmd.CombinedOutput()
 	}
 
 	// Clean up paths in output to be relative
 	result := string(output)
-	result = strings.ReplaceAll(result, t.baseDir, ".")
+	result = strings.ReplaceAll(result, req.BaseDir, ".")
 
 	if result == "" && err != nil {
 		return "No matches found.", nil
 	}
 
 	return result, nil
-}
-
-func (t *GrepSearchTool) Bind(ctx context.Context, state *map[string]any) error {
-	baseDir, err := util.SafeExtract[string](state, "baseDir")
-	if err != nil {
-		return fmt.Errorf("bind failed: %v", err)
-	}
-	if baseDir != "" {
-		t.baseDir = baseDir
-		return nil
-	} else {
-		return fmt.Errorf("bind failed: basedDir is nil")
-	}
 }

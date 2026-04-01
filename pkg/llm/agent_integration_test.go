@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 type echoTool struct{}
@@ -82,9 +83,9 @@ func (t *calculateTool) Execute(ctx context.Context, input json.RawMessage, stre
 func TestAgentIntegration(t *testing.T) {
 	baseURL, model, apiKey, noThink := GetIntegrationTestParams()
 
-	InitGlobalToolRegistry()
+	tools.InitGlobalToolRegistry()
 
-	registry := NewToolRegistry()
+	registry := tools.NewToolRegistry()
 	registry.Register(&echoTool{})
 	registry.Register(&calculateTool{})
 

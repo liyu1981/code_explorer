@@ -12,6 +12,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -147,7 +148,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var toolRegistry *llm.ToolRegistry
+	var toolRegistry *tools.ToolRegistry
 	sess, err := h.index.GetStore().GetResearchSession(r.Context(), req.SessionID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "Session not found", err)
@@ -160,7 +161,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	toolRegistry, err = llm.GetGlobalToolRegistry().Bind(map[string]any{
+	toolRegistry, err = tools.GetGlobalToolRegistry().Bind(map[string]any{
 		"index":   h.index,
 		"baseDir": codebase.RootPath,
 	})

@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
 type PEEExecutor struct {
-	toolRegistry *llm.ToolRegistry
+	toolRegistry *tools.ToolRegistry
 	maxWorkers   int
 }
 
-func NewPEEExecutor(toolRegistry *llm.ToolRegistry, maxWorkers int) *PEEExecutor {
+func NewPEEExecutor(toolRegistry *tools.ToolRegistry, maxWorkers int) *PEEExecutor {
 	return &PEEExecutor{
 		toolRegistry: toolRegistry,
 		maxWorkers:   maxWorkers,

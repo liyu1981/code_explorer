@@ -1,13 +1,45 @@
-package llm
+package tools
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 )
+
+type mockStreamWriter struct{}
+
+func (w *mockStreamWriter) WriteOpenAIChunk(id, model, content string, finishReason *string) error {
+	return nil
+}
+func (w *mockStreamWriter) WriteCEEvent(event protocol.CEEvent) error { return nil }
+func (w *mockStreamWriter) WriteDone() error                          { return nil }
+func (w *mockStreamWriter) SendReasoning(content string) error        { return nil }
+func (w *mockStreamWriter) SendTurnStarted(id string, query string, timestamp int64) error {
+	return nil
+}
+func (w *mockStreamWriter) SendStepUpdate(id, message string, status protocol.StepStatus) error {
+	return nil
+}
+func (w *mockStreamWriter) SendSourceAdded(source protocol.SourceMaterial) error        { return nil }
+func (w *mockStreamWriter) SendResourceMaterial(resource protocol.SourceMaterial) error { return nil }
+func (w *mockStreamWriter) SendToolCall(tool string, params any) error                  { return nil }
+func (w *mockStreamWriter) SendToolResponse(tool string, response any) error            { return nil }
+func (w *mockStreamWriter) SendTryRunStart(turnID string, try int64) error              { return nil }
+func (w *mockStreamWriter) SendTryRunEnd(turnID string, try int64) error                { return nil }
+func (w *mockStreamWriter) SendTryRunFailed(turnID string, try int64) error             { return nil }
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
 
 func TestGetTreeTool(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "discovery-test-*")
@@ -33,29 +65,19 @@ func TestGetTreeTool(t *testing.T) {
 	}
 
 	tool := NewGetTreeTool()
-	state := map[string]any{"baseDir": tempDir}
-	if err := tool.Bind(context.Background(), &state); err != nil {
-		t.Fatalf("Bind failed: %v", err)
-	}
 	stream := &mockStreamWriter{}
 
-	// parseTreeLines extracts the entry names (stripping tree connector prefixes)
-	// from a tree-formatted output string.
-	const treePrefixLast3Grams = "── "
 	parseTreeLines := func(res string) []string {
 		var names []string
 		for _, line := range strings.Split(res, "\n") {
-			// Skip the root "." line
 			if line == "." {
 				continue
 			}
-			// Strip connector prefix: "├── ", "└── ", and any leading "│   " / "    " padding
-			// Find the last occurrence of "── " which marks the start of the name
-			idx := strings.LastIndex(line, treePrefixLast3Grams)
+			idx := strings.LastIndex(line, "── ")
 			if idx == -1 {
 				continue
 			}
-			names = append(names, line[idx+len(treePrefixLast3Grams):])
+			names = append(names, line[idx+len("── "):])
 		}
 		return names
 	}
@@ -85,18 +107,18 @@ func TestGetTreeTool(t *testing.T) {
 	}
 
 	t.Run("Root line", func(t *testing.T) {
-		input := json.RawMessage(`{"depth": 1}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "depth": 1}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
 		if !strings.HasPrefix(res, ".\n") {
-			t.Errorf("expected output to start with '.\\n', got: %q", res[:min(len(res), 10)])
+			t.Errorf("expected output to start with '.\n', got: %q", res[:minInt(len(res), 10)])
 		}
 	})
 
 	t.Run("Depth 1", func(t *testing.T) {
-		input := json.RawMessage(`{"depth": 1}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "depth": 1}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
@@ -104,16 +126,13 @@ func TestGetTreeTool(t *testing.T) {
 
 		entries := parseTreeLines(res)
 
-		// Only root-level entries should appear
 		containsAll(t, entries, []string{".gitignore", "bin/", "main.go", "src/"})
-		// Nested entries must not appear at depth 1
 		containsNone(t, entries, []string{"index.js", "lib/", "utils.go"})
-		// Ignored entries must not appear
 		containsNone(t, entries, []string{"ignored.txt", "node_modules/", ".git/"})
 	})
 
 	t.Run("Depth 2", func(t *testing.T) {
-		input := json.RawMessage(`{"depth": 2}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "depth": 2}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
@@ -121,16 +140,13 @@ func TestGetTreeTool(t *testing.T) {
 
 		entries := parseTreeLines(res)
 
-		// Depth-2 entries should include direct children of root-level dirs
 		containsAll(t, entries, []string{".gitignore", "bin/", "index.js", "main.go", "src/", "lib/"})
-		// Depth-3 entries (utils.go inside src/lib/) must not appear
 		containsNone(t, entries, []string{"utils.go"})
-		// Ignored entries must not appear
 		containsNone(t, entries, []string{"ignored.txt", "node_modules/", ".git/"})
 	})
 
 	t.Run("Unlimited depth", func(t *testing.T) {
-		input := json.RawMessage(`{}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
@@ -138,23 +154,20 @@ func TestGetTreeTool(t *testing.T) {
 
 		entries := parseTreeLines(res)
 
-		// All non-ignored entries at every level should appear
 		containsAll(t, entries, []string{".gitignore", "bin/", "index.js", "main.go", "src/", "lib/", "utils.go"})
 		containsNone(t, entries, []string{"ignored.txt", "node_modules/", ".git/"})
 	})
 
 	t.Run("Tree connectors", func(t *testing.T) {
-		input := json.RawMessage(`{"depth": 2}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "depth": 2}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
 
-		// Verify structural tree characters are present
 		if !strings.Contains(res, "├── ") && !strings.Contains(res, "└── ") {
 			t.Errorf("expected tree connectors (├── or └── ) in output, got:\n%s", res)
 		}
-		// Last sibling in any group must use └──, not ├──
 		lines := strings.Split(res, "\n")
 		for i, line := range lines {
 			if i == len(lines)-1 {
@@ -162,11 +175,9 @@ func TestGetTreeTool(t *testing.T) {
 			}
 			nextIndent := len(lines[i+1]) - len(strings.TrimLeft(lines[i+1], "│ "))
 			curIndent := len(line) - len(strings.TrimLeft(line, "│ "))
-			// If next line is at a shallower or equal indent, current must be a └──
 			if nextIndent <= curIndent && strings.Contains(line, "── ") {
 				prefix := line[:strings.Index(line, "── ")]
 				if strings.HasSuffix(prefix, "├") {
-					// Only flag if the next line is NOT a child (same or lesser depth)
 					if nextIndent < curIndent {
 						t.Errorf("line %d should use └── (last sibling) but uses ├──: %q", i, line)
 					}
@@ -174,13 +185,6 @@ func TestGetTreeTool(t *testing.T) {
 			}
 		}
 	})
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func TestReadFileTool(t *testing.T) {
@@ -194,14 +198,10 @@ func TestReadFileTool(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte(content), 0644)
 
 	tool := NewReadFileTool()
-	state := map[string]any{"baseDir": tempDir}
-	if err := tool.Bind(context.Background(), &state); err != nil {
-		t.Fatalf("Bind failed: %v", err)
-	}
 	stream := &mockStreamWriter{}
 
 	t.Run("Read whole file", func(t *testing.T) {
-		input := json.RawMessage(`{"path": "test.txt"}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "path": "test.txt"}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
@@ -212,7 +212,7 @@ func TestReadFileTool(t *testing.T) {
 	})
 
 	t.Run("Read partial file", func(t *testing.T) {
-		input := json.RawMessage(`{"path": "test.txt", "start_line": 2, "end_line": 4}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "path": "test.txt", "start_line": 2, "end_line": 4}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
@@ -224,7 +224,7 @@ func TestReadFileTool(t *testing.T) {
 	})
 
 	t.Run("Out of bounds", func(t *testing.T) {
-		input := json.RawMessage(`{"path": "test.txt", "start_line": 10}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "path": "test.txt", "start_line": 10}`, tempDir))
 		_, err := tool.Execute(context.Background(), input, stream)
 		if err == nil {
 			t.Fatal("Expected error for out of bounds start_line")
@@ -243,14 +243,10 @@ func TestGrepSearchTool(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "b.txt"), []byte("hello again"), 0644)
 
 	tool := NewGrepSearchTool()
-	state := map[string]any{"baseDir": tempDir}
-	if err := tool.Bind(context.Background(), &state); err != nil {
-		t.Fatalf("Bind failed: %v", err)
-	}
 	stream := &mockStreamWriter{}
 
 	t.Run("Search existing pattern", func(t *testing.T) {
-		input := json.RawMessage(`{"pattern": "hello"}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "pattern": "hello"}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
@@ -261,7 +257,7 @@ func TestGrepSearchTool(t *testing.T) {
 	})
 
 	t.Run("Search non-existing pattern", func(t *testing.T) {
-		input := json.RawMessage(`{"pattern": "nonexistent_pattern_12345"}`)
+		input := json.RawMessage(fmt.Sprintf(`{"base_dir": %q, "pattern": "nonexistent_pattern_12345"}`, tempDir))
 		res, err := tool.Execute(context.Background(), input, stream)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)

@@ -1,4 +1,4 @@
-package llm
+package tools
 
 import (
 	"context"
@@ -18,17 +18,11 @@ func (m *mockTool) Parameters() map[string]any { return nil }
 func (m *mockTool) Execute(ctx context.Context, input json.RawMessage, stream protocol.IStreamWriter) (string, error) {
 	return "result", nil
 }
-func (m *mockTool) Bind(ctx context.Context, state *map[string]any) error {
-	return nil
-}
-func (m *mockTool) Clone() Tool {
-	return &mockTool{name: m.name}
-}
 
 func TestToolRegistry(t *testing.T) {
 	reg := NewToolRegistry()
 	tool := &mockTool{name: "test-tool"}
-	reg.Register(tool)
+	reg.RegisterTool(tool)
 
 	t.Run("Get", func(t *testing.T) {
 		got, ok := reg.Get("test-tool")

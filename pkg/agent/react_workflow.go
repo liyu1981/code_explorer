@@ -5,6 +5,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -14,7 +15,7 @@ const (
 
 type ReactWorkflowRunner struct {
 	generator    *llm.Generator
-	toolRegistry *llm.ToolRegistry
+	toolRegistry *tools.ToolRegistry
 	systemPrompt string
 	messages     []llm.Message
 }
@@ -45,7 +46,7 @@ func ReactWithResponseFormat(rf *llm.ResponseFormat) ReactWorkflowRunnerOption {
 	}
 }
 
-func NewReactWorkflowRunner(ai llm.LLM, toolRegistry *llm.ToolRegistry, opts ...ReactWorkflowRunnerOption) *ReactWorkflowRunner {
+func NewReactWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, opts ...ReactWorkflowRunnerOption) *ReactWorkflowRunner {
 	r := &ReactWorkflowRunner{
 		generator:    llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
 		toolRegistry: toolRegistry,

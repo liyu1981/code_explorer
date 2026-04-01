@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 func TestPEEExecutor(t *testing.T) {
-	registry := llm.NewToolRegistry()
+	registry := tools.NewToolRegistry()
 	registry.Register(&integrationEchoTool{})
 	registry.Register(&integrationCalculateTool{})
 

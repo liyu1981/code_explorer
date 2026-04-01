@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 type PEEPlanner interface {
@@ -37,7 +38,7 @@ Tasks may depend on each other. Output a JSON task graph.`
 
 type PEELLMPlanner struct {
 	generator      *llm.Generator
-	toolRegistry   *llm.ToolRegistry
+	toolRegistry   *tools.ToolRegistry
 	tools          []map[string]any
 	responseFormat *llm.ResponseFormat
 	systemPrompt   string
@@ -57,7 +58,7 @@ func PEEPlannerWithMaxIterations(n int) PEELLMPlannerOption {
 	}
 }
 
-func NewPEELLMPlanner(ai llm.LLM, toolRegistry *llm.ToolRegistry, responseFormat *llm.ResponseFormat, opts ...PEELLMPlannerOption) *PEELLMPlanner {
+func NewPEELLMPlanner(ai llm.LLM, toolRegistry *tools.ToolRegistry, responseFormat *llm.ResponseFormat, opts ...PEELLMPlannerOption) *PEELLMPlanner {
 	tools := toolRegistry.MarshalToolsForLLM()
 	p := &PEELLMPlanner{
 		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
@@ -72,7 +73,7 @@ func NewPEELLMPlanner(ai llm.LLM, toolRegistry *llm.ToolRegistry, responseFormat
 	return p
 }
 
-func NewPEELLMPlannerWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistry) (*PEELLMPlanner, error) {
+func NewPEELLMPlannerWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegistry) (*PEELLMPlanner, error) {
 	responseFormat, err := llm.ResponseFormatFromStruct[PEEPlanResponse]("task_plan")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create response format: %w", err)

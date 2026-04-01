@@ -8,6 +8,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -37,7 +38,7 @@ type RCStep struct {
 
 type RCWorkflowRunner struct {
 	generator      *llm.Generator
-	toolRegistry   *llm.ToolRegistry
+	toolRegistry   *tools.ToolRegistry
 	systemPrompt   string
 	maxReflections int
 	maxIterations  int
@@ -80,7 +81,7 @@ func RCWithResponseFormat(rf *llm.ResponseFormat) RCWorkflowRunnerOption {
 	}
 }
 
-func NewRCWorkflowRunner(ai llm.LLM, toolRegistry *llm.ToolRegistry, opts ...RCWorkflowRunnerOption) *RCWorkflowRunner {
+func NewRCWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, opts ...RCWorkflowRunnerOption) *RCWorkflowRunner {
 	r := &RCWorkflowRunner{
 		generator:      llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
 		toolRegistry:   toolRegistry,
@@ -97,7 +98,7 @@ func NewRCWorkflowRunner(ai llm.LLM, toolRegistry *llm.ToolRegistry, opts ...RCW
 	return r
 }
 
-func NewRCWorkflowRunnerWithJSONFormat(ai llm.LLM, toolRegistry *llm.ToolRegistry, opts ...RCWorkflowRunnerOption) (*RCWorkflowRunner, error) {
+func NewRCWorkflowRunnerWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegistry, opts ...RCWorkflowRunnerOption) (*RCWorkflowRunner, error) {
 	critiqueFormat, err := llm.ResponseFormatFromStruct[CritiqueResponse]("critique_result")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create critique response format: %w", err)

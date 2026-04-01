@@ -1,4 +1,4 @@
-package llm
+package tools
 
 import (
 	"context"
@@ -40,17 +40,13 @@ func TestCodemoggerTools(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ListFilesTool", func(t *testing.T) {
-		tool := NewCodeMoggerListFilesTool()
-		state := map[string]any{"index": idx}
-		if err := tool.Bind(ctx, &state); err != nil {
-			t.Fatalf("Bind failed: %v", err)
-		}
+		tool := NewCodeMoggerListFilesTool(idx)
 
 		if tool.Name() != "codemogger_list_files" {
 			t.Errorf("unexpected name: %s", tool.Name())
 		}
 
-		got, err := tool.Execute(ctx, json.RawMessage("{}"), nil)
+		got, err := tool.Execute(ctx, json.RawMessage(`{"codebaseID": "nonexistent"}`), nil)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
@@ -59,28 +55,41 @@ func TestCodemoggerTools(t *testing.T) {
 		if err := json.Unmarshal([]byte(got), &files); err != nil {
 			t.Fatalf("unmarshal failed: %v", err)
 		}
-		// Expect empty list for new DB
 		if len(files) != 0 {
 			t.Errorf("expected 0 files, got %d", len(files))
 		}
 	})
 
-	t.Run("SearchTool", func(t *testing.T) {
-		tool := NewCodeMoggerSearchTool()
-		state := map[string]any{"index": idx}
-		if err := tool.Bind(ctx, &state); err != nil {
-			t.Fatalf("Bind failed: %v", err)
+	t.Run("ListFilesTool_MissingCodebaseID", func(t *testing.T) {
+		tool := NewCodeMoggerListFilesTool(idx)
+
+		_, err := tool.Execute(ctx, json.RawMessage("{}"), nil)
+		if err == nil {
+			t.Error("expected error for missing codebaseID")
 		}
+	})
+
+	t.Run("SearchTool", func(t *testing.T) {
+		tool := NewCodeMoggerSearchTool(idx)
 
 		if tool.Name() != "codemogger_search" {
 			t.Errorf("unexpected name: %s", tool.Name())
 		}
 
-		input := `{"query": "test", "limit": 5}`
+		input := `{"codebaseID": "nonexistent", "query": "test", "limit": 5}`
 		_, err := tool.Execute(ctx, json.RawMessage(input), nil)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
-		// Since DB is empty, markdown output should be empty
+	})
+
+	t.Run("SearchTool_MissingCodebaseID", func(t *testing.T) {
+		tool := NewCodeMoggerSearchTool(idx)
+
+		input := `{"query": "test", "limit": 5}`
+		_, err := tool.Execute(ctx, json.RawMessage(input), nil)
+		if err == nil {
+			t.Error("expected error for missing codebaseID")
+		}
 	})
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -42,7 +43,7 @@ Respond with JSON only.`
 
 type DynamicRouter struct {
 	llm          llm.LLM
-	toolRegistry *llm.ToolRegistry
+	toolRegistry *tools.ToolRegistry
 	systemPrompt string
 	reactRunner  *ReactWorkflowRunner
 	rcRunner     *RCWorkflowRunner
@@ -82,7 +83,7 @@ func DynamicWithSimpleWorkflowRunner(runner *SimpleWorkflowRunner) DynamicRouter
 	}
 }
 
-func NewDynamicRouter(ai llm.LLM, toolRegistry *llm.ToolRegistry, opts ...DynamicRouterOption) *DynamicRouter {
+func NewDynamicRouter(ai llm.LLM, toolRegistry *tools.ToolRegistry, opts ...DynamicRouterOption) *DynamicRouter {
 	d := &DynamicRouter{
 		llm:          ai,
 		toolRegistry: toolRegistry,

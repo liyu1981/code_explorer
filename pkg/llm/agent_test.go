@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 type TestUser struct {
@@ -105,10 +106,10 @@ func TestResponseFormatFromSchema(t *testing.T) {
 func TestAgentContextLimit(t *testing.T) {
 	mockLLM := NewMockLLM("gpt-4o", []string{"Hello"}, nil)
 
-	InitGlobalToolRegistry()
+	tools.InitGlobalToolRegistry()
 
 	limit := 10
-	registry := NewToolRegistry()
+	registry := tools.NewToolRegistry()
 	ag := newAgent(mockLLM, "", "", registry, WithContextLength(limit))
 
 	_, err := ag.Run(context.Background(), "This input is definitely longer than 10 characters", nil, nil)

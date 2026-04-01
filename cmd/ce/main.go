@@ -11,9 +11,9 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
-	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/logger"
 	"github.com/liyu1981/code_explorer/pkg/server"
+	"github.com/liyu1981/code_explorer/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -71,7 +71,7 @@ func main() {
 	defer idx.Close()
 
 	// init global agent tool registry
-	llm.GetGlobalToolRegistry()
+	tools.GetGlobalToolRegistry()
 
 	// init httpSrv
 	port := os.Getenv("PORT")
