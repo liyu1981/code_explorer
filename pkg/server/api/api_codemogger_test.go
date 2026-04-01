@@ -33,7 +33,7 @@ func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 		t.Fatalf("Failed to open db: %v", err)
 	}
 	store := db.NewStore(sqlDB, dbPath)
-	idx, err := codemogger.NewCodeIndex(cfg, dbPath, store)
+	idx, err := codemogger.NewCodeIndex(cfg, store)
 	if err != nil {
 		t.Fatalf("Failed to create index: %v", err)
 	}

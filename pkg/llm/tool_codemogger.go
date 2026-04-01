@@ -52,7 +52,7 @@ func (t *CodeMoggerListFilesTool) Execute(ctx context.Context, input json.RawMes
 		return "", fmt.Errorf("index is nil")
 	}
 
-	files, err := t.index.ListFiles(ctx)
+	files, err := t.index.ListFiles(ctx, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to list files: %w", err)
 	}
@@ -116,6 +116,10 @@ func (t *CodeMoggerSearchTool) Parameters() map[string]any {
 				"description": "Search mode: 'hybrid', 'semantic', or 'keyword' (default 'hybrid')",
 				"enum":        []string{"hybrid", "semantic", "keyword"},
 			},
+			"codebaseID": map[string]any{
+				"type":        "string",
+				"description": "Optional codebase ID to scope the search to a specific codebase",
+			},
 		},
 		"required": []string{"query"},
 	}
@@ -149,7 +153,7 @@ func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessag
 		IncludeSnippet: true,
 	}
 
-	results, err := t.index.Search(ctx, req.Query, opts)
+	results, err := t.index.Search(ctx, "", req.Query, opts)
 	if err != nil {
 		return "", fmt.Errorf("search failed: %w", err)
 	}

@@ -82,7 +82,7 @@ func getIndex(dbPath string) (*codemogger.CodeIndex, error) {
 	}
 	store := db.NewStore(sqlDB, dbPath)
 
-	return codemogger.NewCodeIndex(cfg, dbPath, store)
+	return codemogger.NewCodeIndex(cfg, store)
 }
 
 func handleIndex() {
@@ -160,7 +160,7 @@ func handleSearch() {
 		IncludeSnippet: true,
 	}
 
-	results, err := idx.Search(context.Background(), query, opts)
+	results, err := idx.Search(context.Background(), "", query, opts)
 	if err != nil {
 		log.Fatal().Msgf("Search failed: %v", err)
 	}
@@ -184,7 +184,7 @@ func handleListFiles() {
 	}
 	defer idx.Close()
 
-	files, err := idx.ListFiles(context.Background())
+	files, err := idx.ListFiles(context.Background(), "")
 	if err != nil {
 		log.Fatal().Msgf("Failed to list files: %v", err)
 	}

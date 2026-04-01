@@ -40,7 +40,7 @@ func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		CodeMogger config.CodeMoggerConfig `json:"codemogger"`
 	}{
 		System: systemResp{
-			DbPath:      h.index.GetDbPath(),
+			DbPath:      h.index.GetStore().GetDBPath(),
 			IsDefaultDb: config.Get().System.DBPath == "",
 			LLM:         systemLLM,
 		},

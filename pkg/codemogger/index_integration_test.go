@@ -69,7 +69,7 @@ func Add(a, b int) int {
 	}
 	store := db.NewStore(sqlDB, dbPath)
 
-	idx, err := NewCodeIndex(cfg, dbPath, store)
+	idx, err := NewCodeIndex(cfg, store)
 	if err != nil {
 		t.Fatalf("failed to create index: %v", err)
 	}
@@ -95,7 +95,7 @@ func Add(a, b int) int {
 	})
 
 	t.Run("List Files", func(t *testing.T) {
-		files, err := idx.ListFiles(ctx)
+		files, err := idx.ListFiles(ctx, "")
 		if err != nil {
 			t.Fatalf("ListFiles failed: %v", err)
 		}
@@ -110,7 +110,7 @@ func Add(a, b int) int {
 			Limit: 5,
 			Mode:  SearchModeSemantic,
 		}
-		results, err := idx.Search(ctx, "hello", searchOpts)
+		results, err := idx.Search(ctx, "", "hello", searchOpts)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
 		}
@@ -128,7 +128,7 @@ func Add(a, b int) int {
 			Limit: 5,
 			Mode:  SearchModeKeyword,
 		}
-		results, err := idx.Search(ctx, "main", searchOpts)
+		results, err := idx.Search(ctx, "", "main", searchOpts)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
 		}

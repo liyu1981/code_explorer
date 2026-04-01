@@ -31,7 +31,7 @@ func TestCodemoggerTools(t *testing.T) {
 		t.Fatalf("OpenLibsqlDb: %v", err)
 	}
 	store := db.NewStore(sqlDB, dbPath)
-	idx, err := codemogger.NewCodeIndex(cfg, dbPath, store)
+	idx, err := codemogger.NewCodeIndex(cfg, store)
 	if err != nil {
 		t.Fatalf("NewCodeIndex: %v", err)
 	}

@@ -55,7 +55,8 @@ func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Re
 }
 
 func (h *ApiHandler) handleListFiles(w http.ResponseWriter, r *http.Request) {
-	files, err := h.index.ListFiles(r.Context())
+	codebaseID := r.URL.Query().Get("codebase_id")
+	files, err := h.index.ListFiles(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list files", err)
 		return
@@ -94,9 +95,10 @@ func (h *ApiHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (h *ApiHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Query string                `json:"query"`
-		Limit int                   `json:"limit"`
-		Mode  codemogger.SearchMode `json:"mode"`
+		Query      string                `json:"query"`
+		Limit      int                   `json:"limit"`
+		Mode       codemogger.SearchMode `json:"mode"`
+		CodebaseID string                `json:"codebaseID"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body", err)
@@ -114,7 +116,7 @@ func (h *ApiHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		IncludeSnippet: true,
 	}
 
-	results, err := h.index.Search(r.Context(), req.Query, opts)
+	results, err := h.index.Search(r.Context(), req.CodebaseID, req.Query, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Search failed", err)
 		return

@@ -280,8 +280,8 @@ func buildEmbedText(filePath, kind, name, signature, snippet string) string {
 	return text
 }
 
-func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOptions) ([]SearchResult, error) {
-	log.Info().Str("query", query).Interface("opts", opts).Msg("Searching index")
+func (c *CodeIndex) Search(ctx context.Context, codebaseID, query string, opts *SearchOptions) ([]SearchResult, error) {
+	log.Info().Str("codebaseID", codebaseID).Str("query", query).Interface("opts", opts).Msg("Searching index")
 	if query == "" {
 		return []SearchResult{}, nil
 	}
@@ -307,7 +307,7 @@ func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOption
 		if len(vectors) == 0 || vectors[0] == nil {
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerVectorSearch(ctx, vectors[0], limit, includeSnippet)
+		results, err := c.store.CodemoggerVectorSearch(ctx, codebaseID, vectors[0], limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +318,7 @@ func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOption
 		if processed == "" {
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerFTSSearch(ctx, processed, limit, includeSnippet)
+		results, err := c.store.CodemoggerFTSSearch(ctx, codebaseID, processed, limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
@@ -326,12 +326,12 @@ func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOption
 
 	case SearchModeHybrid:
 		processed := search.PreprocessQuery(query)
-		ftsResults, _ := c.store.CodemoggerFTSSearch(ctx, processed, limit, includeSnippet)
+		ftsResults, _ := c.store.CodemoggerFTSSearch(ctx, codebaseID, processed, limit, includeSnippet)
 
 		vectors, _ := c.embedder.Embed([]string{query})
 		var vecResults []db.SearchResult
 		if len(vectors) > 0 && vectors[0] != nil {
-			vecResults, _ = c.store.CodemoggerVectorSearch(ctx, vectors[0], limit, includeSnippet)
+			vecResults, _ = c.store.CodemoggerVectorSearch(ctx, codebaseID, vectors[0], limit, includeSnippet)
 		}
 
 		merged := search.RRFMerge(ftsResults, vecResults, limit, 60, 0.4, 0.6)
@@ -359,8 +359,8 @@ func convertResults(results []db.SearchResult) []SearchResult {
 	return converted
 }
 
-func (c *CodeIndex) ListFiles(ctx context.Context) ([]IndexedFile, error) {
-	files, err := c.store.CodemoggerListFiles(ctx, "")
+func (c *CodeIndex) ListFiles(ctx context.Context, codebaseID string) ([]IndexedFile, error) {
+	files, err := c.store.CodemoggerListFiles(ctx, codebaseID)
 	if err != nil {
 		return nil, err
 	}
