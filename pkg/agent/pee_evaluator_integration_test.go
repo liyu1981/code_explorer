@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tests"
 )
 
 func TestPEELLMEvaluatorIntegration(t *testing.T) {
-	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
+	stype, baseURL, model, apiKey, noThink, _ := tests.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
 		"type":     stype,
@@ -55,7 +56,7 @@ func TestPEELLMEvaluatorIntegration(t *testing.T) {
 
 		goal := "Find and read authentication-related files"
 
-		result, err := evaluator.Evaluate(ctx, goal, dag)
+		result, err := evaluator.Evaluate(ctx, goal, dag, nil)
 		if err != nil {
 			t.Fatalf("Evaluator failed: %v", err)
 		}
@@ -97,7 +98,7 @@ func TestPEELLMEvaluatorIntegration(t *testing.T) {
 
 		goal := "Complete a multi-step search and echo process"
 
-		result, err := evaluator.Evaluate(ctx, goal, dag)
+		result, err := evaluator.Evaluate(ctx, goal, dag, nil)
 		if err != nil {
 			t.Fatalf("Evaluator failed: %v", err)
 		}
@@ -134,7 +135,7 @@ func TestPEELLMEvaluatorIntegration(t *testing.T) {
 
 		goal := "Try to execute some tasks"
 
-		result, err := evaluator.Evaluate(ctx, goal, dag)
+		result, err := evaluator.Evaluate(ctx, goal, dag, nil)
 		if err != nil {
 			t.Fatalf("Evaluator failed: %v", err)
 		}
@@ -165,7 +166,7 @@ func TestPEELLMEvaluatorIntegration(t *testing.T) {
 
 		goal := "Echo 'hello world'"
 
-		result, err := evaluator.Evaluate(ctx, goal, dag)
+		result, err := evaluator.Evaluate(ctx, goal, dag, nil)
 		if err != nil {
 			t.Fatalf("Evaluator failed: %v", err)
 		}
@@ -176,7 +177,7 @@ func TestPEELLMEvaluatorIntegration(t *testing.T) {
 }
 
 func TestPEELLMEvaluatorJSONFormatIntegration(t *testing.T) {
-	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
+	stype, baseURL, model, apiKey, noThink, _ := tests.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
 		"type":     stype,
@@ -220,7 +221,7 @@ func TestPEELLMEvaluatorJSONFormatIntegration(t *testing.T) {
 
 		goal := "Complete calculations and echo results"
 
-		result, err := evaluator.Evaluate(ctx, goal, dag)
+		result, err := evaluator.Evaluate(ctx, goal, dag, nil)
 		if err != nil {
 			t.Fatalf("Evaluator failed: %v", err)
 		}

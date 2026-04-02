@@ -128,7 +128,7 @@ func (g *Generator) Generate(
 	for i := 0; i < g.maxIterations; i++ {
 		g.messages = append(g.messages, Message{
 			Role:    "user",
-			Content: fmt.Sprintf("You can call tools max %d times. This is attempt #%d. Use tool call wisely.", g.maxIterations, i+1),
+			Content: fmt.Sprintf("You can call tools max %d times. This is attempt #%d.", g.maxIterations, i+1),
 		})
 
 		currentLength := g.MeasureContextLength(tools)
@@ -142,7 +142,7 @@ func (g *Generator) Generate(
 			availableTools = nil
 			g.messages = append(g.messages, Message{
 				Role:    "user",
-				Content: "This is the final attempt, please provide a final answer without calling any tools.",
+				Content: "This is the final attempt, you must provide final answer according to response format without calling any tools.",
 			})
 		}
 
@@ -168,6 +168,11 @@ func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tool
 	copy(g.messages, messages)
 
 	for i := 0; i < g.maxIterations; i++ {
+		g.messages = append(g.messages, Message{
+			Role:    "user",
+			Content: fmt.Sprintf("You can call tools max %d times. This is attempt #%d.", g.maxIterations, i+1),
+		})
+
 		currentLength := g.MeasureContextLength(tools)
 		if g.contextLength > 0 && currentLength > g.contextLength {
 			stream.WriteCEEvent(protocol.CEEvent{
@@ -186,7 +191,7 @@ func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tool
 			availableTools = nil
 			g.messages = append(g.messages, Message{
 				Role:    "user",
-				Content: "This is the final attempt, please provide a final answer without calling any tools.",
+				Content: "This is the final attempt, you must provide final answer according to response format without calling any tools.",
 			})
 		}
 

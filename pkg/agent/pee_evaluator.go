@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
@@ -26,7 +27,7 @@ type PEEEvalResult struct {
 }
 
 type PEEEvaluator interface {
-	Evaluate(ctx context.Context, goal string, d *DAG) (*PEEEvalResult, error)
+	Evaluate(ctx context.Context, goal string, d *DAG, stream protocol.IStreamWriter) (*PEEEvalResult, error)
 }
 
 const DefaultPEEEvaluatorSystemPrompt = `You are a result evaluator. Given a goal and task outcomes, decide:
@@ -83,7 +84,7 @@ func NewPEELLMEvaluatorWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegist
 	return NewPEELLMEvaluator(ai, toolRegistry, responseFormat), nil
 }
 
-func (ev *PEELLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*PEEEvalResult, error) {
+func (ev *PEELLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG, stream protocol.IStreamWriter) (*PEEEvalResult, error) {
 	system := ev.systemPrompt
 
 	user := ev.buildPrompt(goal, d)
@@ -93,7 +94,14 @@ func (ev *PEELLMEvaluator) Evaluate(ctx context.Context, goal string, d *DAG) (*
 		{Role: "user", Content: user},
 	}
 
-	raw, _, err := ev.generator.Generate(ctx, messages, ev.tools, ev.responseFormat)
+	var raw string
+	var err error
+
+	if stream != nil {
+		raw, _, err = ev.generator.GenerateStream(ctx, messages, ev.tools, ev.responseFormat, stream)
+	} else {
+		raw, _, err = ev.generator.Generate(ctx, messages, ev.tools, ev.responseFormat)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("evaluator llm: %w", err)
 	}

@@ -47,7 +47,7 @@ func PEEWithEvaluatorMaxIterations(n int) PEEWorkflowRunnerOption {
 	}
 }
 
-func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) (*PEEWorkflowRunner, error) {
+func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) *PEEWorkflowRunner {
 	r := &PEEWorkflowRunner{
 		maxIter:      maxIter,
 		toolRegistry: toolRegistry,
@@ -56,18 +56,11 @@ func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorke
 		opt(r)
 	}
 
-	var err error
-	r.planner, err = NewPEELLMPlannerWithJSONFormat(ai, toolRegistry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create planner: %w", err)
-	}
+	r.planner = NewPEELLMPlanner(ai, toolRegistry, nil)
 
 	r.executor = NewPEEExecutor(toolRegistry, maxWorkers)
 
-	r.evaluator, err = NewPEELLMEvaluatorWithJSONFormat(ai, toolRegistry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create evaluator: %w", err)
-	}
+	r.evaluator = NewPEELLMEvaluator(ai, toolRegistry, nil)
 
 	return r
 }
@@ -115,7 +108,7 @@ func (r *PEEWorkflowRunner) Run(ctx context.Context, goal string, stream protoco
 			stream.SendStepUpdate(planningStepID, fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepActive)
 		}
 
-		dag, err := r.planner.Plan(ctx, req)
+		dag, err := r.planner.Plan(ctx, req, stream)
 		if err != nil {
 			if stream != nil {
 				stream.SendStepUpdate(fmt.Sprintf("pee-planning-%d", i), fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepFailed)
@@ -144,7 +137,7 @@ func (r *PEEWorkflowRunner) Run(ctx context.Context, goal string, stream protoco
 			stream.SendStepUpdate(fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepActive)
 		}
 
-		result, err := r.evaluator.Evaluate(ctx, goal, dag)
+		result, err := r.evaluator.Evaluate(ctx, goal, dag, stream)
 		if err != nil {
 			if stream != nil {
 				stream.SendStepUpdate(fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepFailed)

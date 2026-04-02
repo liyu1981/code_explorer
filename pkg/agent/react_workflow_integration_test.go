@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tests"
 	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 func TestReactWorkflowRunnerIntegration(t *testing.T) {
-	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
+	stype, baseURL, model, apiKey, noThink, _ := tests.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
 		"type":     stype,

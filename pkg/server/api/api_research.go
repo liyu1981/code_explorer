@@ -160,12 +160,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	maxWorkers := 3
 	maxIterations := 5
-	runner, err := agentworkflow.NewPEEWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), maxWorkers, maxIterations)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to create PEE workflow runner")
-		writeError(w, http.StatusInternalServerError, "Failed to create workflow runner", err)
-		return
-	}
+	runner := agentworkflow.NewPEEWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), maxWorkers, maxIterations)
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

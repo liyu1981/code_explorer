@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/tests"
 )
 
 func TestPEELLMPlannerIntegration(t *testing.T) {
-	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
+	stype, baseURL, model, apiKey, noThink, _ := tests.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
 		"type":     stype,
@@ -38,7 +39,7 @@ func TestPEELLMPlannerIntegration(t *testing.T) {
 			Iteration: 1,
 		}
 
-		dag, err := planner.Plan(ctx, req)
+		dag, err := planner.Plan(ctx, req, nil)
 		if err != nil {
 			t.Fatalf("Planner failed: %v", err)
 		}
@@ -70,7 +71,7 @@ func TestPEELLMPlannerIntegration(t *testing.T) {
 			Iteration: 1,
 		}
 
-		dag, err := planner.Plan(ctx, req)
+		dag, err := planner.Plan(ctx, req, nil)
 		if err != nil {
 			t.Fatalf("Planner failed: %v", err)
 		}
@@ -99,7 +100,7 @@ func TestPEELLMPlannerIntegration(t *testing.T) {
 			Iteration: 2,
 		}
 
-		dag, err := planner.Plan(ctx, req)
+		dag, err := planner.Plan(ctx, req, nil)
 		if err != nil {
 			t.Fatalf("Planner failed: %v", err)
 		}
@@ -124,7 +125,7 @@ func TestPEELLMPlannerIntegration(t *testing.T) {
 			MissingInfo: []string{"The config file path was not found"},
 		}
 
-		dag, err := planner.Plan(ctx, req)
+		dag, err := planner.Plan(ctx, req, nil)
 		if err != nil {
 			t.Fatalf("Planner failed: %v", err)
 		}
@@ -141,7 +142,7 @@ func TestPEELLMPlannerIntegration(t *testing.T) {
 }
 
 func TestPEELLMPlannerJSONOutputIntegration(t *testing.T) {
-	stype, baseURL, model, apiKey, noThink := llm.GetIntegrationTestParams()
+	stype, baseURL, model, apiKey, noThink, _ := tests.GetIntegrationTestParams()
 
 	llmCfg := map[string]any{
 		"type":     stype,
@@ -168,7 +169,7 @@ func TestPEELLMPlannerJSONOutputIntegration(t *testing.T) {
 			Iteration: 1,
 		}
 
-		dag, err := planner.Plan(ctx, req)
+		dag, err := planner.Plan(ctx, req, nil)
 		if err != nil {
 			t.Fatalf("Planner failed: %v", err)
 		}

@@ -7,11 +7,12 @@ import (
 	"strings"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
+	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/liyu1981/code_explorer/pkg/tools"
 )
 
 type PEEPlanner interface {
-	Plan(ctx context.Context, req PEEPlanRequest) (*DAG, error)
+	Plan(ctx context.Context, req PEEPlanRequest, stream protocol.IStreamWriter) (*DAG, error)
 }
 
 type PEEPlanRequest struct {
@@ -84,7 +85,7 @@ func NewPEELLMPlannerWithJSONFormat(ai llm.LLM, toolRegistry *tools.ToolRegistry
 	return NewPEELLMPlanner(ai, toolRegistry, responseFormat), nil
 }
 
-func (p *PEELLMPlanner) Plan(ctx context.Context, req PEEPlanRequest) (*DAG, error) {
+func (p *PEELLMPlanner) Plan(ctx context.Context, req PEEPlanRequest, stream protocol.IStreamWriter) (*DAG, error) {
 	system := p.buildSystemPrompt()
 	user := p.buildUserPrompt(req)
 
@@ -93,7 +94,14 @@ func (p *PEELLMPlanner) Plan(ctx context.Context, req PEEPlanRequest) (*DAG, err
 		{Role: "user", Content: user},
 	}
 
-	raw, _, err := p.generator.Generate(ctx, messages, p.tools, p.responseFormat)
+	var raw string
+	var err error
+
+	if stream != nil {
+		raw, _, err = p.generator.GenerateStream(ctx, messages, p.tools, p.responseFormat, stream)
+	} else {
+		raw, _, err = p.generator.Generate(ctx, messages, p.tools, p.responseFormat)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("planner llm: %w", err)
 	}
