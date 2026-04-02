@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
+	"github.com/rs/zerolog/log"
 )
 
 func (s *Store) CodemoggerEnsureMetadata(ctx context.Context, codebaseID string) (string, error) {
@@ -314,6 +315,7 @@ func (s *Store) CodemoggerVectorSearch(ctx context.Context, metadataID string, q
 			ORDER BY distance ASC
 			LIMIT ?
 		`
+		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec).Str("metadataID", metadataID).Int("limit", limit).Msg("CodemoggerVectorSearch with metadataID")
 		rows, err = s.db.QueryContext(ctx, sqlQuery, queryVec, metadataID, limit)
 	} else {
 		sqlQuery = `
@@ -324,6 +326,7 @@ func (s *Store) CodemoggerVectorSearch(ctx context.Context, metadataID string, q
 			ORDER BY distance ASC
 			LIMIT ?
 		`
+		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec).Int("limit", limit).Msg("CodemoggerVectorSearch without metadataID")
 		rows, err = s.db.QueryContext(ctx, sqlQuery, queryVec, limit)
 	}
 	if err != nil {
@@ -363,6 +366,7 @@ func (s *Store) CodemoggerFTSSearch(ctx context.Context, metadataID string, quer
 			ORDER BY rank
 			LIMIT ?
 		`
+		log.Debug().Str("sql", sqlQuery).Str("query", query).Str("metadataID", metadataID).Int("limit", limit).Msg("CodemoggerFTSSearch with metadataID")
 		rows, err = s.db.QueryContext(ctx, sqlQuery, query, metadataID, limit)
 	} else {
 		sqlQuery = `
@@ -373,6 +377,7 @@ func (s *Store) CodemoggerFTSSearch(ctx context.Context, metadataID string, quer
 			ORDER BY rank
 			LIMIT ?
 		`
+		log.Debug().Str("sql", sqlQuery).Str("query", query).Int("limit", limit).Msg("CodemoggerFTSSearch without metadataID")
 		rows, err = s.db.QueryContext(ctx, sqlQuery, query, limit)
 	}
 	if err != nil {

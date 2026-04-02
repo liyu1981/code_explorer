@@ -114,17 +114,39 @@ func (g *Generator) MeasureContextLength(tools []map[string]any) int {
 	return total
 }
 
-func (g *Generator) Generate(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat) (string, []ToolCall, error) {
+func (g *Generator) Generate(
+	ctx context.Context,
+	messages []Message,
+	tools []map[string]any,
+	responseFormat *ResponseFormat,
+) (string, []ToolCall, error) {
 	g.messages = make([]Message, len(messages))
 	copy(g.messages, messages)
 
+	log.Debug().Interface("responseFormat", responseFormat).Msg("will use reponseFormat")
+
 	for i := 0; i < g.maxIterations; i++ {
+		g.messages = append(g.messages, Message{
+			Role:    "user",
+			Content: fmt.Sprintf("You can call tools max %d times. This is attempt #%d. Use tool call wisely.", g.maxIterations, i+1),
+		})
+
 		currentLength := g.MeasureContextLength(tools)
 		if g.contextLength > 0 && currentLength > g.contextLength {
 			return "", nil, fmt.Errorf("context length exceeded: current %d, limit %d", currentLength, g.contextLength)
 		}
 
-		response, toolCalls, err := g.generate(ctx, tools, responseFormat, nil)
+		// disable tools in the last iteration to force a final answer
+		availableTools := tools
+		if i+1 >= g.maxIterations {
+			availableTools = nil
+			g.messages = append(g.messages, Message{
+				Role:    "user",
+				Content: "This is the final attempt, please provide a final answer without calling any tools.",
+			})
+		}
+
+		response, toolCalls, err := g.generate(ctx, availableTools, responseFormat, nil)
 		if err != nil {
 			return "", nil, err
 		}
@@ -158,7 +180,17 @@ func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tool
 		stream.SendTryRunStart("", int64(i))
 		stream.SendStepUpdate(fmt.Sprintf("gen-thinking-%d", i), "Thinking", protocol.StepActive)
 
-		response, toolCalls, err := g.generate(ctx, tools, responseFormat, stream)
+		// disable tools in the last iteration to force a final answer
+		availableTools := tools
+		if i+1 >= g.maxIterations {
+			availableTools = nil
+			g.messages = append(g.messages, Message{
+				Role:    "user",
+				Content: "This is the final attempt, please provide a final answer without calling any tools.",
+			})
+		}
+
+		response, toolCalls, err := g.generate(ctx, availableTools, responseFormat, stream)
 		if err != nil {
 			stream.SendStepUpdate(fmt.Sprintf("gen-thinking-%d", i), "Thinking", protocol.StepFailed)
 			stream.SendTryRunFailed("", int64(i))
@@ -184,21 +216,21 @@ func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tool
 	return "", nil, fmt.Errorf("max iterations (%d) reached", g.maxIterations)
 }
 
-func (g *Generator) generate(ctx context.Context, tools []map[string]any, responseFormat *ResponseFormat, stream protocol.IStreamWriter) (string, []ToolCall, error) {
-	actualTools := tools
-	if g.toolRegistry != nil && len(tools) == 0 {
-		actualTools = g.toolRegistry.MarshalToolsForLLM()
-	}
-
+func (g *Generator) generate(
+	ctx context.Context,
+	tools []map[string]any,
+	responseFormat *ResponseFormat,
+	stream protocol.IStreamWriter,
+) (string, []ToolCall, error) {
 	for i := 0; i < g.maxRetry; i++ {
 		var response string
 		var toolCalls []ToolCall
 		var err error
 
 		if stream != nil {
-			response, toolCalls, err = g.llm.GenerateStream(ctx, g.messages, actualTools, responseFormat, stream)
+			response, toolCalls, err = g.llm.GenerateStream(ctx, g.messages, tools, responseFormat, stream)
 		} else {
-			response, toolCalls, err = g.llm.Generate(ctx, g.messages, actualTools, responseFormat)
+			response, toolCalls, err = g.llm.Generate(ctx, g.messages, tools, responseFormat)
 		}
 
 		if err != nil {

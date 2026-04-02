@@ -160,7 +160,12 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	maxWorkers := 3
 	maxIterations := 5
-	runner := agentworkflow.NewPEEWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), maxWorkers, maxIterations)
+	runner, err := agentworkflow.NewPEEWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), maxWorkers, maxIterations)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create PEE workflow runner")
+		writeError(w, http.StatusInternalServerError, "Failed to create workflow runner", err)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -177,7 +182,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	query := fmt.Sprintf("%s\n\nContext: target codebase id=%s", req.Query, codebase.ID)
+	query := fmt.Sprintf("%s\n\nContext: target codebase id=%s\ntarget basedir=%s", req.Query, codebase.ID, codebase.RootPath)
 	log.Info().Str("query", query).Str("session", req.SessionID).Msg("Handling agent research request")
 
 	_, err = runner.Run(r.Context(), query, finalSw)

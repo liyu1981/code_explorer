@@ -47,7 +47,7 @@ func PEEWithEvaluatorMaxIterations(n int) PEEWorkflowRunnerOption {
 	}
 }
 
-func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) *PEEWorkflowRunner {
+func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorkers, maxIter int, opts ...PEEWorkflowRunnerOption) (*PEEWorkflowRunner, error) {
 	r := &PEEWorkflowRunner{
 		maxIter:      maxIter,
 		toolRegistry: toolRegistry,
@@ -56,9 +56,19 @@ func NewPEEWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, maxWorke
 		opt(r)
 	}
 
-	r.planner = NewPEELLMPlanner(ai, toolRegistry, nil, r.plannerOpts...)
+	var err error
+	r.planner, err = NewPEELLMPlannerWithJSONFormat(ai, toolRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create planner: %w", err)
+	}
+
 	r.executor = NewPEEExecutor(toolRegistry, maxWorkers)
-	r.evaluator = NewPEELLMEvaluator(ai, toolRegistry, nil, r.evaluatorOpts...)
+
+	r.evaluator, err = NewPEELLMEvaluatorWithJSONFormat(ai, toolRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create evaluator: %w", err)
+	}
+
 	return r
 }
 

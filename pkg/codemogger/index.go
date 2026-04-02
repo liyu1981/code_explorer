@@ -301,6 +301,13 @@ func (c *CodeIndex) Search(ctx context.Context, codebaseID, query string, opts *
 	limit := opts.Limit
 	includeSnippet := opts.IncludeSnippet
 
+	metadata, err := db.GetStore().CodemoggerGetMetadataByCodebase(ctx, codebaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get codemogger metadata for codebase %v: %w", codebaseID, err)
+	}
+
+	log.Debug().Str("mode", string(opts.Mode)).Msg("Search mode determined")
+
 	switch opts.Mode {
 	case SearchModeSemantic:
 		vectors, err := c.embedder.Embed([]string{query})
@@ -308,12 +315,15 @@ func (c *CodeIndex) Search(ctx context.Context, codebaseID, query string, opts *
 			return nil, err
 		}
 		if len(vectors) == 0 || vectors[0] == nil {
+			log.Debug().Msg("No embeddings returned")
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerVectorSearch(ctx, codebaseID, vectors[0], limit, includeSnippet)
+		log.Debug().Int("vec_len", len(vectors[0])).Msg("Embedding generated")
+		results, err := c.store.CodemoggerVectorSearch(ctx, metadata.ID, vectors[0], limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
+		log.Debug().Int("results", len(results)).Msg("Vector search completed")
 		return convertResults(results), nil
 
 	case SearchModeKeyword:
@@ -321,23 +331,29 @@ func (c *CodeIndex) Search(ctx context.Context, codebaseID, query string, opts *
 		if processed == "" {
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerFTSSearch(ctx, codebaseID, processed, limit, includeSnippet)
+		log.Debug().Str("processed", processed).Msg("Query preprocessed for FTS")
+		results, err := c.store.CodemoggerFTSSearch(ctx, metadata.ID, processed, limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
+		log.Debug().Int("results", len(results)).Msg("FTS search completed")
 		return convertResults(results), nil
 
 	case SearchModeHybrid:
 		processed := search.PreprocessQuery(query)
-		ftsResults, _ := c.store.CodemoggerFTSSearch(ctx, codebaseID, processed, limit, includeSnippet)
+		log.Debug().Str("processed", processed).Msg("Query preprocessed for hybrid search")
+		ftsResults, _ := c.store.CodemoggerFTSSearch(ctx, metadata.ID, processed, limit, includeSnippet)
+		log.Debug().Int("fts_results", len(ftsResults)).Msg("FTS part of hybrid search done")
 
 		vectors, _ := c.embedder.Embed([]string{query})
 		var vecResults []db.SearchResult
 		if len(vectors) > 0 && vectors[0] != nil {
-			vecResults, _ = c.store.CodemoggerVectorSearch(ctx, codebaseID, vectors[0], limit, includeSnippet)
+			vecResults, _ = c.store.CodemoggerVectorSearch(ctx, metadata.ID, vectors[0], limit, includeSnippet)
+			log.Debug().Int("vec_results", len(vecResults)).Msg("Vector part of hybrid search done")
 		}
 
 		merged := search.RRFMerge(ftsResults, vecResults, limit, 60, 0.4, 0.6)
+		log.Debug().Int("merged", len(merged)).Msg("Hybrid search merged results")
 		return convertResults(merged), nil
 	}
 
