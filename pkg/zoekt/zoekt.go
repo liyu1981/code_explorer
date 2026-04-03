@@ -23,7 +23,7 @@ type RepositoryBranch struct {
 }
 
 type Repository struct {
-	ID       uint32
+	ID       string
 	Name     string
 	Branches []RepositoryBranch
 

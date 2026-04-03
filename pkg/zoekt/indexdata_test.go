@@ -51,7 +51,7 @@ func TestIndexDataLoad(t *testing.T) {
 
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   789,
+			ID:   "789",
 			Name: "test-repo-search",
 			Branches: []RepositoryBranch{
 				{Name: "main"},
@@ -121,7 +121,7 @@ func TestIndexDataSearchSubstring(t *testing.T) {
 
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   790,
+			ID:   "790",
 			Name: "test-repo-search2",
 			Branches: []RepositoryBranch{
 				{Name: "main"},
@@ -218,7 +218,7 @@ func TestIndexDataSearchBranch(t *testing.T) {
 
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   791,
+			ID:   "791",
 			Name: "test-repo-search3",
 			Branches: []RepositoryBranch{
 				{Name: "main"},
@@ -278,7 +278,7 @@ func TestIndexDataSearchFileName(t *testing.T) {
 
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   792,
+			ID:   "792",
 			Name: "test-repo-search4",
 			Branches: []RepositoryBranch{
 				{Name: "main"},
@@ -337,7 +337,7 @@ func TestIndexDataSearchEmptyResult(t *testing.T) {
 
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   793,
+			ID:   "793",
 			Name: "test-repo-search5",
 			Branches: []RepositoryBranch{
 				{Name: "main"},

@@ -270,8 +270,8 @@ func (b *Builder) writeShard(n int, ib *ShardBuilder) (*finishedShard, error) {
 	}
 
 	repoID := b.opts.RepositoryDescription.ID
-	if repoID == 0 {
-		repoID = uint32(n)
+	if repoID == "" {
+		repoID = fmt.Sprintf("%d", n)
 	}
 
 	path := shardPath(repoID, n)
@@ -288,16 +288,16 @@ func (b *Builder) writeShard(n int, ib *ShardBuilder) (*finishedShard, error) {
 	return &finishedShard{temp: path, final: path}, nil
 }
 
-func shardPath(repoID uint32, shardNum int) string {
+func shardPath(repoID string, shardNum int) string {
 	return ShardFileName(repoID, shardNum, IndexFormatVersion)
 }
 
-func ShardFileName(repoID uint32, shardNum int, version int) string {
+func ShardFileName(repoID string, shardNum int, version int) string {
 	return ShardPrefix(repoID) + fmt.Sprintf("_v%d.%05d.zoekt", version, shardNum)
 }
 
-func ShardPrefix(repoID uint32) string {
-	return fmt.Sprintf("repo_%08d", repoID)
+func ShardPrefix(repoID string) string {
+	return fmt.Sprintf("repo_%s", repoID)
 }
 
 func (o *Options) IgnoreSizeMax(name string) bool {

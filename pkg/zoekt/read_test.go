@@ -10,7 +10,7 @@ func TestReadWrite(t *testing.T) {
 	mockFS := &mockIndexFS{files: make(map[string][]byte)}
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   1,
+			ID:   "1",
 			Name: "test-repo",
 		},
 		IndexFS:     mockFS,
@@ -71,7 +71,7 @@ func TestReadWriteNames(t *testing.T) {
 	mockFS := &mockIndexFS{files: make(map[string][]byte)}
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   2,
+			ID:   "2",
 			Name: "test-repo-names",
 		},
 		IndexFS:     mockFS,
@@ -141,7 +141,7 @@ func TestLoadIndexData(t *testing.T) {
 	mockFS := &mockIndexFS{files: make(map[string][]byte)}
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   3,
+			ID:   "3",
 			Name: "test-repo-load",
 		},
 		IndexFS:     mockFS,

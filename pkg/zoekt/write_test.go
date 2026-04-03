@@ -19,7 +19,7 @@ func TestWriteShardToIndexFS(t *testing.T) {
 
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   123,
+			ID:   "test-repo-123",
 			Name: "test-repo",
 			Branches: []RepositoryBranch{
 				{Name: "main"},
@@ -80,20 +80,20 @@ func TestWriteShardToIndexFS(t *testing.T) {
 
 func TestShardFileName(t *testing.T) {
 	tests := []struct {
-		repoID   uint32
+		repoID   string
 		shardNum int
 		version  int
 		expected string
 	}{
-		{123, 0, 16, "repo_00000123_v16.00000.zoekt"},
-		{456, 1, 16, "repo_00000456_v16.00001.zoekt"},
-		{0, 5, 17, "repo_00000000_v17.00005.zoekt"},
+		{"123", 0, 16, "repo_123_v16.00000.zoekt"},
+		{"456", 1, 16, "repo_456_v16.00001.zoekt"},
+		{"abc-def", 5, 17, "repo_abc-def_v17.00005.zoekt"},
 	}
 
 	for _, tc := range tests {
 		result := ShardFileName(tc.repoID, tc.shardNum, tc.version)
 		if result != tc.expected {
-			t.Errorf("ShardFileName(%d, %d, %d) = %q, want %q",
+			t.Errorf("ShardFileName(%q, %d, %d) = %q, want %q",
 				tc.repoID, tc.shardNum, tc.version, result, tc.expected)
 		}
 	}
@@ -101,19 +101,18 @@ func TestShardFileName(t *testing.T) {
 
 func TestShardPrefix(t *testing.T) {
 	tests := []struct {
-		repoID   uint32
+		repoID   string
 		expected string
 	}{
-		{0, "repo_00000000"},
-		{1, "repo_00000001"},
-		{123, "repo_00000123"},
-		{4294967295, "repo_4294967295"},
+		{"123", "repo_123"},
+		{"abc", "repo_abc"},
+		{"test-repo-123", "repo_test-repo-123"},
 	}
 
 	for _, tc := range tests {
 		result := ShardPrefix(tc.repoID)
 		if result != tc.expected {
-			t.Errorf("ShardPrefix(%d) = %q, want %q", tc.repoID, result, tc.expected)
+			t.Errorf("ShardPrefix(%q) = %q, want %q", tc.repoID, result, tc.expected)
 		}
 	}
 }

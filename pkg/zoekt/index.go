@@ -111,18 +111,9 @@ func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) 
 	log.Info().Msg("Changes detected or initial index, building Zoekt index...")
 
 	// 4. Initialize Builder
-	// We use the ID from our codebase record
-	// But Repository.ID is uint32 in Zoekt, and our cb.ID is string (nanoid)
-	// We'll use a hash or just use a simple mapping if needed.
-	// For now, let's use a simple CRC32 of cb.ID as uint32.
-	repoID := uint32(0)
-	for _, c := range cb.ID {
-		repoID = repoID*31 + uint32(c)
-	}
-
 	builderOpts := Options{
 		RepositoryDescription: Repository{
-			ID:   repoID,
+			ID:   cb.ID,
 			Name: cb.Name,
 		},
 		IndexFS:     z.fs,
@@ -216,10 +207,7 @@ func (z *ZoektIndex) Search(ctx context.Context, codebaseID string, query string
 		return nil, fmt.Errorf("failed to get codebase: %w", err)
 	}
 
-	repoID := uint32(0)
-	for _, c := range cb.ID {
-		repoID = repoID*31 + uint32(c)
-	}
+	repoID := cb.ID
 
 	parsedQuery, err := ParseQuery(query)
 	if err != nil {

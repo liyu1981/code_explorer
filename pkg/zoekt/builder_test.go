@@ -279,7 +279,7 @@ func TestBuilderWithSQLiteFS(t *testing.T) {
 
 	opts := Options{
 		RepositoryDescription: Repository{
-			ID:   456,
+			ID:   "456",
 			Name: "test-repo-sqlite",
 			Branches: []RepositoryBranch{
 				{Name: "main"},
@@ -312,7 +312,7 @@ func TestBuilderWithSQLiteFS(t *testing.T) {
 		t.Fatalf("Finish failed: %v", err)
 	}
 
-	shardPath := "repo_00000456_v16.00000.zoekt"
+	shardPath := "repo_456_v16.00000.zoekt"
 	exists, err := fs.Exists("/" + shardPath)
 	if err != nil {
 		t.Fatalf("Exists check failed: %v", err)
