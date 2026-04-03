@@ -87,8 +87,18 @@ func Add(a, b int) int {
 		t.Errorf("expected 2 files indexed, got %d", res.Files)
 	}
 
+	// Get the codebaseID that was created during indexing
+	codebases, err := idx.ListCodebases(ctx)
+	if err != nil {
+		t.Fatalf("ListCodebases failed: %v", err)
+	}
+	if len(codebases) == 0 {
+		t.Fatalf("expected at least one codebase after indexing")
+	}
+	codebaseID := codebases[0].ID
+
 	// Test ListFiles
-	files, err := idx.ListFiles(ctx, "")
+	files, err := idx.ListFiles(ctx, codebaseID)
 	if err != nil {
 		t.Fatalf("ListFiles failed: %v", err)
 	}
@@ -101,7 +111,7 @@ func Add(a, b int) int {
 		Limit: 5,
 		Mode:  SearchModeSemantic,
 	}
-	results, err := idx.Search(ctx, "", "hello", searchOpts)
+	results, err := idx.Search(ctx, codebaseID, "hello", searchOpts)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -111,7 +121,7 @@ func Add(a, b int) int {
 
 	// Test Search (keyword)
 	searchOpts.Mode = SearchModeKeyword
-	results, err = idx.Search(ctx, "", "main", searchOpts)
+	results, err = idx.Search(ctx, codebaseID, "main", searchOpts)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}

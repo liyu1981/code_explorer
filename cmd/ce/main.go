@@ -14,7 +14,9 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/logger"
 	"github.com/liyu1981/code_explorer/pkg/server"
+	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
 	"github.com/liyu1981/code_explorer/pkg/tools"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 	"github.com/rs/zerolog/log"
 )
 
@@ -72,6 +74,10 @@ func main() {
 	}
 	defer idx.Close()
 
+	// init zoekt
+	zFs := sqlitefs.OpenFS(store)
+	zIdx := zoekt.NewZoektIndex(store, zFs)
+
 	// init global agent tool registry
 	if err := initTools(tools.GetGlobalToolRegistry(), map[string]any{
 		"codemogger_index": idx,
@@ -85,7 +91,7 @@ func main() {
 		port = "12345"
 	}
 
-	srv := server.New(idx)
+	srv := server.New(idx, zIdx)
 	httpSrv := &http.Server{
 		Addr:    ":" + port,
 		Handler: srv,

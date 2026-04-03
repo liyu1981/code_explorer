@@ -14,13 +14,17 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/libsql"
+	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
-func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
+func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, *zoekt.ZoektIndex, func()) {
 	tmpDir, err := os.MkdirTemp("", "api-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
+
+	db.ResetStoreForTest()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 	cfg := config.DefaultConfig()
@@ -41,19 +45,22 @@ func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 	// Use MockEmbedder to avoid network calls
 	idx.SetEmbedder(&embed.MockEmbedder{DimVal: 384})
 
+	zFs := sqlitefs.OpenFS(store)
+	zIdx := zoekt.NewZoektIndex(store, zFs)
+
 	cleanup := func() {
 		idx.Close()
 		os.RemoveAll(tmpDir)
 	}
 
-	return idx, cleanup
+	return idx, zIdx, cleanup
 }
 
 func TestApiListCodebases(t *testing.T) {
-	idx, cleanup := setupTestCodemoggerIndex(t)
+	idx, zIdx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
-	h := NewHandler(&ApiConfig{CodemoggerIndex: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer h.Stop()
 	req := httptest.NewRequest("GET", "/api/codemogger/codebases", nil)
 	rr := httptest.NewRecorder()
@@ -75,7 +82,7 @@ func TestApiListCodebases(t *testing.T) {
 }
 
 func TestApiCodemoggerIndex(t *testing.T) {
-	idx, cleanup := setupTestCodemoggerIndex(t)
+	idx, zIdx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
 	// Create a dummy file to index
@@ -85,7 +92,7 @@ func TestApiCodemoggerIndex(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "main.go")
 	os.WriteFile(testFile, []byte("package main\nfunc main() {}"), 0644)
 
-	h := NewHandler(&ApiConfig{CodemoggerIndex: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{
@@ -109,10 +116,10 @@ func TestApiCodemoggerIndex(t *testing.T) {
 }
 
 func TestApiSearch(t *testing.T) {
-	idx, cleanup := setupTestCodemoggerIndex(t)
+	idx, zIdx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
-	h := NewHandler(&ApiConfig{CodemoggerIndex: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{

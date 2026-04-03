@@ -169,3 +169,33 @@ func (s *Store) ZoektListFiles(ctx context.Context, metadataID string) ([]FileIn
 
 	return files, rows.Err()
 }
+
+func (s *Store) ZoektDeleteCodebase(ctx context.Context, codebaseID string) error {
+	return s.Transaction(ctx, func(tx *sql.Tx) error {
+		var metadataID string
+		err := tx.QueryRowContext(ctx,
+			"SELECT id FROM zoekt_codebases WHERE codebase_id = ?",
+			codebaseID,
+		).Scan(&metadataID)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		if metadataID != "" {
+			_, err = tx.ExecContext(ctx,
+				"DELETE FROM zoekt_indexed_files WHERE codebase_id = ?",
+				metadataID,
+			)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx,
+				"DELETE FROM zoekt_codebases WHERE codebase_id = ?",
+				codebaseID,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

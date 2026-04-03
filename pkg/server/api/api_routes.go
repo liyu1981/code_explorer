@@ -13,11 +13,13 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
 	"github.com/liyu1981/code_explorer/pkg/task"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 // ApiHandler represents the API handler
 type ApiHandler struct {
 	cmIndex     *codemogger.CodeIndex
+	zIndex      *zoekt.ZoektIndex
 	hub         *WsHub
 	taskManager *task.Manager
 }
@@ -25,6 +27,7 @@ type ApiHandler struct {
 // ApiConfig holds the API handler configuration
 type ApiConfig struct {
 	CodemoggerIndex *codemogger.CodeIndex
+	ZoektIndex      *zoekt.ZoektIndex
 }
 
 // NewHandler creates a new API handler instance
@@ -33,6 +36,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 
 	h := &ApiHandler{
 		cmIndex: config.CodemoggerIndex,
+		zIndex:  config.ZoektIndex,
 		hub:     NewWsHub(),
 	}
 
@@ -50,7 +54,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 	}
 
 	h.taskManager = task.NewManager(store, numWorkers, h.Publish)
-	task.RegisterQueueHandlers(h.taskManager, h.cmIndex, h.Publish)
+	task.RegisterQueueHandlers(h.taskManager, h.cmIndex, h.zIndex, h.Publish)
 
 	h.taskManager.StartWorkers(context.Background(), isDev)
 
@@ -92,6 +96,14 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Search
 	mux.HandleFunc("POST /api/codemogger/search", h.handleSearch)
+
+	// Zoekt
+	mux.HandleFunc("GET /api/zoekt/codebases", h.handleZoektListCodebases)
+	mux.HandleFunc("GET /api/zoekt/status", h.handleZoektStatus)
+	mux.HandleFunc("GET /api/zoekt/files", h.handleZoektListFiles)
+	mux.HandleFunc("POST /api/zoekt/index", h.handleZoektIndex)
+	mux.HandleFunc("POST /api/zoekt/search", h.handleZoektSearch)
+	mux.HandleFunc("DELETE /api/zoekt/codebases", h.handleDeleteZoektCodebase)
 
 	// Agent
 	mux.HandleFunc("POST /api/agent/research", h.handleAgentResearch)

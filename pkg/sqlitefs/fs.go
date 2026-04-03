@@ -71,6 +71,11 @@ func OpenFS(store *db.Store) *SQLiteFS {
 	return fs
 }
 
+func ResetFS() {
+	instance = nil
+	once = sync.Once{}
+}
+
 func (fs *SQLiteFS) resolvePath(path string) (int64, error) {
 	if path == "/" || path == "" {
 		return 1, nil

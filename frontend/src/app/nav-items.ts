@@ -7,6 +7,7 @@ import {
   Bot,
   Sun,
   Database,
+  Search,
 } from "lucide-react";
 
 export const navTitle = "Code Explorer";
@@ -25,6 +26,18 @@ export const navItems: NavItem[] = [
     label: "Codebases",
     path: "/codebase",
     icon: GitGraph,
+  },
+  {
+    id: "zoekt-query",
+    label: "Zoekt Query",
+    path: "/zoekt-query",
+    icon: Search,
+  },
+  {
+    id: "codemogger-search",
+    label: "Code Search",
+    path: "/codemogger-search",
+    icon: Search,
   },
   {
     id: "codesummer",

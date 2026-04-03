@@ -150,8 +150,14 @@ type ShardSearcher struct {
 	data *indexData
 }
 
-func OpenShard(path string) (*ShardSearcher, error) {
-	return nil, fmt.Errorf("not implemented")
+func OpenShard(file IndexFile) (*ShardSearcher, error) {
+	data, err := loadIndexData(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load index data: %w", err)
+	}
+	return &ShardSearcher{
+		data: data,
+	}, nil
 }
 
 func (s *ShardSearcher) Search(query Query, opts *SearchOptions) (*SearchResult, error) {

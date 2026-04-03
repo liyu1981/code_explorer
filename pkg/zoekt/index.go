@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger/scan"
@@ -35,6 +36,10 @@ func NewZoektIndex(store *db.Store, fs *sqlitefs.SQLiteFS) *ZoektIndex {
 		store: store,
 		fs:    fs,
 	}
+}
+
+func (z *ZoektIndex) GetStore() *db.Store {
+	return z.store
 }
 
 func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (*IndexResult, error) {
@@ -195,4 +200,141 @@ func (z *ZoektIndex) ListFiles(ctx context.Context, codebaseID string) ([]db.Fil
 	}
 
 	return z.store.ZoektListFiles(ctx, metadata.ID)
+}
+
+func (z *ZoektIndex) Search(ctx context.Context, codebaseID string, query string, opts *SearchOptions) (*SearchResult, error) {
+	metadata, err := z.store.ZoektGetMetadataByCodebase(ctx, codebaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get zoekt metadata for codebase %v: %w", codebaseID, err)
+	}
+	if metadata == nil {
+		return &SearchResult{}, nil
+	}
+
+	cb, err := z.store.GetCodebaseByID(ctx, codebaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get codebase: %w", err)
+	}
+
+	repoID := uint32(0)
+	for _, c := range cb.ID {
+		repoID = repoID*31 + uint32(c)
+	}
+
+	parsedQuery, err := ParseQuery(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse query: %w", err)
+	}
+	if parsedQuery == nil {
+		return &SearchResult{}, nil
+	}
+
+	if opts == nil {
+		opts = &SearchOptions{}
+	}
+	opts.SetDefaults()
+
+	start := time.Now()
+
+	shardDir := fmt.Sprintf("/%s", ShardPrefix(repoID))
+	entries, err := z.fs.List(shardDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list shards: %w", err)
+	}
+
+	var allResults SearchResult
+	totalShards := 0
+
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name, ".zoekt") {
+			continue
+		}
+
+		shardPath := fmt.Sprintf("%s/%s", shardDir, entry.Name)
+		file, err := z.fsOpen(shardPath)
+		if err != nil {
+			log.Warn().Str("path", shardPath).Err(err).Msg("Failed to open shard")
+			continue
+		}
+
+		searcher, err := OpenShard(file)
+		if err != nil {
+			log.Warn().Str("path", shardPath).Err(err).Msg("Failed to open shard searcher")
+			file.Close()
+			continue
+		}
+
+		totalShards++
+		result, err := searcher.Search(parsedQuery, opts)
+		searcher.Close()
+		if err != nil {
+			log.Warn().Str("path", shardPath).Err(err).Msg("Failed to search shard")
+			continue
+		}
+
+		allResults.Files = append(allResults.Files, result.Files...)
+		allResults.Stats.FilesExamined += result.Stats.FilesExamined
+		allResults.Stats.FilesMatched += result.Stats.FilesMatched
+
+		if opts.MaxMatchCount > 0 && len(allResults.Files) >= opts.MaxMatchCount {
+			break
+		}
+	}
+
+	allResults.Stats.Shards = totalShards
+	allResults.Stats.Duration = time.Since(start).Seconds()
+
+	if len(allResults.Files) > opts.MaxMatchCount {
+		allResults.Files = allResults.Files[:opts.MaxMatchCount]
+	}
+
+	return &allResults, nil
+}
+
+func (z *ZoektIndex) fsOpen(path string) (IndexFile, error) {
+	dir := filepath.Dir(path)
+	name := filepath.Base(path)
+	entries, err := z.fs.List(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list dir for size: %w", err)
+	}
+	var fileSize int64
+	for _, e := range entries {
+		if e.Name == name {
+			fileSize = e.Size
+			break
+		}
+	}
+	if fileSize == 0 {
+		return nil, fmt.Errorf("shard file not found or empty: %s", path)
+	}
+	fullData, err := z.fs.Read(path, 0, int(fileSize))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read shard: %w", err)
+	}
+	return &sqlitefsIndexFile{data: fullData, path: path}, nil
+}
+
+type sqlitefsIndexFile struct {
+	path string
+	data []byte
+}
+
+func (f *sqlitefsIndexFile) Read(off uint32, sz uint32) ([]byte, error) {
+	if off+sz > uint32(len(f.data)) {
+		sz = uint32(len(f.data)) - off
+	}
+	return f.data[off : off+sz], nil
+}
+
+func (f *sqlitefsIndexFile) Size() (uint32, error) {
+	return uint32(len(f.data)), nil
+}
+
+func (f *sqlitefsIndexFile) Close() error {
+	return nil
+}
+
+func (f *sqlitefsIndexFile) Name() string {
+	return f.path
 }

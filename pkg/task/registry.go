@@ -5,11 +5,13 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 func RegisterQueueHandlers(
 	m *Manager,
 	index *codemogger.CodeIndex,
+	zIndex *zoekt.ZoektIndex,
 	publishFn func(topic string, payload any),
 ) {
 	m.RegisterHandler("codemogger-index", func(
@@ -18,6 +20,14 @@ func RegisterQueueHandlers(
 		updateProgress func(progress int, message string),
 	) error {
 		return HandleCodeMoggerIndexTask(ctx, index, task, updateProgress)
+	})
+
+	m.RegisterHandler("zoekt-index", func(
+		ctx context.Context,
+		task *db.Task,
+		updateProgress func(progress int, message string),
+	) error {
+		return HandleZoektIndexTask(ctx, zIndex, task, updateProgress)
 	})
 
 	m.RegisterHandler("summarize-topic", func(

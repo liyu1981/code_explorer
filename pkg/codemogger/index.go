@@ -305,6 +305,9 @@ func (c *CodeIndex) Search(ctx context.Context, codebaseID, query string, opts *
 	if err != nil {
 		return nil, fmt.Errorf("failed to get codemogger metadata for codebase %v: %w", codebaseID, err)
 	}
+	if metadata == nil {
+		return []SearchResult{}, nil
+	}
 
 	log.Debug().Str("mode", string(opts.Mode)).Msg("Search mode determined")
 
@@ -379,7 +382,14 @@ func convertResults(results []db.SearchResult) []SearchResult {
 }
 
 func (c *CodeIndex) ListFiles(ctx context.Context, codebaseID string) ([]IndexedFile, error) {
-	files, err := c.store.CodemoggerListFiles(ctx, codebaseID)
+	metadata, err := c.store.CodemoggerGetMetadataByCodebase(ctx, codebaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get codemogger metadata for codebase %v: %w", codebaseID, err)
+	}
+	if metadata == nil {
+		return []IndexedFile{}, nil
+	}
+	files, err := c.store.CodemoggerListFiles(ctx, metadata.ID)
 	if err != nil {
 		return nil, err
 	}
