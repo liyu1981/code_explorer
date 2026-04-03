@@ -182,19 +182,19 @@ export default function ZoektQueryPage() {
                 <span>
                   {isSearching
                     ? "Searching..."
-                    : searchResults.files.length > 0
-                      ? `Found ${searchResults.files.length} file(s) in ${searchResults.stats.shards} shard(s)`
+                    : (searchResults.files?.length ?? 0) > 0
+                      ? `Found ${searchResults.files.length} file(s) in ${searchResults.stats?.shards ?? 0} shard(s)`
                       : "No results found"}
                 </span>
-                {!isSearching && searchResults.stats.duration > 0 && (
+                {!isSearching && (searchResults.stats?.duration ?? 0) > 0 && (
                   <span className="text-xs">
-                    {searchResults.stats.duration.toFixed(3)}s ·{" "}
-                    {searchResults.stats.filesExamined} files examined
+                    {(searchResults.stats?.duration ?? 0).toFixed(3)}s ·{" "}
+                    {searchResults.stats?.filesExamined ?? 0} files examined
                   </span>
                 )}
               </div>
 
-              {searchResults.files.map((file, idx) => (
+              {(searchResults.files ?? []).map((file, idx) => (
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: stable unique key from file data
                   key={`file-${file.fileName}-${file.lineMatches.length}-${file.score}`}
