@@ -14,6 +14,7 @@ import {
   Brain,
   CheckCircle2,
   CircleDashed,
+  Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -165,6 +166,8 @@ function CodebaseItem({
   indexingPath,
   handleCreateIndex,
   handleCreateZoektIndex,
+  handleDeleteCodemoggerIndex,
+  handleDeleteZoektIndex,
   handleBuildKnowledge,
   handleResearch,
 }: {
@@ -173,6 +176,8 @@ function CodebaseItem({
   indexingPath: string | null;
   handleCreateIndex: (path: string) => void;
   handleCreateZoektIndex: (path: string) => void;
+  handleDeleteCodemoggerIndex: (codebaseID: string) => void;
+  handleDeleteZoektIndex: (codebaseID: string) => void;
   handleBuildKnowledge: (cb: Codebase) => void;
   handleResearch: (cb: Codebase, sessions: any[]) => void;
 }) {
@@ -255,6 +260,16 @@ function CodebaseItem({
                   <RefreshCw className="h-3 w-3" />
                 )}
               </button>
+              {cmStatus?.status === "indexed" && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCodemoggerIndex(cb.id)}
+                  className="px-2 py-0.5 rounded-md bg-muted/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all text-[11px] font-medium"
+                  title="Delete codemogger index"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -291,6 +306,16 @@ function CodebaseItem({
                   <RefreshCw className="h-3 w-3" />
                 )}
               </button>
+              {zStatus?.status === "indexed" && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteZoektIndex(cb.id)}
+                  className="px-2 py-0.5 rounded-md bg-muted/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all text-[11px] font-medium"
+                  title="Delete zoekt index"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -407,6 +432,24 @@ export function CodebaseList() {
     } catch (e) {
       console.error("Zoekt indexing failed", e);
       setIndexingPath(null);
+    }
+  };
+
+  const handleDeleteCodemoggerIndex = async (codebaseID: string) => {
+    try {
+      await api.delete(`/api/codemogger/codebases?codebase_id=${codebaseID}`);
+      mutate();
+    } catch (e) {
+      console.error("Failed to delete codemogger index", e);
+    }
+  };
+
+  const handleDeleteZoektIndex = async (codebaseID: string) => {
+    try {
+      await api.delete(`/api/zoekt/codebases?codebase_id=${codebaseID}`);
+      mutate();
+    } catch (e) {
+      console.error("Failed to delete zoekt index", e);
     }
   };
 
@@ -622,6 +665,8 @@ export function CodebaseList() {
             indexingPath={indexingPath}
             handleCreateIndex={handleCreateIndex}
             handleCreateZoektIndex={handleCreateZoektIndex}
+            handleDeleteCodemoggerIndex={handleDeleteCodemoggerIndex}
+            handleDeleteZoektIndex={handleDeleteZoektIndex}
             handleBuildKnowledge={handleBuildKnowledge}
             handleResearch={handleResearch}
           />
