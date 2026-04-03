@@ -73,6 +73,8 @@ func TestWriteShardToIndexFS(t *testing.T) {
 
 	if !bytes.HasPrefix(data, []byte{0, 0, 0, 0}) {
 		t.Logf("Index data starts with: %v", data[:10])
+	} else {
+		t.Logf("Index data starts with TOC header")
 	}
 }
 

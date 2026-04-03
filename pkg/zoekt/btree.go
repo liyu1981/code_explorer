@@ -296,10 +296,3 @@ func (b btreeIndex) getBucket(bucketIndex int) (off uint32, sz uint32) {
 
 	return
 }
-
-type IndexFile interface {
-	Read(off uint32, sz uint32) ([]byte, error)
-	Size() (uint32, error)
-	Close() error
-	Name() string
-}

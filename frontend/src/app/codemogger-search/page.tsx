@@ -37,7 +37,9 @@ interface SearchResult {
 export default function CodebaseSearchPage() {
   const [query, setQuery] = useState("");
   const [selectedCodebase, setSelectedCodebase] = useState<string>("");
-  const [searchMode, setSearchMode] = useState<"semantic" | "keyword" | "hybrid">("hybrid");
+  const [searchMode, setSearchMode] = useState<
+    "semantic" | "keyword" | "hybrid"
+  >("hybrid");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -117,7 +119,11 @@ export default function CodebaseSearchPage() {
                 </select>
                 <select
                   value={searchMode}
-                  onChange={(e) => setSearchMode(e.target.value as "semantic" | "keyword" | "hybrid")}
+                  onChange={(e) =>
+                    setSearchMode(
+                      e.target.value as "semantic" | "keyword" | "hybrid",
+                    )
+                  }
                   className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
                   <option value="hybrid">Hybrid</option>
@@ -142,13 +148,11 @@ export default function CodebaseSearchPage() {
           {hasSearched && (
             <div className="space-y-3">
               <div className="text-sm text-muted-foreground">
-                {isSearching ? (
-                  "Searching..."
-                ) : searchResults.length > 0 ? (
-                  `Found ${searchResults.length} results`
-                ) : (
-                  "No results found"
-                )}
+                {isSearching
+                  ? "Searching..."
+                  : searchResults.length > 0
+                    ? `Found ${searchResults.length} results`
+                    : "No results found"}
               </div>
 
               {searchResults.map((result, idx) => (
@@ -198,13 +202,9 @@ export default function CodebaseSearchPage() {
             />
           )}
 
-          {error && (
-            <ErrorState title="Failed to load codebases" />
-          )}
+          {error && <ErrorState title="Failed to load codebases" />}
 
-          {isLoading && (
-            <LoadingState />
-          )}
+          {isLoading && <LoadingState />}
         </div>
       </div>
     </AppContainer>

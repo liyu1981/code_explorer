@@ -71,6 +71,25 @@ func (s *simpleSection) write(w *writer) {
 	w.U32(s.sz)
 }
 
+func (s *simpleSection) read(r *reader) error {
+	var err error
+	s.off, err = r.readU32()
+	if err != nil {
+		return err
+	}
+	s.sz, err = r.readU32()
+	return err
+}
+
+func (s *simpleSection) skip(r *reader) error {
+	_, err := r.readU32()
+	if err != nil {
+		return err
+	}
+	_, err = r.readU32()
+	return err
+}
+
 type compoundSection struct {
 	data    simpleSection
 	offsets []uint32
@@ -100,6 +119,31 @@ func (s *compoundSection) write(w *writer) {
 	s.index.write(w)
 }
 
+func (s *compoundSection) read(r *reader) error {
+	if err := s.data.read(r); err != nil {
+		return err
+	}
+	if err := s.index.read(r); err != nil {
+		return err
+	}
+	offsets, err := readSectionU32(r.r, s.index)
+	if err != nil {
+		return err
+	}
+	s.offsets = offsets
+	return nil
+}
+
+func (s *compoundSection) skip(r *reader) error {
+	if _, err := r.readU32(); err != nil {
+		return err
+	}
+	if _, err := r.readU32(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *compoundSection) relativeIndex() []uint32 {
 	ri := make([]uint32, 0, len(s.offsets)+1)
 	for _, o := range s.offsets {
@@ -113,4 +157,36 @@ func (s *compoundSection) relativeIndex() []uint32 {
 
 type lazyCompoundSection struct {
 	compoundSection
+}
+
+type section interface {
+	read(*reader) error
+	skip(*reader) error
+	write(*writer)
+	kind() sectionKind
+}
+
+type sectionKind int
+
+const (
+	sectionKindSimple       sectionKind = 0
+	sectionKindCompound     sectionKind = 1
+	sectionKindCompoundLazy sectionKind = 2
+)
+
+func (s *simpleSection) kind() sectionKind {
+	return sectionKindSimple
+}
+
+func (s *compoundSection) kind() sectionKind {
+	return sectionKindCompound
+}
+
+func (s *lazyCompoundSection) kind() sectionKind {
+	return sectionKindCompoundLazy
+}
+
+type taggedSection struct {
+	tag string
+	sec section
 }

@@ -118,6 +118,12 @@ type SearchOptions struct {
 	ShardRankMax  int
 }
 
+func (o *SearchOptions) SetDefaults() {
+	if o.MaxMatchCount == 0 {
+		o.MaxMatchCount = 500
+	}
+}
+
 type FileMatch struct {
 	FileName    string
 	Repository  string
@@ -151,14 +157,4 @@ type SearchStats struct {
 type Searcher interface {
 	Search(query Query, opts *SearchOptions) (*SearchResult, error)
 	Close() error
-}
-
-type ShardSearcher struct{}
-
-func (s *ShardSearcher) Search(query Query, opts *SearchOptions) (*SearchResult, error) {
-	return &SearchResult{}, nil
-}
-
-func (s *ShardSearcher) Close() error {
-	return nil
 }

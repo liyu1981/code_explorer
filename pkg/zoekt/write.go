@@ -161,6 +161,12 @@ func (w *writer) writeTOC(toc *indexTOC) {
 	w.U32(0)
 	secs := toc.sectionsTaggedList()
 	for _, s := range secs {
+		if cs, ok := s.sec.(*compoundSection); ok && cs.data.sz == 0 {
+			continue
+		}
+		if ss, ok := s.sec.(*simpleSection); ok && ss.sz == 0 {
+			continue
+		}
 		w.String(s.tag)
 		w.Varint(uint32(s.sec.kind()))
 		s.sec.write(w)
@@ -269,34 +275,4 @@ func (t *indexTOC) sectionsTaggedList() []taggedSection {
 		{"contentBloom", &unusedSimple},
 		{"ranks", &unusedSimple},
 	}
-}
-
-type taggedSection struct {
-	tag string
-	sec section
-}
-
-type section interface {
-	write(*writer)
-	kind() sectionKind
-}
-
-type sectionKind int
-
-const (
-	sectionKindSimple       sectionKind = 0
-	sectionKindCompound     sectionKind = 1
-	sectionKindCompoundLazy sectionKind = 2
-)
-
-func (s *simpleSection) kind() sectionKind {
-	return sectionKindSimple
-}
-
-func (s *compoundSection) kind() sectionKind {
-	return sectionKindCompound
-}
-
-func (s *lazyCompoundSection) kind() sectionKind {
-	return sectionKindCompoundLazy
 }
