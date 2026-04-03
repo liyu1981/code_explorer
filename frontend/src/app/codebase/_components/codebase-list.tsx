@@ -194,16 +194,19 @@ function CodebaseItem({
   };
 
   return (
-    <div className="group flex items-start justify-between p-5 rounded-2xl border border-border hover:bg-muted/20 transition-all">
+    <div className="group flex items-start justify-between p-6 rounded-2xl hover:bg-muted/30 hover:shadow-lg hover:shadow-primary/5 transition-all cursor-default">
       <div className="flex-1 min-w-0 space-y-2">
-        <h3 className="text-lg font-bold tracking-tight truncate text-foreground">
-          {cb.name || "Unnamed Codebase"}
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-primary flex-shrink-0" />
+          <h3 className="text-lg font-bold tracking-tight truncate text-foreground">
+            {cb.name || "Unnamed Codebase"}
+          </h3>
           {cb.type === "local" && (
-            <span className="ml-2 px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <span className="px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Local
             </span>
           )}
-        </h3>
+        </div>
 
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <div className="flex items-center gap-1.5 min-w-0">
