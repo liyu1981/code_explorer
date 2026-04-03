@@ -239,7 +239,7 @@ func (z *ZoektIndex) Search(ctx context.Context, codebaseID string, query string
 	shardDir := fmt.Sprintf("/%s", ShardPrefix(repoID))
 	entries, err := z.fs.List(shardDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list shards: %w", err)
+		return &SearchResult{}, nil
 	}
 
 	var allResults SearchResult
