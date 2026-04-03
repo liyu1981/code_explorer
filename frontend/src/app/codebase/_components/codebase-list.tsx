@@ -3,7 +3,6 @@
 import { useAtom } from "jotai";
 import {
   ArrowRight,
-  Clock,
   Database,
   Folder,
   Search as SearchIcon,
@@ -13,6 +12,8 @@ import {
   RefreshCw,
   GitBranch,
   Brain,
+  CheckCircle2,
+  CircleDashed,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -36,11 +37,17 @@ interface Codebase {
   createdAt: number;
 }
 
-interface IndexingStatus {
+interface CodemoggerStatus {
   status: "not_indexed" | "indexed";
   indexedAt?: number;
   fileCount?: number;
   chunkCount?: number;
+}
+
+interface ZoektStatus {
+  status: "not_indexed" | "indexed";
+  indexedAt?: number;
+  fileCount?: number;
 }
 
 interface IndexProgress {
@@ -157,6 +164,7 @@ function CodebaseItem({
   sessions,
   indexingPath,
   handleCreateIndex,
+  handleCreateZoektIndex,
   handleBuildKnowledge,
   handleResearch,
 }: {
@@ -164,89 +172,132 @@ function CodebaseItem({
   sessions: any[];
   indexingPath: string | null;
   handleCreateIndex: (path: string) => void;
+  handleCreateZoektIndex: (path: string) => void;
   handleBuildKnowledge: (cb: Codebase) => void;
   handleResearch: (cb: Codebase, sessions: any[]) => void;
 }) {
-  const { data: status, isLoading } = useSWR<IndexingStatus>(
+  const { data: cmStatus, isLoading: cmLoading } = useSWR<CodemoggerStatus>(
     `${API_URL}/api/codemogger/status?codebase_id=${cb.id}`,
     fetcher,
   );
 
+  const { data: zStatus, isLoading: zLoading } = useSWR<ZoektStatus>(
+    `${API_URL}/api/zoekt/status?codebase_id=${cb.id}`,
+    fetcher,
+  );
+
+  const isIndexing = indexingPath === cb.rootPath;
+
+  const formatDate = (ts?: number) => {
+    if (!ts) return "Never";
+    return new Date(ts * 1000).toLocaleDateString();
+  };
+
   return (
-    <div className="group flex items-center justify-between p-6 rounded-2xl hover:bg-muted/30 transition-all cursor-default">
-      <div className="space-y-1.5 flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <Database className="h-4 w-4 text-primary" />
-          <h3 className="text-xl font-bold tracking-tight truncate">
-            {cb.name || "Unnamed Codebase"}
-          </h3>
+    <div className="group flex items-start justify-between p-5 rounded-2xl border border-border hover:bg-muted/20 transition-all">
+      <div className="flex-1 min-w-0 space-y-2">
+        <h3 className="text-lg font-bold tracking-tight truncate text-foreground">
+          {cb.name || "Unnamed Codebase"}
           {cb.type === "local" && (
-            <span className="px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <span className="ml-2 px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Local
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        </h3>
+
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <div className="flex items-center gap-1.5 min-w-0">
-            <Folder className="h-3.5 w-3.5" />
-            <code className="truncate font-mono bg-muted/50 px-1.5 rounded text-xs">
+            <Folder className="h-3.5 w-3.5 flex-shrink-0" />
+            <code className="truncate font-mono text-xs bg-muted/50 px-1.5 rounded">
               {cb.rootPath}
             </code>
           </div>
           {cb.version && (
-            <div className="flex items-center gap-1.5 border-l border-border pl-4">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <GitBranch className="h-3.5 w-3.5" />
               <span className="font-mono text-xs">{cb.version}</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-muted-foreground/70">
-          {isLoading ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : status?.status === "indexed" ? (
-            <>
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                <span>
-                  Last indexed:{" "}
-                  {status.indexedAt
-                    ? new Date(status.indexedAt * 1000).toLocaleString()
-                    : "Never"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 border-l border-border pl-4">
-                <span>{status.fileCount} files</span>
-                <span>•</span>
-                <span>{status.chunkCount} chunks</span>
-              </div>
-            </>
+        <div className="flex items-center gap-3 text-xs">
+          {cmLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           ) : (
-            <span className="text-warning font-medium">Not indexed yet</span>
+            <>
+              {cmStatus?.status === "indexed" ? (
+                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>
+                    Codemogger indexed · {cmStatus.fileCount} files ·{" "}
+                    {cmStatus.chunkCount} chunks · {formatDate(cmStatus.indexedAt)}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <CircleDashed className="h-3.5 w-3.5" />
+                  <span>Codemogger not indexed</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleCreateIndex(cb.rootPath)}
+                className="px-2 py-0.5 rounded-md bg-muted/50 hover:bg-primary/10 hover:text-primary text-muted-foreground transition-all text-[11px] font-medium"
+                title="Reindex codemogger"
+                disabled={isIndexing}
+              >
+                {isIndexing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-xs">
+          {zLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          ) : (
+            <>
+              {zStatus?.status === "indexed" ? (
+                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>
+                    Zoekt indexed · {zStatus.fileCount} files ·{" "}
+                    {formatDate(zStatus.indexedAt)}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <CircleDashed className="h-3.5 w-3.5" />
+                  <span>Zoekt not indexed</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleCreateZoektIndex(cb.rootPath)}
+                className="px-2 py-0.5 rounded-md bg-muted/50 hover:bg-primary/10 hover:text-primary text-muted-foreground transition-all text-[11px] font-medium"
+                title="Reindex zoekt"
+                disabled={isIndexing}
+              >
+                {isIndexing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      <div className="ml-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          type="button"
-          onClick={() => handleCreateIndex(cb.rootPath)}
-          className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all"
-          title="Refresh Index"
-          disabled={!!indexingPath}
-        >
-          <RefreshCw
-            className={cn(
-              "h-5 w-5",
-              indexingPath === cb.rootPath && "animate-spin",
-            )}
-          />
-        </button>
-
+      <div className="ml-4 flex items-start gap-2 flex-shrink-0 pt-1">
         <button
           type="button"
           onClick={() => handleBuildKnowledge(cb)}
-          className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all"
+          className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all opacity-0 group-hover:opacity-100"
           title="Initialize Knowledge"
         >
           <Brain className="h-5 w-5" />
@@ -342,6 +393,16 @@ export function CodebaseList() {
       await api.post("/api/codemogger/index", { dir: path });
     } catch (e) {
       console.error("Indexing failed", e);
+      setIndexingPath(null);
+    }
+  };
+
+  const handleCreateZoektIndex = async (path: string) => {
+    setIndexingPath(path);
+    try {
+      await api.post("/api/zoekt/index", { dir: path });
+    } catch (e) {
+      console.error("Zoekt indexing failed", e);
       setIndexingPath(null);
     }
   };
@@ -557,6 +618,7 @@ export function CodebaseList() {
             sessions={existingSessions[cb.id] || []}
             indexingPath={indexingPath}
             handleCreateIndex={handleCreateIndex}
+            handleCreateZoektIndex={handleCreateZoektIndex}
             handleBuildKnowledge={handleBuildKnowledge}
             handleResearch={handleResearch}
           />
