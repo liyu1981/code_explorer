@@ -142,7 +142,7 @@ func TestQueryWithSQLiteFS(t *testing.T) {
 		t.Fatalf("Finish failed: %v", err)
 	}
 
-	shardPath := "/repo_123_v16.00000.zoekt"
+	shardPath := "/repo_123/123_v16.00000.zoekt"
 	exists, err := fs.Exists(shardPath)
 	if err != nil {
 		t.Fatalf("Exists failed: %v", err)
@@ -151,7 +151,7 @@ func TestQueryWithSQLiteFS(t *testing.T) {
 		t.Fatalf("Shard file %s does not exist", shardPath)
 	}
 
-	fileID, err := store.DB().QueryContext(context.Background(), "SELECT id, size FROM fs_nodes WHERE name = ?", "repo_123_v16.00000.zoekt")
+	fileID, err := store.DB().QueryContext(context.Background(), "SELECT id, size FROM fs_nodes WHERE name = ?", "123_v16.00000.zoekt")
 	if err != nil {
 		t.Fatalf("Query failed: %v", err)
 	}

@@ -281,7 +281,9 @@ func (b *Builder) writeShard(n int, ib *ShardBuilder) (*finishedShard, error) {
 		return nil, err
 	}
 
-	if err := b.opts.IndexFS.Create("/"+path, buf.Bytes()); err != nil {
+	data := buf.Bytes()
+
+	if err := b.opts.IndexFS.Create("/"+path, data); err != nil {
 		return nil, err
 	}
 
@@ -289,7 +291,7 @@ func (b *Builder) writeShard(n int, ib *ShardBuilder) (*finishedShard, error) {
 }
 
 func shardPath(repoID string, shardNum int) string {
-	return ShardFileName(repoID, shardNum, IndexFormatVersion)
+	return fmt.Sprintf("%s/%s_v%d.%05d.zoekt", ShardPrefix(repoID), repoID, IndexFormatVersion, shardNum)
 }
 
 func ShardFileName(repoID string, shardNum int, version int) string {

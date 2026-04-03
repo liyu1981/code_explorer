@@ -195,6 +195,7 @@ func (z *ZoektIndex) ListFiles(ctx context.Context, codebaseID string) ([]db.Fil
 
 func (z *ZoektIndex) Search(ctx context.Context, codebaseID string, query string, opts *SearchOptions) (*SearchResult, error) {
 	metadata, err := z.store.ZoektGetMetadataByCodebase(ctx, codebaseID)
+	log.Debug().Str("codebaseID", codebaseID).Interface("metadata", metadata).Msg("Fetched zoekt metadata for search")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zoekt metadata for codebase %v: %w", codebaseID, err)
 	}
@@ -210,6 +211,7 @@ func (z *ZoektIndex) Search(ctx context.Context, codebaseID string, query string
 	repoID := cb.ID
 
 	parsedQuery, err := ParseQuery(query)
+	log.Debug().Str("query", query).Interface("parsedQuery", parsedQuery).Msg("Parsed search query")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query: %w", err)
 	}
@@ -226,6 +228,7 @@ func (z *ZoektIndex) Search(ctx context.Context, codebaseID string, query string
 
 	shardDir := fmt.Sprintf("/%s", ShardPrefix(repoID))
 	entries, err := z.fs.List(shardDir)
+	log.Debug().Interface("entries", entries).Msg("found entries")
 	if err != nil {
 		return &SearchResult{}, nil
 	}

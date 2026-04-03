@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"reflect"
 	"testing"
+
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
 )
 
 func TestReadWrite(t *testing.T) {
@@ -182,4 +185,90 @@ func TestLoadIndexData(t *testing.T) {
 	if !bytes.Equal(id.fileName(0), []byte("main.go")) {
 		t.Errorf("got filename %q, want main.go", string(id.fileName(0)))
 	}
+}
+
+func TestReadLargeFileFromSQLiteFS(t *testing.T) {
+	var store *db.Store
+	var closeStore func()
+	store, closeStore = db.SetupTestDB(t)
+	defer closeStore()
+
+	fs := sqlitefs.OpenFS(store)
+
+	writeOpts := Options{
+		RepositoryDescription: Repository{
+			ID:   "multi-chunk-read-test",
+			Name: "test-multi-chunk-read",
+			Branches: []RepositoryBranch{
+				{Name: "main"},
+			},
+		},
+		IndexFS:     fs,
+		Parallelism: 1,
+		ShardMax:    100 << 20,
+	}
+
+	b, err := NewBuilder(writeOpts)
+	if err != nil {
+		t.Fatalf("NewBuilder failed: %v", err)
+	}
+
+	largeContent := make([]byte, 5000)
+	for i := range 4096 {
+		largeContent[i] = byte('a')
+	}
+	for i := range 5000 - 4096 {
+		largeContent[4096+i] = byte('b')
+	}
+
+	docs := []Document{
+		{Name: "file1.go", Content: largeContent, Branches: []string{"main"}},
+	}
+
+	for _, doc := range docs {
+		if err := b.Add(doc); err != nil {
+			t.Fatalf("Add failed for %s: %v", doc.Name, err)
+		}
+	}
+
+	if err := b.Finish(); err != nil {
+		t.Fatalf("Finish failed: %v", err)
+	}
+
+	shardPath := "/repo_multi-chunk-read-test/multi-chunk-read-test_v16.00000.zoekt"
+	exists, err := fs.Exists(shardPath)
+	if err != nil {
+		t.Fatalf("Exists check failed: %v", err)
+	}
+	if !exists {
+		t.Fatalf("First shard file %s should exist in sqlitefs", shardPath)
+	}
+
+	data, err := fs.Read(shardPath, 0, 10<<20)
+	if err != nil {
+		t.Fatalf("Read shard 0 failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("First shard data should not be empty")
+	}
+	t.Logf("First shard: %s, size: %d bytes", shardPath, len(data))
+
+	f := NewIndexFile(data, shardPath)
+	rd := &reader{r: f}
+
+	toc, err := rd.readTOC()
+	if err != nil {
+		t.Fatalf("readTOC failed: %v", err)
+	}
+
+	id, err := rd.readIndexData(toc)
+	if err != nil {
+		t.Fatalf("readIndexData failed: %v", err)
+	}
+	defer id.Close()
+
+	if id.numDocs() == 0 {
+		t.Error("Expected documents in first shard")
+	}
+	t.Logf("Successfully read first shard: %d docs", id.numDocs())
 }

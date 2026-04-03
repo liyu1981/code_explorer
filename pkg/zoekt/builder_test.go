@@ -312,7 +312,7 @@ func TestBuilderWithSQLiteFS(t *testing.T) {
 		t.Fatalf("Finish failed: %v", err)
 	}
 
-	shardPath := "repo_456_v16.00000.zoekt"
+	shardPath := "repo_456/456_v16.00000.zoekt"
 	exists, err := fs.Exists("/" + shardPath)
 	if err != nil {
 		t.Fatalf("Exists check failed: %v", err)

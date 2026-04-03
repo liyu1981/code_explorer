@@ -208,7 +208,8 @@ func (fs *SQLiteFS) combineAndSlice(chunks map[int64][]byte, offset int64, size 
 			start = int(chunkOffset)
 		}
 
-		end := len(chunk)
+		chunkLen := len(chunk)
+		end := chunkLen
 		if remaining < end-start {
 			end = start + remaining
 		}
@@ -218,7 +219,10 @@ func (fs *SQLiteFS) combineAndSlice(chunks map[int64][]byte, offset int64, size 
 		idx++
 	}
 
-	return result
+	if len(result) < size {
+		return result
+	}
+	return result[:size]
 }
 
 func (fs *SQLiteFS) Write(path string, offset int64, data []byte) error {
@@ -251,15 +255,20 @@ func (fs *SQLiteFS) writeChunks(fileID int64, offset int64, data []byte) error {
 		}
 	}
 
-	copy(chunkData[offsetInChunk:], data)
-	currentOffset := int64(len(data))
+	dataCopied := int64(len(chunkData) - int(offsetInChunk))
+	if dataCopied > int64(len(data)) {
+		dataCopied = int64(len(data))
+	}
+	copy(chunkData[offsetInChunk:], data[:dataCopied])
 
+	firstChunkData := make([]byte, dataCopied)
+	copy(firstChunkData, chunkData[:dataCopied])
 	chunks = append(chunks, struct {
 		index int64
 		data  []byte
-	}{startChunk, make([]byte, fs.chunkSize)})
-	copy(chunks[0].data, chunkData)
+	}{startChunk, firstChunkData})
 
+	currentOffset := dataCopied
 	for currentOffset < int64(len(data)) {
 		chunkIdx := startChunk + int64(len(chunks))
 		chunkStart := int(currentOffset)
