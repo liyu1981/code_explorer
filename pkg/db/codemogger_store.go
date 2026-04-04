@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
+	"github.com/rs/zerolog/log"
 )
 
 func (s *Store) CodemoggerEnsureMetadata(ctx context.Context, codebaseID string) (string, error) {
@@ -288,7 +289,7 @@ func (s *Store) CodemoggerRebuildFTSTable(ctx context.Context, metadataID string
 	return nil
 }
 
-func (s *Store) CodemoggerVectorSearch(ctx context.Context, queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
+func (s *Store) CodemoggerVectorSearch(ctx context.Context, metadataID string, queryEmbedding []float32, limit int, includeSnippet bool) ([]SearchResult, error) {
 	if len(queryEmbedding) == 0 {
 		return nil, fmt.Errorf("empty query embedding")
 	}
@@ -301,16 +302,33 @@ func (s *Store) CodemoggerVectorSearch(ctx context.Context, queryEmbedding []flo
 		return s
 	}(), ","))
 
-	sqlQuery := `
-		SELECT chunk_key, file_path, name, kind, signature, snippet, start_line, end_line,
-			   vector_distance_cos(embedding, vector32(?)) as distance
-		FROM codemogger_chunks
-		WHERE embedding IS NOT NULL
-		ORDER BY distance ASC
-		LIMIT ?
-	`
+	var sqlQuery string
+	var rows *sql.Rows
+	var err error
 
-	rows, err := s.db.QueryContext(ctx, sqlQuery, queryVec, limit)
+	if metadataID != "" {
+		sqlQuery = `
+			SELECT chunk_key, file_path, name, kind, signature, snippet, start_line, end_line,
+				   vector_distance_cos(embedding, vector32(?)) as distance
+			FROM codemogger_chunks
+			WHERE codebase_id = ? AND embedding IS NOT NULL
+			ORDER BY distance ASC
+			LIMIT ?
+		`
+		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec).Str("metadataID", metadataID).Int("limit", limit).Msg("CodemoggerVectorSearch with metadataID")
+		rows, err = s.db.QueryContext(ctx, sqlQuery, queryVec, metadataID, limit)
+	} else {
+		sqlQuery = `
+			SELECT chunk_key, file_path, name, kind, signature, snippet, start_line, end_line,
+				   vector_distance_cos(embedding, vector32(?)) as distance
+			FROM codemogger_chunks
+			WHERE embedding IS NOT NULL
+			ORDER BY distance ASC
+			LIMIT ?
+		`
+		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec).Int("limit", limit).Msg("CodemoggerVectorSearch without metadataID")
+		rows, err = s.db.QueryContext(ctx, sqlQuery, queryVec, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -334,17 +352,34 @@ func (s *Store) CodemoggerVectorSearch(ctx context.Context, queryEmbedding []flo
 	return results, rows.Err()
 }
 
-func (s *Store) CodemoggerFTSSearch(ctx context.Context, query string, limit int, includeSnippet bool) ([]SearchResult, error) {
-	sqlQuery := `
-		SELECT chunk_key, file_path, codemogger_chunks.name, kind, codemogger_chunks.signature, codemogger_chunks.snippet, start_line, end_line
-		FROM codemogger_chunks
-		JOIN codemogger_chunks_fts ON codemogger_chunks_fts.rowid = codemogger_chunks.rowid
-		WHERE codemogger_chunks_fts MATCH ?
-		ORDER BY rank
-		LIMIT ?
-	`
+func (s *Store) CodemoggerFTSSearch(ctx context.Context, metadataID string, query string, limit int, includeSnippet bool) ([]SearchResult, error) {
+	var sqlQuery string
+	var rows *sql.Rows
+	var err error
 
-	rows, err := s.db.QueryContext(ctx, sqlQuery, query, limit)
+	if metadataID != "" {
+		sqlQuery = `
+			SELECT chunk_key, file_path, codemogger_chunks.name, kind, codemogger_chunks.signature, codemogger_chunks.snippet, start_line, end_line
+			FROM codemogger_chunks
+			JOIN codemogger_chunks_fts ON codemogger_chunks_fts.rowid = codemogger_chunks.rowid
+			WHERE codemogger_chunks_fts MATCH ? AND codemogger_chunks.codebase_id = ?
+			ORDER BY rank
+			LIMIT ?
+		`
+		log.Debug().Str("sql", sqlQuery).Str("query", query).Str("metadataID", metadataID).Int("limit", limit).Msg("CodemoggerFTSSearch with metadataID")
+		rows, err = s.db.QueryContext(ctx, sqlQuery, query, metadataID, limit)
+	} else {
+		sqlQuery = `
+			SELECT chunk_key, file_path, codemogger_chunks.name, kind, codemogger_chunks.signature, codemogger_chunks.snippet, start_line, end_line
+			FROM codemogger_chunks
+			JOIN codemogger_chunks_fts ON codemogger_chunks_fts.rowid = codemogger_chunks.rowid
+			WHERE codemogger_chunks_fts MATCH ?
+			ORDER BY rank
+			LIMIT ?
+		`
+		log.Debug().Str("sql", sqlQuery).Str("query", query).Int("limit", limit).Msg("CodemoggerFTSSearch without metadataID")
+		rows, err = s.db.QueryContext(ctx, sqlQuery, query, limit)
+	}
 	if err != nil {
 		return nil, err
 	}

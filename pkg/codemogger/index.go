@@ -19,12 +19,11 @@ import (
 
 type CodeIndex struct {
 	store          *db.Store
-	dbPath         string
 	embedder       embed.Embedder
 	embeddingModel string
 }
 
-func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeIndex, error) {
+func NewCodeIndex(cfg *config.Config, store *db.Store) (*CodeIndex, error) {
 	embCfg := cfg.CodeMogger.Embedder
 
 	if cfg.CodeMogger.InheritSystemLLM && cfg.System.LLM != nil {
@@ -40,13 +39,15 @@ func NewCodeIndex(cfg *config.Config, dbPath string, store *db.Store) (*CodeInde
 		if model, ok := cfg.System.LLM["model"].(string); ok && model != "" {
 			embCfg.OpenAI.Model = model
 		}
+		if embeddingDim, ok := cfg.System.LLM["embedding_dim"].(int); ok && embeddingDim != 0 {
+			embCfg.OpenAI.EmbeddingDim = embeddingDim
+		}
 	}
 
 	emb := embed.NewEmbedderFromConfig(embCfg)
 
 	return &CodeIndex{
 		store:          store,
-		dbPath:         dbPath,
 		embedder:       emb,
 		embeddingModel: cfg.CodeMogger.Embedder.Model,
 	}, nil
@@ -282,8 +283,8 @@ func buildEmbedText(filePath, kind, name, signature, snippet string) string {
 	return text
 }
 
-func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOptions) ([]SearchResult, error) {
-	log.Info().Str("query", query).Interface("opts", opts).Msg("Searching index")
+func (c *CodeIndex) Search(ctx context.Context, codebaseID, query string, opts *SearchOptions) ([]SearchResult, error) {
+	log.Info().Str("codebaseID", codebaseID).Str("query", query).Interface("opts", opts).Msg("Searching index")
 	if query == "" {
 		return []SearchResult{}, nil
 	}
@@ -300,6 +301,16 @@ func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOption
 	limit := opts.Limit
 	includeSnippet := opts.IncludeSnippet
 
+	metadata, err := db.GetStore().CodemoggerGetMetadataByCodebase(ctx, codebaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get codemogger metadata for codebase %v: %w", codebaseID, err)
+	}
+	if metadata == nil {
+		return []SearchResult{}, nil
+	}
+
+	log.Debug().Str("mode", string(opts.Mode)).Msg("Search mode determined")
+
 	switch opts.Mode {
 	case SearchModeSemantic:
 		vectors, err := c.embedder.Embed([]string{query})
@@ -307,12 +318,15 @@ func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOption
 			return nil, err
 		}
 		if len(vectors) == 0 || vectors[0] == nil {
+			log.Debug().Msg("No embeddings returned")
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerVectorSearch(ctx, vectors[0], limit, includeSnippet)
+		log.Debug().Int("vec_len", len(vectors[0])).Msg("Embedding generated")
+		results, err := c.store.CodemoggerVectorSearch(ctx, metadata.ID, vectors[0], limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
+		log.Debug().Int("results", len(results)).Msg("Vector search completed")
 		return convertResults(results), nil
 
 	case SearchModeKeyword:
@@ -320,23 +334,29 @@ func (c *CodeIndex) Search(ctx context.Context, query string, opts *SearchOption
 		if processed == "" {
 			return []SearchResult{}, nil
 		}
-		results, err := c.store.CodemoggerFTSSearch(ctx, processed, limit, includeSnippet)
+		log.Debug().Str("processed", processed).Msg("Query preprocessed for FTS")
+		results, err := c.store.CodemoggerFTSSearch(ctx, metadata.ID, processed, limit, includeSnippet)
 		if err != nil {
 			return nil, err
 		}
+		log.Debug().Int("results", len(results)).Msg("FTS search completed")
 		return convertResults(results), nil
 
 	case SearchModeHybrid:
 		processed := search.PreprocessQuery(query)
-		ftsResults, _ := c.store.CodemoggerFTSSearch(ctx, processed, limit, includeSnippet)
+		log.Debug().Str("processed", processed).Msg("Query preprocessed for hybrid search")
+		ftsResults, _ := c.store.CodemoggerFTSSearch(ctx, metadata.ID, processed, limit, includeSnippet)
+		log.Debug().Int("fts_results", len(ftsResults)).Msg("FTS part of hybrid search done")
 
 		vectors, _ := c.embedder.Embed([]string{query})
 		var vecResults []db.SearchResult
 		if len(vectors) > 0 && vectors[0] != nil {
-			vecResults, _ = c.store.CodemoggerVectorSearch(ctx, vectors[0], limit, includeSnippet)
+			vecResults, _ = c.store.CodemoggerVectorSearch(ctx, metadata.ID, vectors[0], limit, includeSnippet)
+			log.Debug().Int("vec_results", len(vecResults)).Msg("Vector part of hybrid search done")
 		}
 
 		merged := search.RRFMerge(ftsResults, vecResults, limit, 60, 0.4, 0.6)
+		log.Debug().Int("merged", len(merged)).Msg("Hybrid search merged results")
 		return convertResults(merged), nil
 	}
 
@@ -361,8 +381,15 @@ func convertResults(results []db.SearchResult) []SearchResult {
 	return converted
 }
 
-func (c *CodeIndex) ListFiles(ctx context.Context) ([]IndexedFile, error) {
-	files, err := c.store.CodemoggerListFiles(ctx, "")
+func (c *CodeIndex) ListFiles(ctx context.Context, codebaseID string) ([]IndexedFile, error) {
+	metadata, err := c.store.CodemoggerGetMetadataByCodebase(ctx, codebaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get codemogger metadata for codebase %v: %w", codebaseID, err)
+	}
+	if metadata == nil {
+		return []IndexedFile{}, nil
+	}
+	files, err := c.store.CodemoggerListFiles(ctx, metadata.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -466,8 +493,4 @@ func (c *CodeIndex) ReloadConfig() error {
 
 func (c *CodeIndex) GetStore() *db.Store {
 	return c.store
-}
-
-func (c *CodeIndex) GetDbPath() string {
-	return c.dbPath
 }

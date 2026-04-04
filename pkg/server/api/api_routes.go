@@ -13,51 +13,50 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
 	"github.com/liyu1981/code_explorer/pkg/task"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 // ApiHandler represents the API handler
 type ApiHandler struct {
-	index       *codemogger.CodeIndex
+	cmIndex     *codemogger.CodeIndex
+	zIndex      *zoekt.ZoektIndex
 	hub         *WsHub
 	taskManager *task.Manager
 }
 
 // ApiConfig holds the API handler configuration
 type ApiConfig struct {
-	Index *codemogger.CodeIndex
+	CodemoggerIndex *codemogger.CodeIndex
+	ZoektIndex      *zoekt.ZoektIndex
 }
 
 // NewHandler creates a new API handler instance
 func NewHandler(config *ApiConfig) *ApiHandler {
-	var store *db.Store
-	if config.Index != nil {
-		store = config.Index.GetStore()
-	}
+	store := db.GetStore()
 
 	h := &ApiHandler{
-		index: config.Index,
-		hub:   NewWsHub(),
+		cmIndex: config.CodemoggerIndex,
+		zIndex:  config.ZoektIndex,
+		hub:     NewWsHub(),
 	}
 
-	if config.Index != nil {
-		prompt.SyncBuiltinPrompts(context.Background(), store)
+	prompt.SyncBuiltinPrompts(context.Background(), store)
 
-		numWorkers := runtime.NumCPU() - 1
-		isDev := false
-		// In tests or dev mode, use fewer workers
-		if flag.Lookup("test.v") != nil {
-			isDev = true
-			numWorkers = 1
-		} else if os.Getenv("APP_ENV") == "development" {
-			isDev = true
-			numWorkers = 2
-		}
-
-		h.taskManager = task.NewManager(store, numWorkers, h.Publish)
-		task.RegisterQueueHandlers(h.taskManager, config.Index, h.Publish)
-
-		h.taskManager.StartWorkers(context.Background(), isDev)
+	numWorkers := runtime.NumCPU() - 1
+	isDev := false
+	// In tests or dev mode, use fewer workers
+	if flag.Lookup("test.v") != nil {
+		isDev = true
+		numWorkers = 1
+	} else if os.Getenv("APP_ENV") == "development" {
+		isDev = true
+		numWorkers = 2
 	}
+
+	h.taskManager = task.NewManager(store, numWorkers, h.Publish)
+	task.RegisterQueueHandlers(h.taskManager, h.cmIndex, h.zIndex, h.Publish)
+
+	h.taskManager.StartWorkers(context.Background(), isDev)
 
 	go h.hub.run()
 	return h
@@ -97,6 +96,14 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Search
 	mux.HandleFunc("POST /api/codemogger/search", h.handleSearch)
+
+	// Zoekt
+	mux.HandleFunc("GET /api/zoekt/codebases", h.handleZoektListCodebases)
+	mux.HandleFunc("GET /api/zoekt/status", h.handleZoektStatus)
+	mux.HandleFunc("GET /api/zoekt/files", h.handleZoektListFiles)
+	mux.HandleFunc("POST /api/zoekt/index", h.handleZoektIndex)
+	mux.HandleFunc("POST /api/zoekt/search", h.handleZoektSearch)
+	mux.HandleFunc("DELETE /api/zoekt/codebases", h.handleDeleteZoektCodebase)
 
 	// Agent
 	mux.HandleFunc("POST /api/agent/research", h.handleAgentResearch)

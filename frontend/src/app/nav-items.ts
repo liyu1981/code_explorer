@@ -6,7 +6,7 @@ import {
   Activity,
   Bot,
   Sun,
-  Database,
+  Search,
 } from "lucide-react";
 
 export const navTitle = "Code Explorer";
@@ -27,16 +27,22 @@ export const navItems: NavItem[] = [
     icon: GitGraph,
   },
   {
+    id: "zoekt-query",
+    label: "Zoekt Query",
+    path: "/zoekt-query",
+    icon: Search,
+  },
+  {
+    id: "codemogger-search",
+    label: "Code Search",
+    path: "/codemogger-search",
+    icon: Search,
+  },
+  {
     id: "codesummer",
     label: "Code Summer",
     path: "/codesummer",
     icon: Sun,
-  },
-  {
-    id: "codemogger-manage",
-    label: "Manage Indexes",
-    path: "/codemogger-manage",
-    icon: Database,
   },
   {
     id: "agent_prompts",

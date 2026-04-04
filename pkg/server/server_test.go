@@ -3,20 +3,60 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
+	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/libsql"
+	"github.com/liyu1981/code_explorer/pkg/server/api"
+	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 func TestServerSetup(t *testing.T) {
-	// We pass nil index because we just want to test route registration
-	// Some handlers might panic if index is nil when called,
-	// but SetupRoutes itself should be fine.
-	handler := New(nil)
+	dir, err := os.MkdirTemp("", "server-test-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	dbPath := filepath.Join(dir, "test.db")
+	cfg := config.DefaultConfig()
+	config.Set(cfg)
+	if err := db.Migrate(dbPath); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("OpenLibsqlDb: %v", err)
+	}
+	db.ResetStoreForTest()
+	store := db.NewStore(sqlDB, dbPath)
+
+	idx, err := codemogger.NewCodeIndex(cfg, store)
+	if err != nil {
+		t.Fatalf("NewCodeIndex: %v", err)
+	}
+	defer idx.Close()
+	idx.SetEmbedder(&embed.MockEmbedder{DimVal: 384})
+
+	zFs := sqlitefs.OpenFS(store)
+	zIdx := zoekt.NewZoektIndex(store, zFs)
+
+	apiHandler := api.NewHandler(&api.ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
+	defer apiHandler.Stop()
+
+	uiServer := NewUIServer(&Config{ApiHandler: apiHandler})
+	handler := uiServer.SetupRoutes()
 
 	if handler == nil {
 		t.Fatalf("New() returned nil handler")
 	}
 
-	// Test a few basic routes
 	tests := []struct {
 		method string
 		path   string

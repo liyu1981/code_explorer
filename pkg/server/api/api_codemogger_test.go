@@ -14,13 +14,17 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/libsql"
+	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
-func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
+func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, *zoekt.ZoektIndex, func()) {
 	tmpDir, err := os.MkdirTemp("", "api-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
+
+	db.ResetStoreForTest()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 	cfg := config.DefaultConfig()
@@ -33,7 +37,7 @@ func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 		t.Fatalf("Failed to open db: %v", err)
 	}
 	store := db.NewStore(sqlDB, dbPath)
-	idx, err := codemogger.NewCodeIndex(cfg, dbPath, store)
+	idx, err := codemogger.NewCodeIndex(cfg, store)
 	if err != nil {
 		t.Fatalf("Failed to create index: %v", err)
 	}
@@ -41,19 +45,22 @@ func setupTestIndex(t *testing.T) (*codemogger.CodeIndex, func()) {
 	// Use MockEmbedder to avoid network calls
 	idx.SetEmbedder(&embed.MockEmbedder{DimVal: 384})
 
+	zFs := sqlitefs.OpenFS(store)
+	zIdx := zoekt.NewZoektIndex(store, zFs)
+
 	cleanup := func() {
 		idx.Close()
 		os.RemoveAll(tmpDir)
 	}
 
-	return idx, cleanup
+	return idx, zIdx, cleanup
 }
 
 func TestApiListCodebases(t *testing.T) {
-	idx, cleanup := setupTestIndex(t)
+	idx, zIdx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
-	h := NewHandler(&ApiConfig{Index: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer h.Stop()
 	req := httptest.NewRequest("GET", "/api/codemogger/codebases", nil)
 	rr := httptest.NewRecorder()
@@ -74,8 +81,8 @@ func TestApiListCodebases(t *testing.T) {
 	}
 }
 
-func TestApiIndex(t *testing.T) {
-	idx, cleanup := setupTestIndex(t)
+func TestApiCodemoggerIndex(t *testing.T) {
+	idx, zIdx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
 	// Create a dummy file to index
@@ -85,7 +92,7 @@ func TestApiIndex(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "main.go")
 	os.WriteFile(testFile, []byte("package main\nfunc main() {}"), 0644)
 
-	h := NewHandler(&ApiConfig{Index: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{
@@ -109,10 +116,10 @@ func TestApiIndex(t *testing.T) {
 }
 
 func TestApiSearch(t *testing.T) {
-	idx, cleanup := setupTestIndex(t)
+	idx, zIdx, cleanup := setupTestCodemoggerIndex(t)
 	defer cleanup()
 
-	h := NewHandler(&ApiConfig{Index: idx})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer h.Stop()
 
 	body, _ := json.Marshal(map[string]any{

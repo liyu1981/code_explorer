@@ -9,6 +9,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger/embed"
 	"github.com/liyu1981/code_explorer/pkg/config"
 	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/util"
 	"github.com/rs/zerolog/log"
 )
@@ -25,11 +26,17 @@ type Codesummer struct {
 func NewCodesummer(
 	dbStore *db.Store,
 ) (*Codesummer, error) {
-	fileSummerizer, err := NewSummarizer("codesummer-file-summarizer", dbStore)
+	llmCfg := config.Get().System.LLM
+	ai, err := llm.BuildLLM(llmCfg)
 	if err != nil {
 		return nil, err
 	}
-	dirSummerizer, err := NewSummarizer("codesummer-directory-summarizer", dbStore)
+
+	fileSummerizer, err := NewSummarizer("codesummer-file-summarizer", dbStore, ai)
+	if err != nil {
+		return nil, err
+	}
+	dirSummerizer, err := NewSummarizer("codesummer-directory-summarizer", dbStore, ai)
 	if err != nil {
 		return nil, err
 	}

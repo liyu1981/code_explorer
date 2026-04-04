@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/rs/zerolog/log"
 )
 
 type Embedder interface {
@@ -25,9 +26,6 @@ type OpenAIEmbedder struct {
 }
 
 func NewOpenAIEmbedder(apiBase, model, apiKey string, dim int) *OpenAIEmbedder {
-	if apiBase == "" {
-		apiBase = "https://api.openai.com/v1"
-	}
 	return &OpenAIEmbedder{
 		model:   model,
 		apiBase: apiBase,
@@ -43,34 +41,14 @@ func NewEmbedderFromConfig(embCfg config.EmbedderConfig) Embedder {
 	var emb Embedder
 	switch embCfg.Type {
 	case "openai":
-		model := embCfg.OpenAI.Model
-		if model == "" {
-			model = embCfg.Model
-		}
-		if model == "" {
-			model = "text-embedding-3-small"
-		}
 		emb = NewOpenAIEmbedder(
 			embCfg.OpenAI.APIBase,
-			model,
+			embCfg.OpenAI.Model,
 			embCfg.OpenAI.APIKey,
-			1536,
+			embCfg.OpenAI.EmbeddingDim,
 		)
 	default:
-		apiBase := embCfg.OpenAI.APIBase
-		if apiBase == "" {
-			apiBase = "http://localhost:11434/v1"
-		}
-		model := embCfg.Model
-		if model == "" {
-			model = "all-minilm:l6-v2"
-		}
-		emb = NewOpenAIEmbedder(
-			apiBase,
-			model,
-			embCfg.OpenAI.APIKey,
-			384,
-		)
+		log.Fatal().Str("type", embCfg.Type).Msg("unsupported embedder type")
 	}
 	return emb
 }

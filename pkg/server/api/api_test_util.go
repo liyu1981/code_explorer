@@ -36,14 +36,14 @@ func setupTestHandler(t *testing.T) (*ApiHandler, *codemogger.CodeIndex, func())
 	}
 	store := db.NewStore(sqlDB, dbPath)
 
-	index, err := codemogger.NewCodeIndex(cfg, dbPath, store)
+	index, err := codemogger.NewCodeIndex(cfg, store)
 	if err != nil {
 		sqlDB.Close()
 		os.RemoveAll(tmpDir)
 		t.Fatal(err)
 	}
 
-	h := NewHandler(&ApiConfig{Index: index})
+	h := NewHandler(&ApiConfig{CodemoggerIndex: index})
 
 	cleanup := func() {
 		h.Stop()

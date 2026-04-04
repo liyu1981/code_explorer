@@ -8,7 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/liyu1981/code_explorer/pkg/codemogger"
+	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
+	"github.com/liyu1981/code_explorer/pkg/libsql"
 	"github.com/liyu1981/code_explorer/pkg/server/api"
+	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 func TestUIServer_SetupRoutes(t *testing.T) {
@@ -33,8 +39,30 @@ func TestUIServer_SetupRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Mock ApiHandler
-	apiHandler := api.NewHandler(&api.ApiConfig{Index: nil})
+	// Setup test DB so NewHandler doesn't panic
+	db.ResetStoreForTest()
+	sqlitefs.ResetFS()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := config.DefaultConfig()
+	config.Set(cfg)
+	if err := db.Migrate(dbPath); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	sqlDB, err := libsql.OpenLibsqlDb(dbPath)
+	if err != nil {
+		t.Fatalf("OpenLibsqlDb: %v", err)
+	}
+	store := db.NewStore(sqlDB, dbPath)
+	idx, err := codemogger.NewCodeIndex(cfg, store)
+	if err != nil {
+		t.Fatalf("NewCodeIndex: %v", err)
+	}
+	defer idx.Close()
+	zFs := sqlitefs.OpenFS(store)
+	zIdx := zoekt.NewZoektIndex(store, zFs)
+
+	apiHandler := api.NewHandler(&api.ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
+	defer apiHandler.Stop()
 
 	s := &UIServer{
 		staticFS:   os.DirFS(tmpDir),

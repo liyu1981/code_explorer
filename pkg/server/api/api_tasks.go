@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/liyu1981/code_explorer/pkg/db"
 )
 
 func (h *ApiHandler) handleListTasks(w http.ResponseWriter, r *http.Request) {
@@ -12,7 +14,7 @@ func (h *ApiHandler) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * pageSize
 
-	tasks, total, err := h.index.GetStore().GetTasks(r.Context(), pageSize, offset)
+	tasks, total, err := db.GetStore().GetTasks(r.Context(), pageSize, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list tasks", err)
 		return
@@ -33,7 +35,7 @@ func (h *ApiHandler) handleGetTaskTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, err := h.index.GetStore().GetTaskTree(r.Context(), rootID)
+	tasks, err := db.GetStore().GetTaskTree(r.Context(), rootID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to fetch task tree", err)
 		return

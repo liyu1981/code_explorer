@@ -5,15 +5,11 @@ import (
 	"net/http"
 
 	"github.com/liyu1981/code_explorer/pkg/config"
+	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/rs/zerolog/log"
 )
 
 func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-
 	// Create a deep enough copy to prevent masking from affecting the live config
 	cfg := *config.Get()
 
@@ -40,7 +36,7 @@ func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		CodeMogger config.CodeMoggerConfig `json:"codemogger"`
 	}{
 		System: systemResp{
-			DbPath:      h.index.GetDbPath(),
+			DbPath:      db.GetStore().GetDBPath(),
 			IsDefaultDb: config.Get().System.DBPath == "",
 			LLM:         systemLLM,
 		},
@@ -58,11 +54,6 @@ func (h *ApiHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ApiHandler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
-	if h.index == nil {
-		writeError(w, http.StatusInternalServerError, "Index not initialized", nil)
-		return
-	}
-
 	var newCfg config.Config
 	if err := json.NewDecoder(r.Body).Decode(&newCfg); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body", err)
@@ -127,7 +118,7 @@ func (h *ApiHandler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Also update the index internal state (e.g. re-init embedder if needed)
-	if err := h.index.ReloadConfig(); err != nil {
+	if err := h.cmIndex.ReloadConfig(); err != nil {
 		log.Error().Err(err).Msg("Failed to reload configuration live")
 	}
 

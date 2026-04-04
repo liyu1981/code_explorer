@@ -9,7 +9,7 @@ import (
 )
 
 func (h *ApiHandler) handleListSkills(w http.ResponseWriter, r *http.Request) {
-	skills, err := h.index.GetStore().ListAgentPrompts(r.Context())
+	skills, err := db.GetStore().ListAgentPrompts(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list prompts", err)
 		return
@@ -37,7 +37,7 @@ func (h *ApiHandler) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	skill, err := h.index.GetStore().GetPromptByName(r.Context(), name)
+	skill, err := db.GetStore().GetPromptByName(r.Context(), name)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get prompt", err)
 		return
@@ -72,7 +72,7 @@ func (h *ApiHandler) handleUpdateSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.index.GetStore().UpdatePrompt(r.Context(), &skill); err != nil {
+	if err := db.GetStore().UpdatePrompt(r.Context(), &skill); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update prompt", err)
 		return
 	}
@@ -87,7 +87,7 @@ func (h *ApiHandler) handleDeleteSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	skill, err := h.index.GetStore().GetPromptByID(r.Context(), id)
+	skill, err := db.GetStore().GetPromptByID(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get prompt", err)
 		return
@@ -108,7 +108,7 @@ func (h *ApiHandler) handleDeleteSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.index.GetStore().DeletePrompt(r.Context(), id); err != nil {
+	if err := db.GetStore().DeletePrompt(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete prompt", err)
 		return
 	}

@@ -42,9 +42,10 @@ type EmbedderConfig struct {
 }
 
 type OpenAIConfig struct {
-	APIBase string `json:"api_base,omitempty"`
-	Model   string `json:"model,omitempty"`
-	APIKey  string `json:"api_key,omitempty"`
+	APIBase      string `json:"api_base,omitempty"`
+	Model        string `json:"model,omitempty"`
+	APIKey       string `json:"api_key,omitempty"`
+	EmbeddingDim int    `json:"embedding_dim,omitempty"`
 }
 
 var (
@@ -178,9 +179,10 @@ func DefaultConfig() *Config {
 	return &Config{
 		System: SystemConfig{
 			LLM: map[string]any{
-				"type":     "openai",
-				"model":    "gpt-4o",
-				"base_url": "https://api.openai.com/v1",
+				"type":         "openai",
+				"model":        "gpt-4o",
+				"base_url":     "https://api.openai.com/v1",
+				"ebedding_dim": 1536,
 			},
 			ContextLength:        262144,
 			MaxTaskRetentionDays: 180,

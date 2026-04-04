@@ -9,7 +9,7 @@ import (
 )
 
 func (h *ApiHandler) handleListCodebases(w http.ResponseWriter, r *http.Request) {
-	codebases, err := h.index.ListCodebases(r.Context())
+	codebases, err := h.cmIndex.ListCodebases(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list codebases", err)
 		return
@@ -24,7 +24,7 @@ func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	metadata, err := h.index.GetStore().CodemoggerGetMetadataByCodebase(r.Context(), codebaseID)
+	metadata, err := h.cmIndex.GetStore().CodemoggerGetMetadataByCodebase(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get codemogger metadata", err)
 		return
@@ -35,7 +35,7 @@ func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	files, err := h.index.GetStore().CodemoggerListFiles(r.Context(), metadata.ID)
+	files, err := h.cmIndex.GetStore().CodemoggerListFiles(r.Context(), metadata.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list files", err)
 		return
@@ -55,7 +55,8 @@ func (h *ApiHandler) handleGetCodemoggerStatus(w http.ResponseWriter, r *http.Re
 }
 
 func (h *ApiHandler) handleListFiles(w http.ResponseWriter, r *http.Request) {
-	files, err := h.index.ListFiles(r.Context())
+	codebaseID := r.URL.Query().Get("codebase_id")
+	files, err := h.cmIndex.ListFiles(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list files", err)
 		return
@@ -94,9 +95,10 @@ func (h *ApiHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (h *ApiHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Query string                `json:"query"`
-		Limit int                   `json:"limit"`
-		Mode  codemogger.SearchMode `json:"mode"`
+		Query      string                `json:"query"`
+		Limit      int                   `json:"limit"`
+		Mode       codemogger.SearchMode `json:"mode"`
+		CodebaseID string                `json:"codebaseID"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body", err)
@@ -114,7 +116,7 @@ func (h *ApiHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		IncludeSnippet: true,
 	}
 
-	results, err := h.index.Search(r.Context(), req.Query, opts)
+	results, err := h.cmIndex.Search(r.Context(), req.CodebaseID, req.Query, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Search failed", err)
 		return
@@ -132,7 +134,7 @@ func (h *ApiHandler) handleDeleteCodemoggerCodebase(w http.ResponseWriter, r *ht
 
 	log.Info().Str("codebaseID", codebaseID).Msg("Deleting codemogger codebase entries")
 
-	if err := h.index.GetStore().CodemoggerDeleteCodebase(r.Context(), codebaseID); err != nil {
+	if err := h.cmIndex.GetStore().CodemoggerDeleteCodebase(r.Context(), codebaseID); err != nil {
 		log.Error().Err(err).Str("codebaseID", codebaseID).Msg("Failed to delete codemogger codebase")
 		writeError(w, http.StatusInternalServerError, "Failed to delete codemogger codebase", err)
 		return

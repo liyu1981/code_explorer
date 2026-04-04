@@ -50,7 +50,7 @@ func (h *ApiHandler) handleListCodesummerSummaries(w http.ResponseWriter, r *htt
 		return
 	}
 
-	metadata, err := h.index.GetStore().CodesummerGetMetadataByCodebase(r.Context(), codebaseID)
+	metadata, err := db.GetStore().CodesummerGetMetadataByCodebase(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to get codesummer metadata", err)
 		return
@@ -65,7 +65,7 @@ func (h *ApiHandler) handleListCodesummerSummaries(w http.ResponseWriter, r *htt
 		return
 	}
 
-	summaries, err := h.index.GetStore().CodesummerListSummaries(r.Context(), metadata.ID)
+	summaries, err := db.GetStore().CodesummerListSummaries(r.Context(), metadata.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list summaries", err)
 		return
