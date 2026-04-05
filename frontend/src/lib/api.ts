@@ -31,3 +31,30 @@ export const api = axios.create({
 });
 
 export const fetcher = (url: string) => api.get(url).then((res) => res.data);
+
+export async function apiStream(
+  path: string,
+  body?: unknown,
+  options?: {
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    headers?: Record<string, string>;
+  },
+): Promise<Response> {
+  const method = options?.method ?? "POST";
+
+  const response = await fetch(`${API_URL}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Stream request failed: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  if (!response.body) throw new Error("No readable stream in response");
+
+  return response;
+}

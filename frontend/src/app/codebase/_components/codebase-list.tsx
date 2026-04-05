@@ -238,7 +238,8 @@ function CodebaseItem({
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span>
                     Codemogger indexed · {cmStatus.fileCount} files ·{" "}
-                    {cmStatus.chunkCount} chunks · {formatDate(cmStatus.indexedAt)}
+                    {cmStatus.chunkCount} chunks ·{" "}
+                    {formatDate(cmStatus.indexedAt)}
                   </span>
                 </div>
               ) : (

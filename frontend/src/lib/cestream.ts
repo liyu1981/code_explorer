@@ -18,8 +18,9 @@ export interface OpenAIChunk {
 }
 
 export interface CEEvent {
+  turnid: string;
   object: string;
-  id?: string;
+  stepid?: string;
   status?: "pending" | "active" | "completed";
   label?: string;
   content?: string;
@@ -27,7 +28,7 @@ export interface CEEvent {
   resource?: CEStreamSource;
   query?: string;
   timestamp?: number;
-  tryID?: number;
+  tryid?: number;
 }
 
 export interface CEStreamCallbacks {
@@ -40,12 +41,25 @@ export interface CEStreamCallbacks {
   onResearchReasoningDelta: (turnID: string, e: CEEvent) => void;
   onResearchSourceAdded: (turnID: string, e: CEEvent) => void;
   onResourceMaterial: (turnID: string, e: CEEvent) => void;
+  onStreamEnd: (turnID: string) => void;
 }
 
 function ceDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
   return (data: string) => {
+    console.log("Received CE event", { turnID, data });
     try {
       const event: CEEvent = JSON.parse(data);
+      if (!event || !event.turnid) {
+        console.error("Invalid CE event, missing event.turnID", data);
+        return;
+      }
+      if (event.turnid !== turnID) {
+        console.error(
+          `CE event turnID mismatch, expected ${turnID} but got ${event.turnid}`,
+          data,
+        );
+        return;
+      }
       switch (event.object) {
         case "llm.try.run.start":
           callbacks.onLLMTryRunStart(turnID, event);
@@ -80,7 +94,7 @@ function ceDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
           break;
 
         default:
-          console.error(`CE event not supported: ${event}`);
+          console.error(`CE event not supported: ${JSON.stringify(event)}`);
           break;
       }
     } catch (e) {
@@ -91,6 +105,7 @@ function ceDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
 
 function openaiDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
   return (data: string) => {
+    console.log("Received OpenAI data chunk", { turnID, data });
     if (data === "[DONE]") {
       return;
     }
@@ -101,6 +116,12 @@ function openaiDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
     } catch (e) {
       console.error("Failed to parse data chunk", e, data);
     }
+  };
+}
+
+function endHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
+  return () => {
+    callbacks.onStreamEnd(turnID);
   };
 }
 
@@ -117,7 +138,8 @@ export function processCEStream(
   });
   emitter
     .on("ce", ceDataHandlerWith(turnID, callbacks))
-    .on("data", openaiDataHandlerWith(turnID, callbacks));
+    .on("data", openaiDataHandlerWith(turnID, callbacks))
+    .on("end", endHandlerWith(turnID, callbacks));
   return emitter.process();
 }
 

@@ -13,7 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import { Markdown } from "../../_components/markdown";
 import type { ResearchTurn } from "../../_jotai/research-store";
-import { SourceCard, SourceGroupCard, groupSourcesByPath } from "./source-card";
+import { SourceGroupCard, groupSourcesByPath } from "./source-card";
 import {
   Dialog,
   DialogContent,
@@ -43,23 +43,34 @@ export function ResearchReport({
 }: ResearchReportProps) {
   const [, setTick] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [rawStreamDialog, setRawStreamDialog] = useState<{
+  const [rawStream, setRawStream] = useState<{
     turnId: string;
     content: string | null;
     loading: boolean;
   } | null>(null);
+  const [rawStreamDialogOpen, setRawStreamDialogOpen] = useState(false);
 
   const handleShowRawStream = async (turn: ResearchTurn) => {
-    setRawStreamDialog({ turnId: turn.id, content: null, loading: true });
+    setRawStream({
+      turnId: turn.id,
+      content: null,
+      loading: true,
+    });
     if (onFetchRawStream) {
       const content = await onFetchRawStream(turn.id);
-      setRawStreamDialog({ turnId: turn.id, content, loading: false });
+      setRawStream({
+        turnId: turn.id,
+        content,
+        loading: false,
+      });
+      setRawStreamDialogOpen(true);
     } else {
-      setRawStreamDialog({
+      setRawStream({
         turnId: turn.id,
         content: "Raw stream data not available",
         loading: false,
       });
+      setRawStreamDialogOpen(true);
     }
   };
 
@@ -242,32 +253,30 @@ export function ResearchReport({
                   )}
                 </div>
               </div>
-
-              <Dialog
-                open={rawStreamDialog?.turnId === turn.id}
-                onOpenChange={() => setRawStreamDialog(null)}
-              >
-                <DialogContent className="!w-[85vw] !max-w-[85vw] max-h-[85vh] flex flex-col">
-                  <DialogHeader>
-                    <DialogTitle>Raw Stream Response</DialogTitle>
-                  </DialogHeader>
-                  <div className="flex-1 overflow-auto">
-                    {rawStreamDialog?.loading ? (
-                      <div className="text-sm text-muted-foreground">
-                        Loading...
-                      </div>
-                    ) : (
-                      <pre className="text-xs font-mono bg-muted/30 p-4 rounded-lg whitespace-pre-wrap">
-                        {rawStreamDialog?.content || "No data available"}
-                      </pre>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
             </aside>
           </div>
         </div>
       ))}
+
+      <Dialog
+        open={rawStreamDialogOpen}
+        onOpenChange={() => setRawStreamDialogOpen(false)}
+      >
+        <DialogContent className="!w-[85vw] !max-w-[85vw] max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Raw Stream Response</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            {rawStream?.loading ? (
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : (
+              <pre className="text-xs font-mono bg-muted/30 p-4 rounded-lg whitespace-pre-wrap">
+                {rawStream?.content || "No data available"}
+              </pre>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

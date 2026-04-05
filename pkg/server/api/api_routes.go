@@ -107,6 +107,7 @@ func (h *ApiHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Agent
 	mux.HandleFunc("POST /api/agent/research", h.handleAgentResearch)
+	mux.HandleFunc("POST /api/mock/research", h.handleMockGenerate)
 
 	// Research Sessions
 	mux.HandleFunc("GET /api/research/sessions", h.handleListSessions)

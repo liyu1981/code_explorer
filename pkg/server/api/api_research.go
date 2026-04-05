@@ -56,56 +56,61 @@ func (w *persistenceStreamWriter) WriteDone() error {
 	return w.StreamWriter.WriteDone()
 }
 
-func (w *persistenceStreamWriter) SendReasoning(content string) error {
+func (w *persistenceStreamWriter) SendReasoning(turnID string, content string) error {
 	return w.WriteCEEvent(protocol.CEEvent{
+		TurnID:  turnID,
 		Object:  "research.reasoning.delta",
 		Content: content,
 	})
 }
 
-func (w *persistenceStreamWriter) SendTurnStarted(id string, query string, timestamp int64) error {
-	w.turnID = id
+func (w *persistenceStreamWriter) SendTurnStarted(turnID string, query string, timestamp int64) error {
 	return w.WriteCEEvent(protocol.CEEvent{
+		TurnID:    turnID,
 		Object:    "research.turn.started",
-		ID:        id,
 		Query:     query,
 		Timestamp: timestamp,
 	})
 }
 
-func (w *persistenceStreamWriter) SendStepUpdate(id string, label string, status protocol.StepStatus) error {
+func (w *persistenceStreamWriter) SendStepUpdate(turnID string, stepID string, label string, status protocol.StepStatus) error {
 	return w.WriteCEEvent(protocol.CEEvent{
+		TurnID: turnID,
 		Object: "research.step.update",
-		ID:     id,
+		StepID: stepID,
 		Label:  label,
 		Status: status,
 	})
 }
 
-func (w *persistenceStreamWriter) SendSourceAdded(source protocol.SourceMaterial) error {
+func (w *persistenceStreamWriter) SendSourceAdded(turnID string, source protocol.SourceMaterial) error {
 	return w.WriteCEEvent(protocol.CEEvent{
+		TurnID: turnID,
 		Object: "research.source.added",
 		Source: &source,
 	})
 }
 
-func (w *persistenceStreamWriter) SendResourceMaterial(resource protocol.SourceMaterial) error {
+func (w *persistenceStreamWriter) SendResourceMaterial(turnID string, resource protocol.SourceMaterial) error {
 	return w.WriteCEEvent(protocol.CEEvent{
+		TurnID:   turnID,
 		Object:   "resource.material",
 		Resource: &resource,
 	})
 }
 
-func (w *persistenceStreamWriter) SendToolCall(tool string, params any) error {
+func (w *persistenceStreamWriter) SendToolCall(turnID string, tool string, params any) error {
 	return w.WriteCEEvent(protocol.CEEvent{
+		TurnID: turnID,
 		Object: "tool.call.request",
 		Tool:   tool,
 		Params: params,
 	})
 }
 
-func (w *persistenceStreamWriter) SendToolResponse(tool string, response any) error {
+func (w *persistenceStreamWriter) SendToolResponse(turnID string, tool string, response any) error {
 	return w.WriteCEEvent(protocol.CEEvent{
+		TurnID:   turnID,
 		Object:   "tool.call.response",
 		Tool:     tool,
 		Response: response,
@@ -158,9 +163,9 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	maxWorkers := 3
-	maxIterations := 5
-	runner := agentworkflow.NewPEEWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), maxWorkers, maxIterations)
+	// maxWorkers := 3
+	// maxIterations := 5
+	// runner := agentworkflow.NewPEEWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), maxWorkers, maxIterations)
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -180,9 +185,10 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	query := fmt.Sprintf("%s\n\nContext: target codebase id=%s\ntarget basedir=%s", req.Query, codebase.ID, codebase.RootPath)
 	log.Info().Str("query", query).Str("session", req.SessionID).Msg("Handling agent research request")
 
+	runner := agentworkflow.NewReactWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), agentworkflow.ReactWithMaxIterations(999))
 	_, err = runner.Run(r.Context(), query, finalSw)
 	if err != nil {
-		log.Error().Err(err).Msg("PEE workflow failed")
+		log.Error().Err(err).Msg("react workflow failed")
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
 	}
 

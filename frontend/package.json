@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "fix": "biome check --write"
+    "fix": "biome check --write",
+    "test": "NODE_OPTIONS='--import tsx' node --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -53,6 +54,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "lucide-react-native": "^0.577.0",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

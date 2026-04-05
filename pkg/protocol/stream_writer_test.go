@@ -32,7 +32,7 @@ func TestStreamWriter(t *testing.T) {
 
 	t.Run("WriteCEEvent", func(t *testing.T) {
 		buf.Reset()
-		err := sw.SendReasoning("thinking...")
+		err := sw.SendReasoning("turn-1", "thinking...")
 		if err != nil {
 			t.Fatalf("SendReasoning failed: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestStreamWriter(t *testing.T) {
 
 	t.Run("SendStepUpdate", func(t *testing.T) {
 		buf.Reset()
-		err := sw.SendStepUpdate("step-1", "Step Label", StepActive)
+		err := sw.SendStepUpdate("turn-1", "step-1", "Step Label", StepActive)
 		if err != nil {
 			t.Fatalf("SendStepUpdate failed: %v", err)
 		}

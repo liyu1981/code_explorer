@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/protocol"
 	"github.com/liyu1981/code_explorer/pkg/tools"
@@ -55,6 +56,7 @@ func WithGeneratorResponseFormat(rf *ResponseFormat) GeneratorOption {
 
 type Generator struct {
 	llm             LLM
+	turnID          string
 	toolRegistry    *tools.ToolRegistry
 	messages        []Message
 	maxIterations   int
@@ -70,9 +72,16 @@ func WithGeneratorCodemoggerIndex(idx any) GeneratorOption {
 	}
 }
 
+func WithGeneratorTurnID(turnID string) GeneratorOption {
+	return func(g *Generator) {
+		g.turnID = turnID
+	}
+}
+
 func NewGenerator(llm LLM, opts ...GeneratorOption) *Generator {
 	g := &Generator{
 		llm:           llm,
+		turnID:        fmt.Sprintf("turn-%d", time.Now().UnixMilli()),
 		messages:      make([]Message, 0),
 		maxIterations: DefaultGeneratorMaxIterations,
 		maxRetry:      DefaultGeneratorMaxRetry,
@@ -123,7 +132,7 @@ func (g *Generator) Generate(
 	g.messages = make([]Message, len(messages))
 	copy(g.messages, messages)
 
-	log.Debug().Interface("responseFormat", responseFormat).Msg("will use reponseFormat")
+	log.Debug().Interface("responseFormat", responseFormat).Msg("generate with reponseFormat")
 
 	for i := 0; i < g.maxIterations; i++ {
 		g.messages = append(g.messages, Message{
@@ -163,7 +172,13 @@ func (g *Generator) Generate(
 	return "", nil, fmt.Errorf("max iterations (%d) reached", g.maxIterations)
 }
 
-func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tools []map[string]any, responseFormat *ResponseFormat, stream protocol.IStreamWriter) (string, []ToolCall, error) {
+func (g *Generator) GenerateStream(
+	ctx context.Context,
+	messages []Message,
+	tools []map[string]any,
+	responseFormat *ResponseFormat,
+	stream protocol.IStreamWriter,
+) (string, []ToolCall, error) {
 	g.messages = make([]Message, len(messages))
 	copy(g.messages, messages)
 
@@ -182,8 +197,9 @@ func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tool
 			return "", nil, fmt.Errorf("context length exceeded: current %d, limit %d", currentLength, g.contextLength)
 		}
 
-		stream.SendTryRunStart("", int64(i))
-		stream.SendStepUpdate(fmt.Sprintf("gen-thinking-%d", i), "Thinking", protocol.StepActive)
+		stream.SendTryRunStart(g.turnID, int64(i))
+		thinkingStepID := fmt.Sprintf("gen-thinking-%d", i)
+		stream.SendStepUpdate(g.turnID, thinkingStepID, "Thinking", protocol.StepActive)
 
 		// disable tools in the last iteration to force a final answer
 		availableTools := tools
@@ -197,15 +213,15 @@ func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tool
 
 		response, toolCalls, err := g.generate(ctx, availableTools, responseFormat, stream)
 		if err != nil {
-			stream.SendStepUpdate(fmt.Sprintf("gen-thinking-%d", i), "Thinking", protocol.StepFailed)
-			stream.SendTryRunFailed("", int64(i))
+			stream.SendStepUpdate(g.turnID, thinkingStepID, "Thinking", protocol.StepFailed)
+			stream.SendTryRunFailed(g.turnID, int64(i))
 			return "", nil, err
 		}
 
-		stream.SendStepUpdate(fmt.Sprintf("gen-thinking-%d", i), "Thinking", protocol.StepCompleted)
+		stream.SendStepUpdate(g.turnID, thinkingStepID, "Thinking", protocol.StepCompleted)
 
 		if len(toolCalls) == 0 {
-			stream.SendTryRunEnd("", int64(i))
+			stream.SendTryRunEnd(g.turnID, int64(i))
 			stream.WriteDone()
 			return response, nil, nil
 		}
@@ -214,10 +230,9 @@ func (g *Generator) GenerateStream(ctx context.Context, messages []Message, tool
 			g.executeTool(ctx, tc, stream)
 		}
 
-		stream.SendTryRunEnd("", int64(i))
+		stream.SendTryRunEnd(g.turnID, int64(i))
 	}
 
-	stream.WriteDone()
 	return "", nil, fmt.Errorf("max iterations (%d) reached", g.maxIterations)
 }
 
@@ -267,9 +282,9 @@ func (g *Generator) validateResponse(response string, toolCalls []ToolCall) (int
 	if len(response) == 0 && len(toolCalls) == 0 {
 		return 1, fmt.Errorf("both response and toolCalls are empty")
 	}
-	if len(response) != 0 && len(toolCalls) > 0 {
-		return 2, fmt.Errorf("response and toolCalls both present")
-	}
+	// if len(response) != 0 && len(toolCalls) > 0 {
+	// 	return 2, fmt.Errorf("response and toolCalls both present")
+	// }
 	return 0, nil
 }
 
@@ -298,8 +313,8 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 
 	if stream != nil {
 		toolStepID := fmt.Sprintf("gen-tool-%s", tc.Name)
-		stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepActive)
-		stream.SendToolCall(tc.Name, tc.Input)
+		stream.SendStepUpdate("", toolStepID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepActive)
+		stream.SendToolCall("", tc.Name, tc.Input)
 	}
 
 	if g.toolRegistry == nil {
@@ -310,8 +325,8 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 			ToolCallID: tc.ID,
 		})
 		if stream != nil {
-			stream.SendToolResponse(tc.Name, msg)
-			stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendToolResponse("", tc.Name, msg)
+			stream.SendStepUpdate("", fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -325,8 +340,8 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 			ToolCallID: tc.ID,
 		})
 		if stream != nil {
-			stream.SendToolResponse(tc.Name, msg)
-			stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendToolResponse("", tc.Name, msg)
+			stream.SendStepUpdate("", fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -345,8 +360,8 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 			ToolCallID: tc.ID,
 		})
 		if stream != nil {
-			stream.SendToolResponse(tc.Name, err.Error())
-			stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendToolResponse("", tc.Name, err.Error())
+			stream.SendStepUpdate("", fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -361,11 +376,11 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 	if stream != nil {
 		var structured any
 		if json.Unmarshal([]byte(output), &structured) == nil {
-			stream.SendToolResponse(tc.Name, structured)
+			stream.SendToolResponse("", tc.Name, structured)
 		} else {
-			stream.SendToolResponse(tc.Name, output)
+			stream.SendToolResponse("", tc.Name, output)
 		}
-		stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepCompleted)
+		stream.SendStepUpdate("", fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepCompleted)
 	}
 }
 

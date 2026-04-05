@@ -13,13 +13,13 @@ type IStreamWriter interface {
 	WriteOpenAIChunk(id, model, content string, finishReason *string) error
 	WriteCEEvent(event CEEvent) error
 	WriteDone() error
-	SendReasoning(content string) error
-	SendTurnStarted(id string, query string, timestamp int64) error
-	SendStepUpdate(id string, label string, status StepStatus) error
-	SendSourceAdded(source SourceMaterial) error
-	SendResourceMaterial(resource SourceMaterial) error
-	SendToolCall(tool string, params any) error
-	SendToolResponse(tool string, response any) error
+	SendReasoning(turnID string, content string) error
+	SendTurnStarted(turnID string, query string, timestamp int64) error
+	SendStepUpdate(turnID string, stepID string, label string, status StepStatus) error
+	SendSourceAdded(turnID string, source SourceMaterial) error
+	SendResourceMaterial(turnID string, resource SourceMaterial) error
+	SendToolCall(turnID string, tool string, params any) error
+	SendToolResponse(turnID string, tool string, response any) error
 	SendTryRunStart(turnID string, try int64) error
 	SendTryRunEnd(turnID string, try int64) error
 	SendTryRunFailed(turnID string, try int64) error
@@ -108,55 +108,61 @@ func (s *StreamWriter) writePrefix(prefix string, v any) error {
 
 // Helper methods for common CE events
 
-func (s *StreamWriter) SendReasoning(content string) error {
+func (s *StreamWriter) SendReasoning(turnID string, content string) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID:  turnID,
 		Object:  "research.reasoning.delta",
 		Content: content,
 	})
 }
 
-func (s *StreamWriter) SendTurnStarted(id string, query string, timestamp int64) error {
+func (s *StreamWriter) SendTurnStarted(turnID string, query string, timestamp int64) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID:    turnID,
 		Object:    "research.turn.started",
-		ID:        id,
 		Query:     query,
 		Timestamp: timestamp,
 	})
 }
 
-func (s *StreamWriter) SendStepUpdate(id string, label string, status StepStatus) error {
+func (s *StreamWriter) SendStepUpdate(turnID string, stepID string, label string, status StepStatus) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID: turnID,
 		Object: "research.step.update",
-		ID:     id,
+		StepID: stepID,
 		Label:  label,
 		Status: status,
 	})
 }
 
-func (s *StreamWriter) SendSourceAdded(source SourceMaterial) error {
+func (s *StreamWriter) SendSourceAdded(turnID string, source SourceMaterial) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID: turnID,
 		Object: "research.source.added",
 		Source: &source,
 	})
 }
 
-func (s *StreamWriter) SendResourceMaterial(resource SourceMaterial) error {
+func (s *StreamWriter) SendResourceMaterial(turnID string, resource SourceMaterial) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID:   turnID,
 		Object:   "resource.material",
 		Resource: &resource,
 	})
 }
 
-func (s *StreamWriter) SendToolCall(tool string, params any) error {
+func (s *StreamWriter) SendToolCall(turnID string, tool string, params any) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID: turnID,
 		Object: "tool.call.request",
 		Tool:   tool,
 		Params: params,
 	})
 }
 
-func (s *StreamWriter) SendToolResponse(tool string, response any) error {
+func (s *StreamWriter) SendToolResponse(turnID string, tool string, response any) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID:   turnID,
 		Object:   "tool.call.response",
 		Tool:     tool,
 		Response: response,
@@ -165,24 +171,24 @@ func (s *StreamWriter) SendToolResponse(tool string, response any) error {
 
 func (s *StreamWriter) SendTryRunStart(turnID string, tryID int64) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID: turnID,
 		Object: "llm.try.run.start",
-		ID:     turnID,
 		TryID:  tryID,
 	})
 }
 
 func (s *StreamWriter) SendTryRunEnd(turnID string, tryID int64) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID: turnID,
 		Object: "llm.try.run.end",
-		ID:     turnID,
 		TryID:  tryID,
 	})
 }
 
 func (s *StreamWriter) SendTryRunFailed(turnID string, tryID int64) error {
 	return s.WriteCEEvent(CEEvent{
+		TurnID: turnID,
 		Object: "llm.try.run.failed",
-		ID:     turnID,
 		TryID:  tryID,
 	})
 }

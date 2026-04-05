@@ -1,16 +1,15 @@
 "use client";
 
+import { FileCode, Loader2, Search, X } from "lucide-react";
 import { useState } from "react";
-import { Search, FileCode, Loader2, X } from "lucide-react";
 import useSWR from "swr";
-import { fetcher } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { api, fetcher } from "@/lib/api";
 import { AppContainer } from "../_components/app-container";
 import { AppHeader } from "../_components/app-header";
-import { LoadingState } from "../_components/loading-state";
-import { ErrorState } from "../_components/error-state";
 import { EmptyState } from "../_components/empty-state";
-import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { ErrorState } from "../_components/error-state";
+import { LoadingState } from "../_components/loading-state";
 
 interface CodebaseInfo {
   id: string;
@@ -228,24 +227,42 @@ export default function ZoektQueryPage() {
                     </div>
                   </button>
 
-                  {expandedFiles.has(idx) && file.lineMatches.length > 0 && (
+                  {expandedFiles.has(idx) && (
                     <div className="border-t border-border">
-                      {file.lineMatches.map((lm, lIdx) => (
-                        <div
-                          // biome-ignore lint/suspicious/noArrayIndexKey: stable unique key from line data
-                          key={`${file.fileName}-line-${lm.lineNumber}`}
-                          className="px-4 py-2 bg-muted/20 border-b border-border last:border-b-0"
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="text-xs text-muted-foreground font-mono pt-0.5 flex-shrink-0 w-8 text-right">
-                              {lm.lineNumber}
-                            </span>
-                            <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap overflow-x-auto flex-1">
-                              {highlightLine(lm.line, query)}
-                            </pre>
+                      {file.content && (
+                        <div className="border-b border-border">
+                          <div className="px-3 py-1.5 bg-muted/40 text-xs text-muted-foreground font-mono flex items-center justify-between">
+                            <span>Full source</span>
+                            <span>{file.content.split("\n").length} lines</span>
                           </div>
+                          <pre className="text-xs font-mono text-foreground p-4 overflow-auto max-h-[600px] whitespace-pre leading-relaxed">
+                            {file.content}
+                          </pre>
                         </div>
-                      ))}
+                      )}
+                      {file.lineMatches.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1.5 bg-muted/40 text-xs text-muted-foreground font-mono">
+                            Matched lines
+                          </div>
+                          {file.lineMatches.map((lm) => (
+                            <div
+                              // biome-ignore lint/suspicious/noArrayIndexKey: stable unique key from line data
+                              key={`${file.fileName}-line-${lm.lineNumber}`}
+                              className="px-4 py-2 bg-muted/20 border-b border-border last:border-b-0"
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className="text-xs text-muted-foreground font-mono pt-0.5 flex-shrink-0 w-8 text-right">
+                                  {lm.lineNumber}
+                                </span>
+                                <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap overflow-x-auto flex-1">
+                                  {highlightLine(lm.line, query)}
+                                </pre>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
