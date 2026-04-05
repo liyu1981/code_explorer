@@ -163,6 +163,11 @@ func (g *Generator) Generate(
 	return "", nil, fmt.Errorf("max iterations (%d) reached", g.maxIterations)
 }
 
+const (
+	THINK_STEPID    = "gen-thinking"
+	TOOLCALL_STEPID = "gen-tool"
+)
+
 func (g *Generator) GenerateStream(
 	ctx context.Context,
 	messages []Message,
@@ -188,9 +193,9 @@ func (g *Generator) GenerateStream(
 			return "", nil, fmt.Errorf("context length exceeded: current %d, limit %d", currentLength, g.contextLength)
 		}
 
+		thinkLabel := fmt.Sprintf("Thinking (attempt %d)", i+1)
 		stream.SendTryRunStart(int64(i))
-		thinkingStepID := fmt.Sprintf("gen-thinking-%d", i)
-		stream.SendStepUpdate(thinkingStepID, "Thinking", protocol.StepActive)
+		stream.SendStepUpdate(THINK_STEPID, thinkLabel, protocol.StepActive)
 
 		// disable tools in the last iteration to force a final answer
 		availableTools := tools
@@ -204,12 +209,12 @@ func (g *Generator) GenerateStream(
 
 		response, toolCalls, err := g.generate(ctx, availableTools, responseFormat, stream)
 		if err != nil {
-			stream.SendStepUpdate(thinkingStepID, "Thinking", protocol.StepFailed)
+			stream.SendStepUpdate(THINK_STEPID, thinkLabel, protocol.StepFailed)
 			stream.SendTryRunFailed(int64(i))
 			return "", nil, err
 		}
 
-		stream.SendStepUpdate(thinkingStepID, "Thinking", protocol.StepCompleted)
+		stream.SendStepUpdate(THINK_STEPID, thinkLabel, protocol.StepCompleted)
 
 		if len(toolCalls) == 0 {
 			stream.SendTryRunEnd(int64(i))
@@ -303,8 +308,7 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 	log.Info().Str("tool", tc.Name).Msg("Generator executing tool")
 
 	if stream != nil {
-		toolStepID := fmt.Sprintf("gen-tool-%s", tc.Name)
-		stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepActive)
+		stream.SendStepUpdate(TOOLCALL_STEPID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepActive)
 		stream.SendToolCall(tc.Name, tc.Input)
 	}
 
@@ -317,7 +321,7 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 		})
 		if stream != nil {
 			stream.SendToolResponse(tc.Name, msg)
-			stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendStepUpdate(TOOLCALL_STEPID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -332,7 +336,7 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 		})
 		if stream != nil {
 			stream.SendToolResponse(tc.Name, msg)
-			stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendStepUpdate(TOOLCALL_STEPID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -352,7 +356,7 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 		})
 		if stream != nil {
 			stream.SendToolResponse(tc.Name, err.Error())
-			stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendStepUpdate(TOOLCALL_STEPID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -371,7 +375,7 @@ func (g *Generator) executeTool(ctx context.Context, tc ToolCall, stream protoco
 		} else {
 			stream.SendToolResponse(tc.Name, output)
 		}
-		stream.SendStepUpdate(fmt.Sprintf("gen-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepCompleted)
+		stream.SendStepUpdate(TOOLCALL_STEPID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepCompleted)
 	}
 }
 

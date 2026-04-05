@@ -502,7 +502,6 @@ function useResearchStreaming(
 									return current;
 								}
 								const newTurn = { ...turn, sources: [...turn.sources, source] };
-								console.log("Adding source to turn", turnID, turn, newTurn);
 								const newSession = {
 									...s,
 									turns: s.turns.map((t) => (t.id === turnID ? newTurn : t)),
@@ -531,7 +530,6 @@ function useResearchStreaming(
 									return current;
 								}
 								const newTurn = { ...turn, sources: [...turn.sources, source] };
-								console.log("Adding source to turn", turnID, turn, newTurn);
 								const newSession = {
 									...s,
 									turns: s.turns.map((t) => (t.id === turnID ? newTurn : t)),
@@ -598,9 +596,6 @@ function useResearchStreaming(
 				};
 
 				await processCEStream(nextTurnID, reader, withSourceDedup(handlers));
-				updateSession(sessionId, {}, (updatedSession) => {
-					console.log("Session updated after stream end:", updatedSession);
-				});
 			} catch (error) {
 				console.error("Research failed:", error);
 			} finally {
@@ -609,7 +604,6 @@ function useResearchStreaming(
 					sessionId,
 					{ state: "reported", activeTurnId: undefined },
 					(updatedSession) => {
-						console.log("Session updated to reported:", updatedSession);
 						persistSession(updatedSession).then(() => {
 							if (updatedSession.turns.length === 1) {
 								startSummarizeTask(updatedSession);

@@ -32,6 +32,7 @@ export const api = axios.create({
 
 export const fetcher = (url: string) => api.get(url).then((res) => res.data);
 
+// when need stream respone, use apiStream instead of api object as axios does not support stream response well
 export async function apiStream(
   path: string,
   body?: unknown,

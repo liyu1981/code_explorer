@@ -48,7 +48,7 @@ export interface CEStreamCallbacks {
 
 function ceDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
   return (data: string) => {
-    console.log("Received CE event", { turnID, data });
+    // console.log("Received CE event", { turnID, data });
     try {
       const event: CEEvent = JSON.parse(data);
       if (!event || !event.turnid) {
@@ -115,7 +115,7 @@ function ceDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
 
 function openaiDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
   return (data: string) => {
-    console.log("Received OpenAI data chunk", { turnID, data });
+    // console.log("Received OpenAI data chunk", { turnID, data });
     if (data === "[DONE]") {
       return;
     }
