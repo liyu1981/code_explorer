@@ -315,7 +315,7 @@ func (s *Store) CodemoggerVectorSearch(ctx context.Context, metadataID string, q
 			ORDER BY distance ASC
 			LIMIT ?
 		`
-		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec).Str("metadataID", metadataID).Int("limit", limit).Msg("CodemoggerVectorSearch with metadataID")
+		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec[:20]).Str("metadataID", metadataID).Int("limit", limit).Msg("CodemoggerVectorSearch with metadataID")
 		rows, err = s.db.QueryContext(ctx, sqlQuery, queryVec, metadataID, limit)
 	} else {
 		sqlQuery = `
@@ -326,7 +326,7 @@ func (s *Store) CodemoggerVectorSearch(ctx context.Context, metadataID string, q
 			ORDER BY distance ASC
 			LIMIT ?
 		`
-		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec).Int("limit", limit).Msg("CodemoggerVectorSearch without metadataID")
+		log.Debug().Str("sql", sqlQuery).Str("query_vec", queryVec[:20]).Int("limit", limit).Msg("CodemoggerVectorSearch without metadataID")
 		rows, err = s.db.QueryContext(ctx, sqlQuery, queryVec, limit)
 	}
 	if err != nil {

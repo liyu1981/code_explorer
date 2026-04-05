@@ -17,28 +17,28 @@ type mockStreamWriter struct{}
 func (w *mockStreamWriter) WriteOpenAIChunk(id, model, content string, finishReason *string) error {
 	return nil
 }
-func (w *mockStreamWriter) WriteCEEvent(event protocol.CEEvent) error         { return nil }
-func (w *mockStreamWriter) WriteDone() error                                  { return nil }
-func (w *mockStreamWriter) SendReasoning(turnID string, content string) error { return nil }
-func (w *mockStreamWriter) SendTurnStarted(turnID string, query string, timestamp int64) error {
+func (w *mockStreamWriter) WriteCEEvent(event protocol.CEEvent) error { return nil }
+func (w *mockStreamWriter) WriteDone() error                          { return nil }
+func (w *mockStreamWriter) SendReasoning(content string) error        { return nil }
+func (w *mockStreamWriter) SendTurnStarted(query string, timestamp int64) error {
 	return nil
 }
-func (w *mockStreamWriter) SendStepUpdate(turnID string, stepID string, message string, status protocol.StepStatus) error {
+func (w *mockStreamWriter) SendStepUpdate(stepID string, label string, status protocol.StepStatus) error {
 	return nil
 }
-func (w *mockStreamWriter) SendSourceAdded(turnID string, source protocol.SourceMaterial) error {
+func (w *mockStreamWriter) SendSourceAdded(source protocol.SourceMaterial) error {
 	return nil
 }
-func (w *mockStreamWriter) SendResourceMaterial(turnID string, resource protocol.SourceMaterial) error {
+func (w *mockStreamWriter) SendResourceMaterial(resource protocol.SourceMaterial) error {
 	return nil
 }
-func (w *mockStreamWriter) SendToolCall(turnID string, tool string, params any) error { return nil }
-func (w *mockStreamWriter) SendToolResponse(turnID string, tool string, response any) error {
+func (w *mockStreamWriter) SendToolCall(tool string, params any) error { return nil }
+func (w *mockStreamWriter) SendToolResponse(tool string, response any) error {
 	return nil
 }
-func (w *mockStreamWriter) SendTryRunStart(turnID string, try int64) error  { return nil }
-func (w *mockStreamWriter) SendTryRunEnd(turnID string, try int64) error    { return nil }
-func (w *mockStreamWriter) SendTryRunFailed(turnID string, try int64) error { return nil }
+func (w *mockStreamWriter) SendTryRunStart(try int64) error  { return nil }
+func (w *mockStreamWriter) SendTryRunEnd(try int64) error    { return nil }
+func (w *mockStreamWriter) SendTryRunFailed(try int64) error { return nil }
 
 func minInt(a, b int) int {
 	if a < b {

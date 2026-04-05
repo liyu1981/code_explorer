@@ -17,16 +17,13 @@ import (
 )
 
 type persistenceStreamWriter struct {
+	turnID string
 	*protocol.StreamWriter
 	sessionID string
-	turnID    string
 	store     *db.Store
 }
 
 func (w *persistenceStreamWriter) saveChunk(prefix, data string) {
-	if w.turnID == "" {
-		return
-	}
 	chunk := fmt.Sprintf("%s%s\n\n", prefix, data)
 	_ = w.store.SaveResearchReportChunk(context.Background(), w.sessionID, w.turnID, chunk)
 }
@@ -56,26 +53,26 @@ func (w *persistenceStreamWriter) WriteDone() error {
 	return w.StreamWriter.WriteDone()
 }
 
-func (w *persistenceStreamWriter) SendReasoning(turnID string, content string) error {
+func (w *persistenceStreamWriter) SendReasoning(content string) error {
 	return w.WriteCEEvent(protocol.CEEvent{
-		TurnID:  turnID,
+		TurnID:  w.turnID,
 		Object:  "research.reasoning.delta",
 		Content: content,
 	})
 }
 
-func (w *persistenceStreamWriter) SendTurnStarted(turnID string, query string, timestamp int64) error {
+func (w *persistenceStreamWriter) SendTurnStarted(query string, timestamp int64) error {
 	return w.WriteCEEvent(protocol.CEEvent{
-		TurnID:    turnID,
+		TurnID:    w.turnID,
 		Object:    "research.turn.started",
 		Query:     query,
 		Timestamp: timestamp,
 	})
 }
 
-func (w *persistenceStreamWriter) SendStepUpdate(turnID string, stepID string, label string, status protocol.StepStatus) error {
+func (w *persistenceStreamWriter) SendStepUpdate(stepID string, label string, status protocol.StepStatus) error {
 	return w.WriteCEEvent(protocol.CEEvent{
-		TurnID: turnID,
+		TurnID: w.turnID,
 		Object: "research.step.update",
 		StepID: stepID,
 		Label:  label,
@@ -83,34 +80,34 @@ func (w *persistenceStreamWriter) SendStepUpdate(turnID string, stepID string, l
 	})
 }
 
-func (w *persistenceStreamWriter) SendSourceAdded(turnID string, source protocol.SourceMaterial) error {
+func (w *persistenceStreamWriter) SendSourceAdded(source protocol.SourceMaterial) error {
 	return w.WriteCEEvent(protocol.CEEvent{
-		TurnID: turnID,
+		TurnID: w.turnID,
 		Object: "research.source.added",
 		Source: &source,
 	})
 }
 
-func (w *persistenceStreamWriter) SendResourceMaterial(turnID string, resource protocol.SourceMaterial) error {
+func (w *persistenceStreamWriter) SendResourceMaterial(resource protocol.SourceMaterial) error {
 	return w.WriteCEEvent(protocol.CEEvent{
-		TurnID:   turnID,
+		TurnID:   w.turnID,
 		Object:   "resource.material",
 		Resource: &resource,
 	})
 }
 
-func (w *persistenceStreamWriter) SendToolCall(turnID string, tool string, params any) error {
+func (w *persistenceStreamWriter) SendToolCall(tool string, params any) error {
 	return w.WriteCEEvent(protocol.CEEvent{
-		TurnID: turnID,
+		TurnID: w.turnID,
 		Object: "tool.call.request",
 		Tool:   tool,
 		Params: params,
 	})
 }
 
-func (w *persistenceStreamWriter) SendToolResponse(turnID string, tool string, response any) error {
+func (w *persistenceStreamWriter) SendToolResponse(tool string, response any) error {
 	return w.WriteCEEvent(protocol.CEEvent{
-		TurnID:   turnID,
+		TurnID:   w.turnID,
 		Object:   "tool.call.response",
 		Tool:     tool,
 		Response: response,
@@ -121,6 +118,7 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Query     string `json:"query"`
 		SessionID string `json:"sessionId"`
+		TurnID    string `json:"turnId"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -135,6 +133,11 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 
 	if req.SessionID == "" {
 		writeError(w, http.StatusBadRequest, "SessionID is required", nil)
+		return
+	}
+
+	if req.TurnID == "" {
+		writeError(w, http.StatusBadRequest, "TurnID is required", nil)
 		return
 	}
 
@@ -171,22 +174,28 @@ func (h *ApiHandler) handleAgentResearch(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	sw := protocol.NewStreamWriter(w)
+	sw := protocol.NewStreamWriter(req.TurnID, w)
 	var finalSw protocol.IStreamWriter = sw
 
 	if req.SessionID != "" {
 		finalSw = &persistenceStreamWriter{
+			turnID:       req.TurnID,
 			StreamWriter: sw,
 			sessionID:    req.SessionID,
 			store:        db.GetStore(),
 		}
 	}
 
-	query := fmt.Sprintf("%s\n\nContext: target codebase id=%s\ntarget basedir=%s", req.Query, codebase.ID, codebase.RootPath)
-	log.Info().Str("query", query).Str("session", req.SessionID).Msg("Handling agent research request")
-
-	runner := agentworkflow.NewReactWorkflowRunner(llmInstance, tools.GetGlobalToolRegistry(), agentworkflow.ReactWithMaxIterations(999))
-	_, err = runner.Run(r.Context(), query, finalSw)
+	runner := agentworkflow.NewReactWorkflowRunner(
+		llmInstance,
+		tools.GetGlobalToolRegistry(),
+		agentworkflow.ReactWithMaxIterations(999),
+		agentworkflow.ReactWithLLMContext(map[string]string{
+			"target codebase id": codebase.ID,
+			"target basedir":     codebase.RootPath,
+		}),
+	)
+	_, err = runner.Run(r.Context(), req.Query, finalSw)
 	if err != nil {
 		log.Error().Err(err).Msg("react workflow failed")
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())

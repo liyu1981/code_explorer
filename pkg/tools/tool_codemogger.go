@@ -159,10 +159,10 @@ func (t *CodeMoggerSearchTool) Execute(ctx context.Context, input json.RawMessag
 	var markdown strings.Builder
 	for i, res := range results {
 		if stream != nil {
-			stream.SendReasoning("", fmt.Sprintf("Found relevant snippet in %s:%d\n", res.FilePath, res.StartLine))
+			stream.SendReasoning(fmt.Sprintf("Found relevant snippet in %s:%d\n", res.FilePath, res.StartLine))
 
 			id, _ := gonanoid.New()
-			stream.SendResourceMaterial("", protocol.SourceMaterial{
+			stream.SendResourceMaterial(protocol.SourceMaterial{
 				ID:        fmt.Sprintf("search-%d-%s", i, id),
 				Path:      res.FilePath,
 				Snippet:   res.Snippet,

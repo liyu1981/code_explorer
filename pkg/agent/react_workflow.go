@@ -2,6 +2,9 @@ package agent
 
 import (
 	"context"
+	"fmt"
+	"maps"
+	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/llm"
 	"github.com/liyu1981/code_explorer/pkg/protocol"
@@ -18,6 +21,7 @@ type ReactWorkflowRunner struct {
 	toolRegistry *tools.ToolRegistry
 	systemPrompt string
 	messages     []llm.Message
+	llmContext   map[string]string
 }
 
 type ReactWorkflowRunnerOption func(*ReactWorkflowRunner)
@@ -46,12 +50,19 @@ func ReactWithResponseFormat(rf *llm.ResponseFormat) ReactWorkflowRunnerOption {
 	}
 }
 
+func ReactWithLLMContext(ctx map[string]string) ReactWorkflowRunnerOption {
+	return func(r *ReactWorkflowRunner) {
+		maps.Copy(r.llmContext, ctx)
+	}
+}
+
 func NewReactWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, opts ...ReactWorkflowRunnerOption) *ReactWorkflowRunner {
 	r := &ReactWorkflowRunner{
 		generator:    llm.NewGenerator(ai, llm.WithGeneratorToolRegistry(toolRegistry)),
 		toolRegistry: toolRegistry,
 		systemPrompt: DefaultReactSystemPrompt,
 		messages:     make([]llm.Message, 0),
+		llmContext:   make(map[string]string),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -59,14 +70,27 @@ func NewReactWorkflowRunner(ai llm.LLM, toolRegistry *tools.ToolRegistry, opts .
 	return r
 }
 
+func (r *ReactWorkflowRunner) formatLLMContext() string {
+	if len(r.llmContext) == 0 {
+		return ""
+	}
+	contextStr := "Context:\n"
+	for k, v := range r.llmContext {
+		contextStr += fmt.Sprintf("- %s=%s\n", k, v)
+	}
+	return contextStr
+}
+
 const DefaultReactSystemPrompt = `You are a helpful AI assistant that can use tools to accomplish tasks.
 
 When you need to use a tool, make a tool call. If no more tool calls are needed, provide your final answer.`
 
 func (r *ReactWorkflowRunner) Run(ctx context.Context, goal string, stream protocol.IStreamWriter) (string, error) {
+	goalWithContext := fmt.Sprintf("%s\n\n%s", goal, r.formatLLMContext())
+
 	messages := []llm.Message{
 		{Role: "system", Content: r.systemPrompt},
-		{Role: "user", Content: goal},
+		{Role: "user", Content: goalWithContext},
 	}
 
 	var tools []map[string]any = nil
@@ -76,7 +100,7 @@ func (r *ReactWorkflowRunner) Run(ctx context.Context, goal string, stream proto
 	r.messages = messages
 
 	if stream != nil {
-		stream.SendTurnStarted("", goal, 0)
+		stream.SendTurnStarted(goal, time.Now().Unix())
 	}
 
 	var response string

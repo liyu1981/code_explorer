@@ -27,28 +27,27 @@ func (h *ApiHandler) handleMockGenerate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if req.TurnID == "" {
+		req.TurnID = fmt.Sprintf("mock-turn-%d", time.Now().UnixMilli())
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	sw := protocol.NewStreamWriter(w)
+	sw := protocol.NewStreamWriter(req.TurnID, w)
 	var finalSw protocol.IStreamWriter = sw
-
-	turnID := fmt.Sprintf("mock-turn-%d", time.Now().UnixMilli())
-	if req.TurnID != "" {
-		turnID = req.TurnID
-	}
 
 	if req.SessionID != "" {
 		finalSw = &persistenceStreamWriter{
 			StreamWriter: sw,
 			sessionID:    req.SessionID,
-			turnID:       turnID,
+			turnID:       req.TurnID,
 			store:        db.GetStore(),
 		}
 	}
 
-	_ = finalSw.SendTurnStarted(turnID, req.Query, time.Now().UnixMilli())
+	_ = finalSw.SendTurnStarted(req.Query, time.Now().UnixMilli())
 
 	steps := []struct {
 		id    string
@@ -61,9 +60,9 @@ func (h *ApiHandler) handleMockGenerate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	for _, step := range steps {
-		_ = finalSw.SendStepUpdate(turnID, step.id, step.label, protocol.StepActive)
+		_ = finalSw.SendStepUpdate(step.id, step.label, protocol.StepActive)
 		time.Sleep(500 * time.Millisecond)
-		_ = finalSw.SendStepUpdate(turnID, step.id, step.label, protocol.StepCompleted)
+		_ = finalSw.SendStepUpdate(step.id, step.label, protocol.StepCompleted)
 	}
 
 	reasoningLines := []string{
@@ -74,7 +73,7 @@ func (h *ApiHandler) handleMockGenerate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	for _, line := range reasoningLines {
-		_ = finalSw.SendReasoning(turnID, line)
+		_ = finalSw.SendReasoning(line)
 		time.Sleep(200 * time.Millisecond)
 	}
 
@@ -96,7 +95,7 @@ func (h *ApiHandler) handleMockGenerate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	for _, src := range sources {
-		_ = finalSw.SendSourceAdded(turnID, src)
+		_ = finalSw.SendSourceAdded(src)
 		time.Sleep(100 * time.Millisecond)
 	}
 

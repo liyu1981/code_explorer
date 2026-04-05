@@ -30,7 +30,9 @@ func TestReactWorkflowRunnerIntegration(t *testing.T) {
 	registry.RegisterTool(&integrationEchoTool{})
 	registry.RegisterTool(&integrationCalculateTool{})
 
-	runner := NewReactWorkflowRunner(llmInstance, registry)
+	turnID := "test-react-turn"
+
+	runner := NewReactWorkflowRunner(turnID, llmInstance, registry)
 
 	ctx := context.Background()
 

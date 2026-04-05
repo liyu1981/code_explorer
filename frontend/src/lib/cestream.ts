@@ -41,6 +41,8 @@ export interface CEStreamCallbacks {
   onResearchReasoningDelta: (turnID: string, e: CEEvent) => void;
   onResearchSourceAdded: (turnID: string, e: CEEvent) => void;
   onResourceMaterial: (turnID: string, e: CEEvent) => void;
+  onToolCallRequest: (turnID: string, e: CEEvent) => void;
+  onToolCallResponse: (turnID: string, e: CEEvent) => void;
   onStreamEnd: (turnID: string) => void;
 }
 
@@ -91,6 +93,14 @@ function ceDataHandlerWith(turnID: string, callbacks: CEStreamCallbacks) {
 
         case "resource.material":
           callbacks.onResourceMaterial(turnID, event);
+          break;
+
+        case "tool.call.request":
+          callbacks.onToolCallRequest(turnID, event);
+          break;
+
+        case "tool.call.response":
+          callbacks.onToolCallResponse(turnID, event);
           break;
 
         default:

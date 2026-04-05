@@ -137,27 +137,27 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string, stream protocol
 	r.history = make([]RCStep, 0)
 
 	if stream != nil {
-		stream.SendTurnStarted("", goal, 0)
+		stream.SendTurnStarted(goal, 0)
 	}
 
 	for i := 0; i < r.maxIterations; i++ {
 		log.Debug().Int("iteration", i).Msg("RC runner iteration start")
 
 		if stream != nil {
-			stream.SendTryRunStart("", int64(i))
-			stream.SendStepUpdate("", fmt.Sprintf("rc-draft-%d", i), "Drafting response", protocol.StepActive)
+			stream.SendTryRunStart(int64(i))
+			stream.SendStepUpdate(fmt.Sprintf("rc-draft-%d", i), "Drafting response", protocol.StepActive)
 		}
 
 		draft, toolCalls, err := r.generateDraft(ctx, stream)
 		if err != nil {
 			if stream != nil {
-				stream.SendTryRunFailed("", int64(i))
+				stream.SendTryRunFailed(int64(i))
 			}
 			return "", fmt.Errorf("generate draft: %w", err)
 		}
 
 		if stream != nil {
-			stream.SendStepUpdate("", fmt.Sprintf("rc-draft-%d", i), "Drafting response", protocol.StepCompleted)
+			stream.SendStepUpdate(fmt.Sprintf("rc-draft-%d", i), "Drafting response", protocol.StepCompleted)
 		}
 
 		step := RCStep{
@@ -173,12 +173,12 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string, stream protocol
 
 		if len(toolCalls) > 0 {
 			if stream != nil {
-				stream.SendStepUpdate("", fmt.Sprintf("rc-critique-%d", i), "Self-critique", protocol.StepActive)
+				stream.SendStepUpdate(fmt.Sprintf("rc-critique-%d", i), "Self-critique", protocol.StepActive)
 			}
 
 			critique, err := r.critique(ctx)
 			if stream != nil {
-				stream.SendStepUpdate("", fmt.Sprintf("rc-critique-%d", i), "Self-critique", protocol.StepCompleted)
+				stream.SendStepUpdate(fmt.Sprintf("rc-critique-%d", i), "Self-critique", protocol.StepCompleted)
 			}
 
 			if err != nil {
@@ -196,7 +196,7 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string, stream protocol
 
 					if i < r.maxReflections {
 						if stream != nil {
-							stream.SendTryRunEnd("", int64(i))
+							stream.SendTryRunEnd(int64(i))
 						}
 						continue
 					}
@@ -206,7 +206,7 @@ func (r *RCWorkflowRunner) Run(ctx context.Context, goal string, stream protocol
 		}
 
 		if stream != nil {
-			stream.SendTryRunEnd("", int64(i))
+			stream.SendTryRunStart(int64(i))
 		}
 
 		if len(toolCalls) == 0 {
@@ -359,8 +359,8 @@ func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall, str
 
 	if stream != nil {
 		toolStepID := fmt.Sprintf("rc-tool-%s", tc.Name)
-		stream.SendStepUpdate("", toolStepID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepActive)
-		stream.SendToolCall("", tc.Name, tc.Input)
+		stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing %s", tc.Name), protocol.StepActive)
+		stream.SendToolCall(tc.Name, tc.Input)
 	}
 
 	tool, ok := r.toolRegistry.Get(tc.Name)
@@ -372,8 +372,8 @@ func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall, str
 			ToolCallID: tc.ID,
 		})
 		if stream != nil {
-			stream.SendToolResponse("", tc.Name, msg)
-			stream.SendStepUpdate("", fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendToolResponse(tc.Name, msg)
+			stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -387,8 +387,8 @@ func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall, str
 			ToolCallID: tc.ID,
 		})
 		if stream != nil {
-			stream.SendToolResponse("", tc.Name, err.Error())
-			stream.SendStepUpdate("", fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendToolResponse(tc.Name, err.Error())
+			stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -402,8 +402,8 @@ func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall, str
 			ToolCallID: tc.ID,
 		})
 		if stream != nil {
-			stream.SendToolResponse("", tc.Name, err.Error())
-			stream.SendStepUpdate("", fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
+			stream.SendToolResponse(tc.Name, err.Error())
+			stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepFailed)
 		}
 		return
 	}
@@ -418,11 +418,11 @@ func (r *RCWorkflowRunner) executeTool(ctx context.Context, tc llm.ToolCall, str
 	if stream != nil {
 		var structured any
 		if json.Unmarshal([]byte(output), &structured) == nil {
-			stream.SendToolResponse("", tc.Name, structured)
+			stream.SendToolResponse(tc.Name, structured)
 		} else {
-			stream.SendToolResponse("", tc.Name, output)
+			stream.SendToolResponse(tc.Name, output)
 		}
-		stream.SendStepUpdate("", fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepCompleted)
+		stream.SendStepUpdate(fmt.Sprintf("rc-tool-%s", tc.Name), fmt.Sprintf("Executing %s", tc.Name), protocol.StepCompleted)
 	}
 }
 

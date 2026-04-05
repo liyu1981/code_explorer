@@ -13,26 +13,27 @@ type IStreamWriter interface {
 	WriteOpenAIChunk(id, model, content string, finishReason *string) error
 	WriteCEEvent(event CEEvent) error
 	WriteDone() error
-	SendReasoning(turnID string, content string) error
-	SendTurnStarted(turnID string, query string, timestamp int64) error
-	SendStepUpdate(turnID string, stepID string, label string, status StepStatus) error
-	SendSourceAdded(turnID string, source SourceMaterial) error
-	SendResourceMaterial(turnID string, resource SourceMaterial) error
-	SendToolCall(turnID string, tool string, params any) error
-	SendToolResponse(turnID string, tool string, response any) error
-	SendTryRunStart(turnID string, try int64) error
-	SendTryRunEnd(turnID string, try int64) error
-	SendTryRunFailed(turnID string, try int64) error
+	SendReasoning(content string) error
+	SendTurnStarted(query string, timestamp int64) error
+	SendStepUpdate(stepID string, label string, status StepStatus) error
+	SendSourceAdded(source SourceMaterial) error
+	SendResourceMaterial(resource SourceMaterial) error
+	SendToolCall(tool string, params any) error
+	SendToolResponse(tool string, response any) error
+	SendTryRunStart(try int64) error
+	SendTryRunEnd(try int64) error
+	SendTryRunFailed(try int64) error
 }
 
 // StreamWriter handles writing the research stream to an io.Writer.
 type StreamWriter struct {
-	w io.Writer
+	turnID string
+	w      io.Writer
 }
 
 // NewStreamWriter creates a new StreamWriter.
-func NewStreamWriter(w io.Writer) *StreamWriter {
-	return &StreamWriter{w: w}
+func NewStreamWriter(turnID string, w io.Writer) *StreamWriter {
+	return &StreamWriter{turnID: turnID, w: w}
 }
 
 // WriteOpenAIChunk writes a standard OpenAI-style data chunk.
@@ -108,26 +109,26 @@ func (s *StreamWriter) writePrefix(prefix string, v any) error {
 
 // Helper methods for common CE events
 
-func (s *StreamWriter) SendReasoning(turnID string, content string) error {
+func (s *StreamWriter) SendReasoning(content string) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID:  turnID,
+		TurnID:  s.turnID,
 		Object:  "research.reasoning.delta",
 		Content: content,
 	})
 }
 
-func (s *StreamWriter) SendTurnStarted(turnID string, query string, timestamp int64) error {
+func (s *StreamWriter) SendTurnStarted(query string, timestamp int64) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID:    turnID,
+		TurnID:    s.turnID,
 		Object:    "research.turn.started",
 		Query:     query,
 		Timestamp: timestamp,
 	})
 }
 
-func (s *StreamWriter) SendStepUpdate(turnID string, stepID string, label string, status StepStatus) error {
+func (s *StreamWriter) SendStepUpdate(stepID string, label string, status StepStatus) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID: turnID,
+		TurnID: s.turnID,
 		Object: "research.step.update",
 		StepID: stepID,
 		Label:  label,
@@ -135,59 +136,59 @@ func (s *StreamWriter) SendStepUpdate(turnID string, stepID string, label string
 	})
 }
 
-func (s *StreamWriter) SendSourceAdded(turnID string, source SourceMaterial) error {
+func (s *StreamWriter) SendSourceAdded(source SourceMaterial) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID: turnID,
+		TurnID: s.turnID,
 		Object: "research.source.added",
 		Source: &source,
 	})
 }
 
-func (s *StreamWriter) SendResourceMaterial(turnID string, resource SourceMaterial) error {
+func (s *StreamWriter) SendResourceMaterial(resource SourceMaterial) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID:   turnID,
+		TurnID:   s.turnID,
 		Object:   "resource.material",
 		Resource: &resource,
 	})
 }
 
-func (s *StreamWriter) SendToolCall(turnID string, tool string, params any) error {
+func (s *StreamWriter) SendToolCall(tool string, params any) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID: turnID,
+		TurnID: s.turnID,
 		Object: "tool.call.request",
 		Tool:   tool,
 		Params: params,
 	})
 }
 
-func (s *StreamWriter) SendToolResponse(turnID string, tool string, response any) error {
+func (s *StreamWriter) SendToolResponse(tool string, response any) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID:   turnID,
+		TurnID:   s.turnID,
 		Object:   "tool.call.response",
 		Tool:     tool,
 		Response: response,
 	})
 }
 
-func (s *StreamWriter) SendTryRunStart(turnID string, tryID int64) error {
+func (s *StreamWriter) SendTryRunStart(tryID int64) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID: turnID,
+		TurnID: s.turnID,
 		Object: "llm.try.run.start",
 		TryID:  tryID,
 	})
 }
 
-func (s *StreamWriter) SendTryRunEnd(turnID string, tryID int64) error {
+func (s *StreamWriter) SendTryRunEnd(tryID int64) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID: turnID,
+		TurnID: s.turnID,
 		Object: "llm.try.run.end",
 		TryID:  tryID,
 	})
 }
 
-func (s *StreamWriter) SendTryRunFailed(turnID string, tryID int64) error {
+func (s *StreamWriter) SendTryRunFailed(tryID int64) error {
 	return s.WriteCEEvent(CEEvent{
-		TurnID: turnID,
+		TurnID: s.turnID,
 		Object: "llm.try.run.failed",
 		TryID:  tryID,
 	})

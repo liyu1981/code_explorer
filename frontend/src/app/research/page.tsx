@@ -286,22 +286,28 @@ function useResearchRehydration(
 						}
 					},
 					onResearchSourceAdded(turnID, e) {
-						if (e.source) {
-							const source = e.source;
+						if (e.resource) {
+							const source = e.resource;
 							const turn = session.turns.find((t) => t.id === turnID);
-							if (turn) turn.sources.push(source);
+							if (turn) {
+								turn.sources.push(source);
+							}
 						}
 					},
 					onResourceMaterial(turnID, e) {
-						if (e.source) {
-							const source = e.source;
+						if (e.resource) {
+							const source = e.resource;
 							const turn = session.turns.find((t) => t.id === turnID);
-							if (turn) turn.sources.push(source);
+							if (turn) {
+								turn.sources.push(source);
+							}
 						}
 					},
 					onLLMTryRunStart: (turnID) => {},
 					onLLMTryRunEnd: () => {},
 					onLLMTryRunFailed: (turnID) => {},
+					onToolCallRequest: (turnID, e) => {},
+					onToolCallResponse: (turnID, e) => {},
 					onStreamEnd: (turnID) => {
 						console.log("Stream ended for turn", turnID);
 					},
@@ -357,16 +363,17 @@ function useResearchStreaming(
 			const nextTurnID = nanoid();
 
 			try {
-				// const response = await apiStream("/api/agent/research", {
-				// 	query,
-				// 	sessionId,
-				// });
-
-				const response = await apiStream("/api/mock/research", {
+				const response = await apiStream("/api/agent/research", {
 					query,
 					sessionId,
 					turnId: nextTurnID,
 				});
+
+				// const response = await apiStream("/api/mock/research", {
+				//   query,
+				//   sessionId,
+				//   turnId: nextTurnID,
+				// });
 
 				const reader = response.body?.getReader();
 				if (!reader) throw new Error("No reader");
@@ -375,9 +382,7 @@ function useResearchStreaming(
 					onOpenaiChunk: (turnID, chunk) => {
 						const content = chunk.choices[0]?.delta?.content;
 						if (content) {
-							console.log("Appending report for turn", turnID, content);
 							setSessions((current) => {
-								console.log("before appendReport", current);
 								const session = current.find((s) => s.id === sessionId);
 								if (!session) {
 									console.warn(
@@ -405,14 +410,12 @@ function useResearchStreaming(
 								const updated = current.map((s) =>
 									s.id === sessionId ? newSession : s,
 								);
-								console.log("after appendReport", updated);
 								return updated;
 							});
 						}
 					},
 					onResearchTurnStarted: (_turnID, e) => {
 						const turn = createTurnFromEvent(e);
-						console.log("Adding turn", turn);
 						setSessions((current) => {
 							const sesssion = current.find((s) => s.id === sessionId);
 							if (!sesssion) {
@@ -482,8 +485,8 @@ function useResearchStreaming(
 						}
 					},
 					onResearchSourceAdded(turnID, e) {
-						if (e.source) {
-							const source = e.source;
+						if (e.resource) {
+							const source = e.resource;
 							setSessions((current) => {
 								const s = current.find((s) => s.id === sessionId);
 								if (!s) {
@@ -511,8 +514,8 @@ function useResearchStreaming(
 						}
 					},
 					onResourceMaterial(turnID, e) {
-						if (e.source) {
-							const source = e.source;
+						if (e.resource) {
+							const source = e.resource;
 							setSessions((current) => {
 								const s = current.find((s) => s.id === sessionId);
 								if (!s) {
@@ -587,6 +590,8 @@ function useResearchStreaming(
 							});
 						}
 					},
+					onToolCallRequest: (turnID, e) => {},
+					onToolCallResponse: (turnID, e) => {},
 					onStreamEnd: (turnID) => {
 						console.log("Stream ended for turn", turnID);
 					},

@@ -73,6 +73,20 @@ describe("/api/mock/research e2e", () => {
           content: e.resource?.path ?? "",
         });
       },
+      onToolCallRequest: (_, e) => {
+        console.log("[Tool Call Request]", e.label, e.query);
+        events.push({
+          type: "tool_call_request",
+          content: `${e.label} -> ${e.query}`,
+        });
+      },
+      onToolCallResponse: (_, e) => {
+        console.log("[Tool Call Response]", e.label, e.content);
+        events.push({
+          type: "tool_call_response",
+          content: `${e.label} -> ${e.content}`,
+        });
+      },
       onStreamEnd: (_) => {
         console.log("[Stream End]");
         events.push({ type: "stream_end", content: "" });

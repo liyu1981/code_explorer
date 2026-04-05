@@ -94,8 +94,7 @@ func (r *PEEWorkflowRunner) Run(ctx context.Context, goal string, stream protoco
 	req := PEEPlanRequest{Goal: goal}
 
 	if stream != nil {
-		turnID := fmt.Sprintf("pee-%d", 0)
-		stream.SendTurnStarted(turnID, goal, 0)
+		stream.SendTurnStarted(goal, 0)
 	}
 
 	for i := range r.maxIter {
@@ -105,47 +104,47 @@ func (r *PEEWorkflowRunner) Run(ctx context.Context, goal string, stream protoco
 
 		if stream != nil {
 			planningStepID := fmt.Sprintf("pee-planning-%d", i)
-			stream.SendStepUpdate("", planningStepID, fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepActive)
+			stream.SendStepUpdate(planningStepID, fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepActive)
 		}
 
 		dag, err := r.planner.Plan(ctx, req, stream)
 		if err != nil {
 			if stream != nil {
-				stream.SendStepUpdate("", fmt.Sprintf("pee-planning-%d", i), fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepFailed)
+				stream.SendStepUpdate(fmt.Sprintf("pee-planning-%d", i), fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepFailed)
 			}
 			return "", fmt.Errorf("iter %d plan: %w", req.Iteration, err)
 		}
 		if stream != nil {
-			stream.SendStepUpdate("", fmt.Sprintf("pee-planning-%d", i), fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepCompleted)
+			stream.SendStepUpdate(fmt.Sprintf("pee-planning-%d", i), fmt.Sprintf("Planning iteration %d", req.Iteration), protocol.StepCompleted)
 		}
 
 		if stream != nil {
-			stream.SendStepUpdate("", fmt.Sprintf("pee-execution-%d", i), "Executing tasks", protocol.StepActive)
+			stream.SendStepUpdate(fmt.Sprintf("pee-execution-%d", i), "Executing tasks", protocol.StepActive)
 		}
 
 		if err := r.executeWithStream(ctx, dag, stream); err != nil {
 			if stream != nil {
-				stream.SendStepUpdate("", fmt.Sprintf("pee-execution-%d", i), "Executing tasks", protocol.StepFailed)
+				stream.SendStepUpdate(fmt.Sprintf("pee-execution-%d", i), "Executing tasks", protocol.StepFailed)
 			}
 			return "", fmt.Errorf("iter %d execute: %w", req.Iteration, err)
 		}
 		if stream != nil {
-			stream.SendStepUpdate("", fmt.Sprintf("pee-execution-%d", i), "Executing tasks", protocol.StepCompleted)
+			stream.SendStepUpdate(fmt.Sprintf("pee-execution-%d", i), "Executing tasks", protocol.StepCompleted)
 		}
 
 		if stream != nil {
-			stream.SendStepUpdate("", fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepActive)
+			stream.SendStepUpdate(fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepActive)
 		}
 
 		result, err := r.evaluator.Evaluate(ctx, goal, dag, stream)
 		if err != nil {
 			if stream != nil {
-				stream.SendStepUpdate("", fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepFailed)
+				stream.SendStepUpdate(fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepFailed)
 			}
 			return "", fmt.Errorf("iter %d evaluate: %w", req.Iteration, err)
 		}
 		if stream != nil {
-			stream.SendStepUpdate("", fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepCompleted)
+			stream.SendStepUpdate(fmt.Sprintf("pee-evaluating-%d", i), "Evaluating results", protocol.StepCompleted)
 		}
 
 		switch result.Status {
@@ -174,8 +173,8 @@ func (r *PEEWorkflowRunner) executeWithStream(ctx context.Context, dag *DAG, str
 	for _, t := range dag.tasks {
 		if stream != nil {
 			toolStepID := fmt.Sprintf("pee-tool-%s", t.ID)
-			stream.SendStepUpdate("", toolStepID, fmt.Sprintf("Executing %s", t.Tool), protocol.StepActive)
-			stream.SendToolCall("", t.Tool, t.Input)
+			stream.SendStepUpdate(toolStepID, fmt.Sprintf("Executing %s", t.Tool), protocol.StepActive)
+			stream.SendToolCall(t.Tool, t.Input)
 		}
 
 		tool, ok := r.toolRegistry.Get(t.Tool)
@@ -184,8 +183,8 @@ func (r *PEEWorkflowRunner) executeWithStream(ctx context.Context, dag *DAG, str
 			dag.SetResult(t.ID, nil, err)
 			dag.SetStatus(t.ID, StatusFailed)
 			if stream != nil {
-				stream.SendToolResponse("", t.Tool, err.Error())
-				stream.SendStepUpdate("", fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepFailed)
+				stream.SendToolResponse(t.Tool, err.Error())
+				stream.SendStepUpdate(fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepFailed)
 			}
 			continue
 		}
@@ -196,8 +195,8 @@ func (r *PEEWorkflowRunner) executeWithStream(ctx context.Context, dag *DAG, str
 			dag.SetResult(t.ID, nil, err)
 			dag.SetStatus(t.ID, StatusFailed)
 			if stream != nil {
-				stream.SendToolResponse("", t.Tool, err.Error())
-				stream.SendStepUpdate("", fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepFailed)
+				stream.SendToolResponse(t.Tool, err.Error())
+				stream.SendStepUpdate(fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepFailed)
 			}
 			continue
 		}
@@ -208,8 +207,8 @@ func (r *PEEWorkflowRunner) executeWithStream(ctx context.Context, dag *DAG, str
 			log.Error().Err(err).Str("task", t.ID).Msg("tool execution failed")
 			dag.SetStatus(t.ID, StatusFailed)
 			if stream != nil {
-				stream.SendToolResponse("", t.Tool, err.Error())
-				stream.SendStepUpdate("", fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepFailed)
+				stream.SendToolResponse(t.Tool, err.Error())
+				stream.SendStepUpdate(fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepFailed)
 			}
 		} else {
 			log.Info().Str("task", t.ID).Msg("task completed")
@@ -217,11 +216,11 @@ func (r *PEEWorkflowRunner) executeWithStream(ctx context.Context, dag *DAG, str
 			if stream != nil {
 				var structured any
 				if err := json.Unmarshal([]byte(output), &structured); err == nil {
-					stream.SendToolResponse("", t.Tool, structured)
+					stream.SendToolResponse(t.Tool, structured)
 				} else {
-					stream.SendToolResponse("", t.Tool, output)
+					stream.SendToolResponse(t.Tool, output)
 				}
-				stream.SendStepUpdate("", fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepCompleted)
+				stream.SendStepUpdate(fmt.Sprintf("pee-tool-%s", t.ID), fmt.Sprintf("Executing %s", t.Tool), protocol.StepCompleted)
 			}
 		}
 	}
