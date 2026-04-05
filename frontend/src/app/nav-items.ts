@@ -27,15 +27,9 @@ export const navItems: NavItem[] = [
     icon: GitGraph,
   },
   {
-    id: "zoekt-query",
-    label: "Zoekt Query",
-    path: "/zoekt_query",
-    icon: Search,
-  },
-  {
-    id: "codemogger-search",
+    id: "code-search",
     label: "Code Search",
-    path: "/codemogger-search",
+    path: "/code_search",
     icon: Search,
   },
   {
