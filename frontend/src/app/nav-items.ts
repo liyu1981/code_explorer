@@ -29,7 +29,7 @@ export const navItems: NavItem[] = [
   {
     id: "zoekt-query",
     label: "Zoekt Query",
-    path: "/zoekt-query",
+    path: "/zoekt_query",
     icon: Search,
   },
   {
