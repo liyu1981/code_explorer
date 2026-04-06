@@ -4,118 +4,30 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
+	"github.com/liyu1981/code_explorer/pkg/zoekt/query"
 	"github.com/rs/zerolog/log"
 )
 
-type Query interface {
-	String() string
-}
+type Q = query.Q
+type Query = query.Q
 
-type Substring struct {
-	Pattern       string
-	FileName      bool
-	Content       bool
-	CaseSensitive bool
-}
+type Substring = query.Substring
+type Regexp = query.Regexp
+type And = query.And
+type Or = query.Or
+type Not = query.Not
+type Branch = query.Branch
+type Repo = query.Repo
+type Language = query.Language
+type Const = query.Const
 
-func (s *Substring) String() string {
-	pref := ""
-	if s.FileName {
-		pref = "file:"
-	}
-	if s.CaseSensitive {
-		pref = "case:" + pref
-	}
-	return pref + s.Pattern
-}
-
-type Regexp struct {
-	Regexp        *regexp.Regexp
-	FileName      bool
-	Content       bool
-	CaseSensitive bool
-}
-
-func (r *Regexp) String() string {
-	pref := ""
-	if r.FileName {
-		pref = "file:"
-	}
-	if r.CaseSensitive {
-		pref = "case:" + pref
-	}
-	return pref + "regex:" + r.Regexp.String()
-}
-
-type And struct {
-	Children []Query
-}
-
-func (a *And) String() string {
-	parts := make([]string, len(a.Children))
-	for i, c := range a.Children {
-		parts[i] = c.String()
-	}
-	return "and(" + strings.Join(parts, ", ") + ")"
-}
-
-type Or struct {
-	Children []Query
-}
-
-func (o *Or) String() string {
-	parts := make([]string, len(o.Children))
-	for i, c := range o.Children {
-		parts[i] = c.String()
-	}
-	return "or(" + strings.Join(parts, ", ") + ")"
-}
-
-type Not struct {
-	Child Query
-}
-
-func (n *Not) String() string {
-	return "not(" + n.Child.String() + ")"
-}
-
-type Branch struct {
-	Pattern string
-}
-
-func (b *Branch) String() string {
-	return "branch:" + b.Pattern
-}
-
-type Repo struct {
-	Pattern string
-}
-
-func (r *Repo) String() string {
-	return "repo:" + r.Pattern
-}
-
-type Language struct {
-	Pattern string
-}
-
-func (l *Language) String() string {
-	return "lang:" + l.Pattern
-}
-
-func ParseQuery(s string) (Query, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil, nil
-	}
-
-	return &Substring{Pattern: s}, nil
+func ParseQuery(s string) (Q, error) {
+	return query.Parse(s)
 }
 
 type SearchOptions struct {
@@ -163,7 +75,7 @@ type SearchStats struct {
 }
 
 type Searcher interface {
-	Search(query Query, opts *SearchOptions) (*SearchResult, error)
+	Search(query Q, opts *SearchOptions) (*SearchResult, error)
 	Close() error
 }
 
@@ -196,8 +108,6 @@ func (f *sqlitefsIndexFile) Name() string {
 	return f.path
 }
 
-// FileSearcher provides file-level search operations over a codebase's
-// Zoekt shards stored in SQLiteFS.
 type FileSearcher struct {
 	store *db.Store
 	fs    *sqlitefs.SQLiteFS
@@ -210,8 +120,7 @@ func NewFileSearcher(store *db.Store, fs *sqlitefs.SQLiteFS) *FileSearcher {
 	}
 }
 
-// Search executes a query across all Zoekt shard files for the given codebase.
-func (z *FileSearcher) Search(ctx context.Context, codebaseID string, query string, opts *SearchOptions) (*SearchResult, error) {
+func (z *FileSearcher) Search(ctx context.Context, codebaseID string, queryStr string, opts *SearchOptions) (*SearchResult, error) {
 	metadata, err := z.store.ZoektGetMetadataByCodebase(ctx, codebaseID)
 	log.Debug().Str("codebaseID", codebaseID).Interface("metadata", metadata).Msg("Fetched zoekt metadata for search")
 	if err != nil {
@@ -228,8 +137,8 @@ func (z *FileSearcher) Search(ctx context.Context, codebaseID string, query stri
 
 	repoID := cb.ID
 
-	parsedQuery, err := ParseQuery(query)
-	log.Debug().Str("query", query).Interface("parsedQuery", parsedQuery).Msg("Parsed search query")
+	parsedQuery, err := ParseQuery(queryStr)
+	log.Debug().Str("query", queryStr).Interface("parsedQuery", parsedQuery).Msg("Parsed search query")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query: %w", err)
 	}

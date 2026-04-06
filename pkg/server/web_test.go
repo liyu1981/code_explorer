@@ -14,7 +14,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/libsql"
 	"github.com/liyu1981/code_explorer/pkg/server/api"
 	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
-	"github.com/liyu1981/code_explorer/pkg/zoekt"
+	zindex "github.com/liyu1981/code_explorer/pkg/zoekt/index"
 )
 
 func TestUIServer_SetupRoutes(t *testing.T) {
@@ -59,7 +59,7 @@ func TestUIServer_SetupRoutes(t *testing.T) {
 	}
 	defer idx.Close()
 	zFs := sqlitefs.OpenFS(store)
-	zIdx := zoekt.NewZoektIndex(store, zFs)
+	zIdx := zindex.NewZoektIndex(store, zFs)
 
 	apiHandler := api.NewHandler(&api.ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer apiHandler.Stop()

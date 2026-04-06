@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/liyu1981/code_explorer/pkg/db"
-	"github.com/liyu1981/code_explorer/pkg/zoekt"
+	index "github.com/liyu1981/code_explorer/pkg/zoekt/index"
 )
 
-func HandleZoektIndexTask(ctx context.Context, zIdx *zoekt.ZoektIndex, task *db.Task, updateProgress func(progress int, message string)) error {
+func HandleZoektIndexTask(ctx context.Context, zIdx *index.ZoektIndex, task *db.Task, updateProgress func(progress int, message string)) error {
 	var payload struct {
 		Dir   string   `json:"dir"`
 		Langs []string `json:"langs"`
@@ -18,7 +18,7 @@ func HandleZoektIndexTask(ctx context.Context, zIdx *zoekt.ZoektIndex, task *db.
 		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	opts := &zoekt.IndexOptions{
+	opts := &index.IndexOptions{
 		Languages: payload.Langs,
 		Progress: func(current, total int, stage string) {
 			progress := 0

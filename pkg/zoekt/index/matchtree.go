@@ -260,17 +260,6 @@ func (cp *contentProvider) searchContent(content, pattern, lowerPattern []byte, 
 	return matches
 }
 
-type Const struct {
-	Value bool
-}
-
-func (c *Const) String() string {
-	if c.Value {
-		return "true"
-	}
-	return "false"
-}
-
 type ngramOff struct {
 	ngram ngram
 	index int

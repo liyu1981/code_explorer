@@ -16,7 +16,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/server"
 	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
 	"github.com/liyu1981/code_explorer/pkg/tools"
-	"github.com/liyu1981/code_explorer/pkg/zoekt"
+	zindex "github.com/liyu1981/code_explorer/pkg/zoekt/index"
 	"github.com/rs/zerolog/log"
 )
 
@@ -76,7 +76,7 @@ func main() {
 
 	// init zoekt
 	zFs := sqlitefs.OpenFS(store)
-	zIdx := zoekt.NewZoektIndex(store, zFs)
+	zIdx := zindex.NewZoektIndex(store, zFs)
 
 	// init global agent tool registry
 	if err := initTools(tools.GetGlobalToolRegistry(), map[string]any{

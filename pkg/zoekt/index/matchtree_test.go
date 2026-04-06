@@ -94,13 +94,13 @@ func TestSubstringMatchTree(t *testing.T) {
 
 func TestConstQueryString(t *testing.T) {
 	c := &Const{Value: true}
-	if c.String() != "true" {
-		t.Errorf("Const{true}.String() = %q, want \"true\"", c.String())
+	if c.String() != "TRUE" {
+		t.Errorf("Const{true}.String() = %q, want \"TRUE\"", c.String())
 	}
 
 	c = &Const{Value: false}
-	if c.String() != "false" {
-		t.Errorf("Const{false}.String() = %q, want \"false\"", c.String())
+	if c.String() != "FALSE" {
+		t.Errorf("Const{false}.String() = %q, want \"FALSE\"", c.String())
 	}
 }
 

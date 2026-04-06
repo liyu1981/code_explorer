@@ -13,13 +13,12 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
 	"github.com/liyu1981/code_explorer/pkg/task"
-	"github.com/liyu1981/code_explorer/pkg/zoekt"
+	index "github.com/liyu1981/code_explorer/pkg/zoekt/index"
 )
 
-// ApiHandler represents the API handler
 type ApiHandler struct {
 	cmIndex     *codemogger.CodeIndex
-	zIndex      *zoekt.ZoektIndex
+	zIndex      *index.ZoektIndex
 	hub         *WsHub
 	taskManager *task.Manager
 }
@@ -27,7 +26,7 @@ type ApiHandler struct {
 // ApiConfig holds the API handler configuration
 type ApiConfig struct {
 	CodemoggerIndex *codemogger.CodeIndex
-	ZoektIndex      *zoekt.ZoektIndex
+	ZoektIndex      *index.ZoektIndex
 }
 
 // NewHandler creates a new API handler instance

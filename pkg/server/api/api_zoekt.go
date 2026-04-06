@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/liyu1981/code_explorer/pkg/zoekt"
+	zindex "github.com/liyu1981/code_explorer/pkg/zoekt/index"
 	"github.com/rs/zerolog/log"
 )
 
@@ -148,7 +148,7 @@ func (h *ApiHandler) handleZoektSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := &zoekt.SearchOptions{
+	opts := &zindex.SearchOptions{
 		MaxMatchCount: req.Limit,
 	}
 
