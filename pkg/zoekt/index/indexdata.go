@@ -1,4 +1,4 @@
-package zoekt
+package index
 
 import (
 	"encoding/binary"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"sort"
+
+	zkq "github.com/liyu1981/code_explorer/pkg/zoekt/query"
 )
 
 type indexData struct {
@@ -150,11 +152,11 @@ func (d *indexData) fileNameEndRunes() []uint32 {
 	return d.rawFileNameEndRunes
 }
 
-func (d *indexData) Search(query Query, opts *SearchOptions) (*SearchResult, error) {
-	res := &SearchResult{}
+func (d *indexData) Search(query zkq.Q, opts *zkq.SearchOptions) (*zkq.SearchResult, error) {
+	res := &zkq.SearchResult{}
 
 	if opts == nil {
-		opts = &SearchOptions{}
+		opts = &zkq.SearchOptions{}
 	}
 	opts.SetDefaults()
 
@@ -163,7 +165,7 @@ func (d *indexData) Search(query Query, opts *SearchOptions) (*SearchResult, err
 	}
 
 	q := d.simplify(query)
-	if c, ok := q.(*Const); ok && !c.Value {
+	if c, ok := q.(*zkq.Const); ok && !c.Value {
 		return res, nil
 	}
 
@@ -208,9 +210,9 @@ func (d *indexData) Search(query Query, opts *SearchOptions) (*SearchResult, err
 	return res, nil
 }
 
-func (d *indexData) simplify(q Query) Query {
-	if and, ok := q.(*And); ok {
-		var children []Query
+func (d *indexData) simplify(q zkq.Q) zkq.Q {
+	if and, ok := q.(*zkq.And); ok {
+		var children []zkq.Q
 		for _, c := range and.Children {
 			simplified := d.simplify(c)
 			if simplified != nil {
@@ -218,21 +220,21 @@ func (d *indexData) simplify(q Query) Query {
 			}
 		}
 		if len(children) == 0 {
-			return &Const{Value: false}
+			return &zkq.Const{Value: false}
 		}
 		if len(children) == 1 {
 			return children[0]
 		}
-		return &And{Children: children}
+		return &zkq.And{Children: children}
 	}
 	return q
 }
 
-func (d *indexData) newMatchTree(q Query) (matchTree, error) {
+func (d *indexData) newMatchTree(q zkq.Q) (matchTree, error) {
 	switch q := q.(type) {
-	case *Substring:
+	case *zkq.Substring:
 		return d.newSubstringMatchTree(q)
-	case *And:
+	case *zkq.And:
 		children := make([]matchTree, 0, len(q.Children))
 		for _, c := range q.Children {
 			mt, err := d.newMatchTree(c)
@@ -242,7 +244,7 @@ func (d *indexData) newMatchTree(q Query) (matchTree, error) {
 			children = append(children, mt)
 		}
 		return &andMatchTree{children: children}, nil
-	case *Or:
+	case *zkq.Or:
 		children := make([]matchTree, 0, len(q.Children))
 		for _, c := range q.Children {
 			mt, err := d.newMatchTree(c)
@@ -252,29 +254,29 @@ func (d *indexData) newMatchTree(q Query) (matchTree, error) {
 			children = append(children, mt)
 		}
 		return &orMatchTree{children: children}, nil
-	case *Not:
+	case *zkq.Not:
 		mt, err := d.newMatchTree(q.Child)
 		if err != nil {
 			return nil, err
 		}
 		return &notMatchTree{child: mt}, nil
-	case *Const:
+	case *zkq.Const:
 		if q.Value {
 			return &allMatchTree{}, nil
 		}
 		return &noMatchTree{}, nil
-	case *Branch:
+	case *zkq.Branch:
 		return d.newBranchMatchTree(q.Pattern)
-	case *Repo:
+	case *zkq.Repo:
 		return &noMatchTree{}, nil
-	case *Language:
+	case *zkq.Language:
 		return &noMatchTree{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported query type: %T", q)
 	}
 }
 
-func (d *indexData) newSubstringMatchTree(s *Substring) (matchTree, error) {
+func (d *indexData) newSubstringMatchTree(s *zkq.Substring) (matchTree, error) {
 	str := s.Pattern
 	if len(str) == 0 {
 		return &noMatchTree{}, nil

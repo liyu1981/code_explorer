@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	zindex "github.com/liyu1981/code_explorer/pkg/zoekt/index"
+	zkq "github.com/liyu1981/code_explorer/pkg/zoekt/query"
 	"github.com/rs/zerolog/log"
 )
 
@@ -25,7 +25,7 @@ func (h *ApiHandler) handleZoektListCodebases(w http.ResponseWriter, r *http.Req
 
 	var result []ZoektCodebaseInfo
 	for _, cb := range codebases {
-		metadata, err := h.zIndex.GetStore().ZoektGetMetadataByCodebase(r.Context(), cb.ID)
+		metadata, err := h.zkIndex.GetStore().ZoektGetMetadataByCodebase(r.Context(), cb.ID)
 		if err != nil {
 			log.Warn().Str("codebase_id", cb.ID).Err(err).Msg("Failed to get zoekt metadata")
 			continue
@@ -34,7 +34,7 @@ func (h *ApiHandler) handleZoektListCodebases(w http.ResponseWriter, r *http.Req
 			continue
 		}
 
-		files, err := h.zIndex.ListFiles(r.Context(), cb.ID)
+		files, err := h.zkIndex.ListFiles(r.Context(), cb.ID)
 		if err != nil {
 			log.Warn().Str("codebase_id", cb.ID).Err(err).Msg("Failed to list zoekt files")
 			continue
@@ -59,7 +59,7 @@ func (h *ApiHandler) handleZoektStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metadata, err := h.zIndex.GetStore().ZoektGetMetadataByCodebase(r.Context(), codebaseID)
+	metadata, err := h.zkIndex.GetStore().ZoektGetMetadataByCodebase(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get zoekt metadata", err)
 		return
@@ -70,7 +70,7 @@ func (h *ApiHandler) handleZoektStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	files, err := h.zIndex.ListFiles(r.Context(), codebaseID)
+	files, err := h.zkIndex.ListFiles(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list files", err)
 		return
@@ -90,7 +90,7 @@ func (h *ApiHandler) handleZoektListFiles(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	files, err := h.zIndex.ListFiles(r.Context(), codebaseID)
+	files, err := h.zkIndex.ListFiles(r.Context(), codebaseID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list files", err)
 		return
@@ -148,11 +148,11 @@ func (h *ApiHandler) handleZoektSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := &zindex.SearchOptions{
+	opts := &zkq.SearchOptions{
 		MaxMatchCount: req.Limit,
 	}
 
-	results, err := h.zIndex.Search(r.Context(), req.CodebaseID, req.Query, opts)
+	results, err := h.zkIndex.Search(r.Context(), req.CodebaseID, req.Query, opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Search failed", err)
 		return
@@ -170,7 +170,7 @@ func (h *ApiHandler) handleDeleteZoektCodebase(w http.ResponseWriter, r *http.Re
 
 	log.Info().Str("codebaseID", codebaseID).Msg("Deleting zoekt codebase entries")
 
-	if err := h.zIndex.GetStore().ZoektDeleteCodebase(r.Context(), codebaseID); err != nil {
+	if err := h.zkIndex.GetStore().ZoektDeleteCodebase(r.Context(), codebaseID); err != nil {
 		log.Error().Err(err).Str("codebaseID", codebaseID).Msg("Failed to delete zoekt codebase")
 		writeError(w, http.StatusInternalServerError, "Failed to delete zoekt codebase", err)
 		return

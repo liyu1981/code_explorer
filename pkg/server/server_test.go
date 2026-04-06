@@ -14,7 +14,7 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/libsql"
 	"github.com/liyu1981/code_explorer/pkg/server/api"
 	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
-	zindex "github.com/liyu1981/code_explorer/pkg/zoekt/index"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 func TestServerSetup(t *testing.T) {
@@ -45,7 +45,7 @@ func TestServerSetup(t *testing.T) {
 	idx.SetEmbedder(&embed.MockEmbedder{DimVal: 384})
 
 	zFs := sqlitefs.OpenFS(store)
-	zIdx := zindex.NewZoektIndex(store, zFs)
+	zIdx := zoekt.NewZoektIndex(store, zFs)
 
 	apiHandler := api.NewHandler(&api.ApiConfig{CodemoggerIndex: idx, ZoektIndex: zIdx})
 	defer apiHandler.Stop()

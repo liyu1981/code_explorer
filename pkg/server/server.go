@@ -5,13 +5,13 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/server/api"
-	index "github.com/liyu1981/code_explorer/pkg/zoekt/index"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
-func New(idx *codemogger.CodeIndex, zIdx *index.ZoektIndex) http.Handler {
+func New(cmIndex *codemogger.CodeIndex, zkIndex *zoekt.ZoektIndex) http.Handler {
 	apiHandler := api.NewHandler(&api.ApiConfig{
-		CodemoggerIndex: idx,
-		ZoektIndex:      zIdx,
+		CodemoggerIndex: cmIndex,
+		ZoektIndex:      zkIndex,
 	})
 
 	uiServer := NewUIServer(&Config{

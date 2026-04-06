@@ -4,51 +4,53 @@ import (
 	"testing"
 
 	"github.com/grafana/regexp"
+
+	zkq "github.com/liyu1981/code_explorer/pkg/zoekt/query"
 )
 
 func TestQueryString(t *testing.T) {
 	tests := []struct {
-		q    Query
+		q    zkq.Q
 		want string
 	}{
 		{
-			q:    &Substring{Pattern: "hello"},
+			q:    &zkq.Substring{Pattern: "hello"},
 			want: "substr:\"hello\"",
 		},
 		{
-			q:    &Substring{Pattern: "main", FileName: true},
+			q:    &zkq.Substring{Pattern: "main", FileName: true},
 			want: "file_substr:\"main\"",
 		},
 		{
-			q:    &Substring{Pattern: "main", CaseSensitive: true},
+			q:    &zkq.Substring{Pattern: "main", CaseSensitive: true},
 			want: "case_substr:\"main\"",
 		},
 		{
-			q:    &Substring{Pattern: "main", FileName: true, CaseSensitive: true},
+			q:    &zkq.Substring{Pattern: "main", FileName: true, CaseSensitive: true},
 			want: "case_file_substr:\"main\"",
 		},
 		{
-			q:    &And{Children: []Query{&Substring{Pattern: "a"}, &Substring{Pattern: "b"}}},
+			q:    &zkq.And{Children: []zkq.Q{&zkq.Substring{Pattern: "a"}, &zkq.Substring{Pattern: "b"}}},
 			want: "(and substr:\"a\" substr:\"b\")",
 		},
 		{
-			q:    &Or{Children: []Query{&Substring{Pattern: "a"}, &Substring{Pattern: "b"}}},
+			q:    &zkq.Or{Children: []zkq.Q{&zkq.Substring{Pattern: "a"}, &zkq.Substring{Pattern: "b"}}},
 			want: "(or substr:\"a\" substr:\"b\")",
 		},
 		{
-			q:    &Not{Child: &Substring{Pattern: "a"}},
+			q:    &zkq.Not{Child: &zkq.Substring{Pattern: "a"}},
 			want: "(not substr:\"a\")",
 		},
 		{
-			q:    &Branch{Pattern: "main"},
+			q:    &zkq.Branch{Pattern: "main"},
 			want: "branch:\"main\"",
 		},
 		{
-			q:    &Repo{Regexp: regexp.MustCompile("repo")},
+			q:    &zkq.Repo{Regexp: regexp.MustCompile("repo")},
 			want: "repo:repo",
 		},
 		{
-			q:    &Language{Language: "Go"},
+			q:    &zkq.Language{Language: "Go"},
 			want: "lang:Go",
 		},
 	}

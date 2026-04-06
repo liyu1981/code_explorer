@@ -9,41 +9,24 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/codemogger/scan"
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
+	zkindex "github.com/liyu1981/code_explorer/pkg/zoekt/index"
 	"github.com/rs/zerolog/log"
 )
 
-type IndexOptions struct {
-	Languages []string
-	Progress  func(current, total int, phase string)
+// Indexer contains index building code - to be implemented
+type ZkIndexer struct {
+	store *db.Store
+	fs    *sqlitefs.SQLiteFS
 }
 
-type IndexResult struct {
-	Files    int
-	Skipped  int
-	Removed  int
-	Errors   []string
-	Duration int
-}
-
-type ZoektIndex struct {
-	store    *db.Store
-	fs       *sqlitefs.SQLiteFS
-	searcher *FileSearcher
-}
-
-func NewZoektIndex(store *db.Store, fs *sqlitefs.SQLiteFS) *ZoektIndex {
-	return &ZoektIndex{
-		store:    store,
-		fs:       fs,
-		searcher: NewFileSearcher(store, fs),
+func NewZkIndexer(store *db.Store, fs *sqlitefs.SQLiteFS) *ZkIndexer {
+	return &ZkIndexer{
+		store: store,
+		fs:    fs,
 	}
 }
 
-func (z *ZoektIndex) GetStore() *db.Store {
-	return z.store
-}
-
-func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) (*IndexResult, error) {
+func (z *ZkIndexer) Index(ctx context.Context, dir string, opts *zkindex.IndexOptions) (*zkindex.IndexResult, error) {
 	log.Info().Str("dir", dir).Msg("Starting Zoekt indexing")
 	start := time.Now()
 	rootDir, _ := filepath.Abs(dir)
@@ -102,7 +85,7 @@ func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) 
 
 	if !needsRebuild && len(files) > 0 {
 		log.Info().Msg("No changes detected, skipping Zoekt indexing")
-		return &IndexResult{
+		return &zkindex.IndexResult{
 			Files:    len(files),
 			Skipped:  len(files),
 			Duration: int(time.Since(start).Milliseconds()),
@@ -112,8 +95,8 @@ func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) 
 	log.Info().Msg("Changes detected or initial index, building Zoekt index...")
 
 	// 4. Initialize Builder
-	builderOpts := Options{
-		RepositoryDescription: Repository{
+	builderOpts := zkindex.Options{
+		RepositoryDescription: zkindex.Repository{
 			ID:   cb.ID,
 			Name: cb.Name,
 		},
@@ -123,7 +106,7 @@ func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) 
 	}
 	builderOpts.SetDefaults()
 
-	builder, err := NewBuilder(builderOpts)
+	builder, err := zkindex.NewBuilder(builderOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create builder: %w", err)
 	}
@@ -164,7 +147,7 @@ func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) 
 
 	duration := int(time.Since(start).Milliseconds())
 
-	res := &IndexResult{
+	res := &zkindex.IndexResult{
 		Files:    len(files),
 		Skipped:  skipped,
 		Removed:  removed,
@@ -180,20 +163,4 @@ func (z *ZoektIndex) Index(ctx context.Context, dir string, opts *IndexOptions) 
 		Msg("Zoekt indexing completed")
 
 	return res, nil
-}
-
-func (z *ZoektIndex) ListFiles(ctx context.Context, codebaseID string) ([]db.FileInfo, error) {
-	metadata, err := z.store.ZoektGetMetadataByCodebase(ctx, codebaseID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get zoekt metadata for codebase %v: %w", codebaseID, err)
-	}
-	if metadata == nil {
-		return []db.FileInfo{}, nil
-	}
-
-	return z.store.ZoektListFiles(ctx, metadata.ID)
-}
-
-func (z *ZoektIndex) Search(ctx context.Context, codebaseID string, query string, opts *SearchOptions) (*SearchResult, error) {
-	return z.searcher.Search(ctx, codebaseID, query, opts)
 }

@@ -13,12 +13,12 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/prompt"
 	"github.com/liyu1981/code_explorer/pkg/task"
-	index "github.com/liyu1981/code_explorer/pkg/zoekt/index"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 type ApiHandler struct {
 	cmIndex     *codemogger.CodeIndex
-	zIndex      *index.ZoektIndex
+	zkIndex     *zoekt.ZoektIndex
 	hub         *WsHub
 	taskManager *task.Manager
 }
@@ -26,7 +26,7 @@ type ApiHandler struct {
 // ApiConfig holds the API handler configuration
 type ApiConfig struct {
 	CodemoggerIndex *codemogger.CodeIndex
-	ZoektIndex      *index.ZoektIndex
+	ZoektIndex      *zoekt.ZoektIndex
 }
 
 // NewHandler creates a new API handler instance
@@ -35,7 +35,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 
 	h := &ApiHandler{
 		cmIndex: config.CodemoggerIndex,
-		zIndex:  config.ZoektIndex,
+		zkIndex: config.ZoektIndex,
 		hub:     NewWsHub(),
 	}
 
@@ -53,7 +53,7 @@ func NewHandler(config *ApiConfig) *ApiHandler {
 	}
 
 	h.taskManager = task.NewManager(store, numWorkers, h.Publish)
-	task.RegisterQueueHandlers(h.taskManager, h.cmIndex, h.zIndex, h.Publish)
+	task.RegisterQueueHandlers(h.taskManager, h.cmIndex, h.zkIndex, h.Publish)
 
 	h.taskManager.StartWorkers(context.Background(), isDev)
 

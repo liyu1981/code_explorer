@@ -1,9 +1,11 @@
-package zoekt
+package index
 
 import (
 	"bytes"
 	"encoding/binary"
 	"testing"
+
+	zkq "github.com/liyu1981/code_explorer/pkg/zoekt/query"
 )
 
 func min(a, b int) int {
@@ -203,7 +205,7 @@ func TestIndexDataSearchSubstring(t *testing.T) {
 		}
 	}
 
-	result, err := id.Search(&Substring{Pattern: "fmt"}, nil)
+	result, err := id.Search(&zkq.Substring{Pattern: "fmt"}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -263,7 +265,7 @@ func TestIndexDataSearchBranch(t *testing.T) {
 	}
 	defer id.Close()
 
-	result, err := id.Search(&Branch{Pattern: "main"}, nil)
+	result, err := id.Search(&zkq.Branch{Pattern: "main"}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -322,7 +324,7 @@ func TestIndexDataSearchFileName(t *testing.T) {
 	}
 	defer id.Close()
 
-	result, err := id.Search(&Substring{Pattern: "main", FileName: true}, nil)
+	result, err := id.Search(&zkq.Substring{Pattern: "main", FileName: true}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -377,7 +379,7 @@ func TestIndexDataSearchEmptyResult(t *testing.T) {
 	}
 	defer id.Close()
 
-	result, err := id.Search(&Substring{Pattern: "nonexistent"}, nil)
+	result, err := id.Search(&zkq.Substring{Pattern: "nonexistent"}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}

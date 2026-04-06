@@ -5,13 +5,13 @@ import (
 
 	"github.com/liyu1981/code_explorer/pkg/codemogger"
 	"github.com/liyu1981/code_explorer/pkg/db"
-	index "github.com/liyu1981/code_explorer/pkg/zoekt/index"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
 func RegisterQueueHandlers(
 	m *Manager,
 	index *codemogger.CodeIndex,
-	zIndex *index.ZoektIndex,
+	zIndex *zoekt.ZoektIndex,
 	publishFn func(topic string, payload any),
 ) {
 	m.RegisterHandler("codemogger-index", func(

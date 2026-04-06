@@ -1,8 +1,10 @@
-package zoekt
+package index
 
 import (
 	"bytes"
 	"testing"
+
+	zkq "github.com/liyu1981/code_explorer/pkg/zoekt/query"
 )
 
 func TestAllMatchTree(t *testing.T) {
@@ -93,12 +95,12 @@ func TestSubstringMatchTree(t *testing.T) {
 }
 
 func TestConstQueryString(t *testing.T) {
-	c := &Const{Value: true}
+	c := &zkq.Const{Value: true}
 	if c.String() != "TRUE" {
 		t.Errorf("Const{true}.String() = %q, want \"TRUE\"", c.String())
 	}
 
-	c = &Const{Value: false}
+	c = &zkq.Const{Value: false}
 	if c.String() != "FALSE" {
 		t.Errorf("Const{false}.String() = %q, want \"FALSE\"", c.String())
 	}

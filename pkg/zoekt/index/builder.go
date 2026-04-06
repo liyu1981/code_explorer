@@ -1,4 +1,4 @@
-package zoekt
+package index
 
 import (
 	"bytes"
@@ -8,6 +8,19 @@ import (
 	"sync"
 	"time"
 )
+
+type IndexOptions struct {
+	Languages []string
+	Progress  func(current, total int, phase string)
+}
+
+type IndexResult struct {
+	Files    int
+	Skipped  int
+	Removed  int
+	Errors   []string
+	Duration int
+}
 
 type Builder struct {
 	opts     Options

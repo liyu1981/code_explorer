@@ -1,4 +1,4 @@
-package zoekt
+package index
 
 type Options struct {
 	IndexDir              string

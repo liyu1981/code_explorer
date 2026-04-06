@@ -1,9 +1,11 @@
-package zoekt
+package index
 
 import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	zkq "github.com/liyu1981/code_explorer/pkg/zoekt/query"
 )
 
 type IndexFile interface {
@@ -160,7 +162,7 @@ func OpenShard(file IndexFile) (*ShardSearcher, error) {
 	}, nil
 }
 
-func (s *ShardSearcher) Search(query Query, opts *SearchOptions) (*SearchResult, error) {
+func (s *ShardSearcher) Search(query zkq.Q, opts *zkq.SearchOptions) (*zkq.SearchResult, error) {
 	if s.data == nil {
 		return nil, fmt.Errorf("shard not loaded")
 	}

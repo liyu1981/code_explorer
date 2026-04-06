@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package zoekt provides source code indexing functionality.
-package zoekt
+package index
 
 import "time"
 

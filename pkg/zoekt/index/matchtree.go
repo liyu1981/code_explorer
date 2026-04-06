@@ -1,7 +1,9 @@
-package zoekt
+package index
 
 import (
 	"sort"
+
+	zkq "github.com/liyu1981/code_explorer/pkg/zoekt/query"
 )
 
 type matchTree interface {
@@ -179,16 +181,16 @@ func (m *substringMatchTree) nextDoc() uint32 {
 
 type contentProvider struct {
 	id    *indexData
-	stats *SearchStats
+	stats *zkq.SearchStats
 }
 
-func (cp *contentProvider) scoreFile(doc uint32, mt matchTree, opts *SearchOptions) *FileMatch {
+func (cp *contentProvider) scoreFile(doc uint32, mt matchTree, opts *zkq.SearchOptions) *zkq.FileMatch {
 	content, err := cp.id.readContents(doc)
 	if err != nil {
 		return nil
 	}
 
-	var matches []LineMatch
+	var matches []zkq.LineMatch
 
 	// If it's a substring match tree, we can find the exact line matches.
 	// For other match trees (like branch or repo), we might not have specific line matches
@@ -205,15 +207,15 @@ func (cp *contentProvider) scoreFile(doc uint32, mt matchTree, opts *SearchOptio
 		}
 	}
 
-	return &FileMatch{
+	return &zkq.FileMatch{
 		Content:     string(content),
 		LineMatches: matches,
 		Score:       1.0,
 	}
 }
 
-func (cp *contentProvider) searchContent(content, pattern, lowerPattern []byte, caseSensitive bool) []LineMatch {
-	var matches []LineMatch
+func (cp *contentProvider) searchContent(content, pattern, lowerPattern []byte, caseSensitive bool) []zkq.LineMatch {
+	var matches []zkq.LineMatch
 
 	searchIn := content
 	if !caseSensitive {
@@ -247,7 +249,7 @@ func (cp *contentProvider) searchContent(content, pattern, lowerPattern []byte, 
 				}
 			}
 
-			matches = append(matches, LineMatch{
+			matches = append(matches, zkq.LineMatch{
 				Line:       line,
 				LineNumber: lineNumber,
 				LineStart:  lineStart,

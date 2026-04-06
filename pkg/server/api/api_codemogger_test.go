@@ -15,10 +15,10 @@ import (
 	"github.com/liyu1981/code_explorer/pkg/db"
 	"github.com/liyu1981/code_explorer/pkg/libsql"
 	"github.com/liyu1981/code_explorer/pkg/sqlitefs"
-	zindex "github.com/liyu1981/code_explorer/pkg/zoekt/index"
+	"github.com/liyu1981/code_explorer/pkg/zoekt"
 )
 
-func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, *zindex.ZoektIndex, func()) {
+func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, *zoekt.ZoektIndex, func()) {
 	tmpDir, err := os.MkdirTemp("", "api-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -46,7 +46,7 @@ func setupTestCodemoggerIndex(t *testing.T) (*codemogger.CodeIndex, *zindex.Zoek
 	idx.SetEmbedder(&embed.MockEmbedder{DimVal: 384})
 
 	zFs := sqlitefs.OpenFS(store)
-	zIdx := zindex.NewZoektIndex(store, zFs)
+	zIdx := zoekt.NewZoektIndex(store, zFs)
 
 	cleanup := func() {
 		idx.Close()
