@@ -1,12 +1,11 @@
 package query
 
 type SearchOptions struct {
-	RepoIDs             []uint32
-	Branches            []string
-	MaxMatchCount       int
-	MaxSearchTime       int
-	ShardRankMax        int
-	MaxConcurrentShards int
+	RepoIDs       []uint32
+	Branches      []string
+	MaxMatchCount int
+	MaxSearchTime int
+	ShardRankMax  int
 }
 
 func (o *SearchOptions) SetDefaults() {

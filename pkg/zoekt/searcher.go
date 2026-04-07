@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -119,13 +120,20 @@ func (z *ZkSearcher) Search(ctx context.Context, codebaseID string, queryStr str
 	}
 
 	resultsChan := make(chan shardResult, len(shardPaths))
-	sem := make(chan struct{}, opts.MaxConcurrentShards)
+
+	// Use semaphore to limit concurrent shard searches based on CPU count
+	maxCorrentSearches := (runtime.NumCPU() - 1)
+	if maxCorrentSearches <= 0 {
+		maxCorrentSearches = 1
+	}
+	sem := make(chan struct{}, maxCorrentSearches)
 
 	var wg errgroup.Group
 
 	for _, shardPath := range shardPaths {
 		shardPath := shardPath
 		wg.Go(func() error {
+			// acquire semaphore to limit concurrent shard searches
 			select {
 			case sem <- struct{}{}:
 			case <-ctx.Done():
@@ -133,7 +141,13 @@ func (z *ZkSearcher) Search(ctx context.Context, codebaseID string, queryStr str
 			}
 			defer func() { <-sem }()
 
-			log.Debug().Str("shardPath", shardPath).Msg("Will load shard")
+			// when context is cancelled, stops processing new shards
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
 			file, err := z.fsOpen(shardPath)
 			if err != nil {
 				log.Warn().Str("path", shardPath).Err(err).Msg("Failed to open shard")
